@@ -2690,6 +2690,12 @@ func (r *queryResolver) IntentExecution(ctx context.Context, id string) (*model.
 }
 
 // PreviewIntent is the resolver for the previewIntent field.
+// DB-sourced parity with Node's getIntentPreviewHandler: currentMatches are
+// inclusion matches without exclusions (regardless of update status),
+// excludedContainers carry exclusionReason, nextExecutionPreview lists the
+// upgradeable subset. Caveat: Node also fetches live runner containers; this
+// uses DB rows (runner containers are persisted during scans), so runner data
+// is as fresh as the last sync.
 func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.IntentPreview, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
@@ -2706,36 +2712,65 @@ func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.In
 	matchI := db.UnmarshalStringArr(intent.MatchImages)
 	matchS := db.UnmarshalStringArr(intent.MatchSources)
 	matchSt := db.UnmarshalStringArr(intent.MatchStacks)
+	matchR := db.UnmarshalStringArr(intent.MatchRegistries)
 	exC := db.UnmarshalStringArr(intent.ExcludeContainers)
 	exI := db.UnmarshalStringArr(intent.ExcludeImages)
 	exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
+	exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
 
-	matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
-		matchC, matchI, matchS, matchSt, nil, exC, exI, exSt, nil, 50, 0)
+	all, err := db.GetContainers(ctx, r.DB, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	containers := make([]*model.Container, len(matched))
-	for i := range matched {
-		containers[i] = containerRowToModel(&matched[i])
+	current := []*model.IntentPreviewContainer{}
+	excluded := []*model.IntentPreviewContainer{}
+	next := []*model.IntentPreviewContainer{}
+	for i := range all {
+		c := &all[i]
+		if !db.IntentMatchesInclusion(*c, matchC, matchI, matchS, matchSt, matchR) {
+			continue
+		}
+		hasUpdate := db.ContainerHasUpdate(*c)
+		if reason := db.IntentExclusionReason(*c, exC, exI, exSt, exR); reason != "" {
+			excluded = append(excluded, previewContainer(c, hasUpdate, strPtr(reason), nil))
+			continue
+		}
+		current = append(current, previewContainer(c, hasUpdate, nil, nil))
+		if hasUpdate {
+			next = append(next, previewContainer(c, hasUpdate, nil, strPtr("would_upgrade")))
+		}
 	}
 
-	// Count excluded
-	allContainers, allTotal, _ := db.GetContainersPaginated(ctx, r.DB, uid, 1000, 0)
-	_ = allContainers
-	excludedCount := allTotal - total
-
 	return &model.IntentPreview{
-		IntentID: id,
-		MatchedContainers: &model.ContainerConnection{
-			Items:      containers,
-			TotalCount: total,
-			PageInfo:   buildPageInfo(len(containers), total, 50, 0),
-		},
-		MatchedCount:  total,
-		ExcludedCount: excludedCount,
+		IntentID:             id,
+		CurrentMatches:       current,
+		ExcludedContainers:   excluded,
+		NextExecutionPreview: next,
 	}, nil
+}
+
+func previewContainer(c *db.ContainerRow, hasUpdate bool, exclusionReason, status *string) *model.IntentPreviewContainer {
+	pc := &model.IntentPreviewContainer{
+		ContainerID:     c.ContainerID,
+		ContainerName:   c.ContainerName,
+		HasUpdate:       hasUpdate,
+		ExclusionReason: exclusionReason,
+		Status:          status,
+	}
+	if c.ImageName.Valid {
+		pc.ImageName = &c.ImageName.String
+	}
+	if c.StackName.Valid {
+		pc.StackName = &c.StackName.String
+	}
+	if c.SourceInstanceID.Valid {
+		pc.SourceInstanceID = strPtr(strconv.FormatInt(c.SourceInstanceID.Int64, 10))
+	}
+	if c.RunnerID.Valid {
+		pc.RunnerID = strPtr(strconv.FormatInt(c.RunnerID.Int64, 10))
+	}
+	return pc
 }
 
 // BatchConfigs is the resolver for the batchConfigs field.

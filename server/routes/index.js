@@ -40,7 +40,6 @@ const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 
 const versionController = require("../controllers/versionController");
-const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
 const runnerController = require("../controllers/runnerController");
 const debugRouter = require("./debug");
@@ -783,7 +782,7 @@ router.post(
 
 // Intent routes
 // IMPORTANT: Specific/static routes must come before parameterized routes
-router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPreviewHandler));
+// Intent preview is served by the graph (previewIntent query).
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes

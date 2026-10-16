@@ -1,13 +1,10 @@
 /**
  * Custom hook for Intents functionality
  * Manages state and operations for automated upgrade intents
- * Uses GraphQL for CRUD, execution, dry-run, and detail operations;
- * the intent preview simulation remains REST.
+ * Uses GraphQL for CRUD, execution, dry-run, detail, and preview operations.
  */
 
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { graphqlClient } from "../graphql/client";
 import {
   INTENTS_QUERY,
@@ -17,6 +14,7 @@ import {
   TRIGGER_INTENT_MUTATION,
   INTENT_EXECUTIONS_QUERY,
   INTENT_EXECUTION_QUERY,
+  INTENT_PREVIEW_QUERY,
   DRY_RUN_INTENT_MUTATION,
 } from "../graphql/queries";
 import { SHORT_SUCCESS_MESSAGE_DURATION } from "../constants/intents";
@@ -353,16 +351,24 @@ export function useIntents(isAuthenticated, authToken) {
     }
   }, []);
 
-  // Fetch intent preview (REST)
+  // Fetch intent preview (GraphQL)
   const fetchIntentPreview = useCallback(async (intentId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/intents/${intentId}/preview`);
-      if (response.data.success) {
-        return response.data;
-      }
-      throw new Error("Failed to fetch preview");
+      const result = await graphqlClient
+        .query(INTENT_PREVIEW_QUERY, { id: String(intentId) })
+        .toPromise();
+      if (result.error) throw new Error(result.error.message);
+      const preview = result.data?.previewIntent;
+      if (!preview) throw new Error("Failed to fetch preview");
+      // Map to the shape the preview/matches tabs consume.
+      return {
+        success: true,
+        currentMatches: preview.currentMatches || [],
+        excludedContainers: preview.excludedContainers || [],
+        nextExecutionPreview: { containers: preview.nextExecutionPreview || [] },
+      };
     } catch (err) {
-      throw new Error(err.response?.data?.error || "Failed to fetch preview", { cause: err });
+      throw new Error(err.message || "Failed to fetch preview", { cause: err });
     }
   }, []);
 

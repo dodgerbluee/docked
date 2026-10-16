@@ -155,6 +155,31 @@ func intentExcludes(c ContainerRow, containers, images, stacks, registries []str
 		matchesAnyGlob(c.Registry.String, registries)
 }
 
+// IntentMatchesInclusion exposes the inclusion half of the intent matcher so
+// callers (e.g. previewIntent) can evaluate per-container decisions directly.
+func IntentMatchesInclusion(c ContainerRow, containers, images, sources, stacks, registries []string) bool {
+	return intentIncludes(c, containers, images, sources, stacks, registries)
+}
+
+// IntentExclusionReason mirrors Node's matchingEngine.getExclusionReason:
+// returns a human-readable reason when an inclusion-matched container is
+// excluded, or "" when it is not excluded.
+func IntentExclusionReason(c ContainerRow, containers, images, stacks, registries []string) string {
+	if len(containers) > 0 && matchesAnyGlob(c.ContainerName, containers) {
+		return "container name excluded"
+	}
+	if len(images) > 0 && matchesAnyGlob(c.ImageName.String, images) {
+		return "image excluded"
+	}
+	if len(stacks) > 0 && matchesAnyGlob(c.StackName.String, stacks) {
+		return "stack excluded"
+	}
+	if len(registries) > 0 && matchesAnyGlob(c.Registry.String, registries) {
+		return "registry excluded"
+	}
+	return ""
+}
+
 func matchesAnyGlob(value string, patterns []string) bool {
 	if value == "" || len(patterns) == 0 {
 		return false

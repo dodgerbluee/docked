@@ -1323,3 +1323,37 @@ export const SET_SSO_SETTINGS_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const INTENT_PREVIEW_QUERY = /* GraphQL */ `
+  query IntentPreview($id: ID!) {
+    previewIntent(id: $id) {
+      intentId
+      currentMatches {
+        containerId
+        containerName
+        imageName
+        stackName
+        sourceInstanceId
+        runnerId
+        hasUpdate
+      }
+      excludedContainers {
+        containerId
+        containerName
+        imageName
+        stackName
+        sourceInstanceId
+        runnerId
+        hasUpdate
+        exclusionReason
+      }
+      nextExecutionPreview {
+        containerId
+        containerName
+        imageName
+        stackName
+        status
+      }
+    }
+  }
+`;

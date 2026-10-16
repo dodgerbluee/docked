@@ -405,12 +405,27 @@ type Intent {
   executions(first: Int, after: String): IntentExecutionConnection!
 }
 
-# Preview result returned by previewIntent query
+# Preview result returned by previewIntent query.
+# currentMatches: containers matching the intent (regardless of update status);
+# excludedContainers: matched inclusion but excluded, with exclusionReason;
+# nextExecutionPreview: containers that would be upgraded (status "would_upgrade").
+type IntentPreviewContainer {
+  containerId: String!
+  containerName: String!
+  imageName: String
+  stackName: String
+  sourceInstanceId: ID
+  runnerId: ID
+  hasUpdate: Boolean!
+  exclusionReason: String
+  status: String
+}
+
 type IntentPreview {
   intentId: ID!
-  matchedContainers(first: Int, after: String): ContainerConnection!
-  matchedCount: Int!
-  excludedCount: Int!
+  currentMatches: [IntentPreviewContainer!]!
+  excludedContainers: [IntentPreviewContainer!]!
+  nextExecutionPreview: [IntentPreviewContainer!]!
 }
 
 type IntentExecution {

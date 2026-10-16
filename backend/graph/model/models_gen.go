@@ -383,10 +383,22 @@ type IntentExecutionContainerConnection struct {
 }
 
 type IntentPreview struct {
-	IntentID          string               `json:"intentId"`
-	MatchedContainers *ContainerConnection `json:"matchedContainers"`
-	MatchedCount      int                  `json:"matchedCount"`
-	ExcludedCount     int                  `json:"excludedCount"`
+	IntentID             string                    `json:"intentId"`
+	CurrentMatches       []*IntentPreviewContainer `json:"currentMatches"`
+	ExcludedContainers   []*IntentPreviewContainer `json:"excludedContainers"`
+	NextExecutionPreview []*IntentPreviewContainer `json:"nextExecutionPreview"`
+}
+
+type IntentPreviewContainer struct {
+	ContainerID      string  `json:"containerId"`
+	ContainerName    string  `json:"containerName"`
+	ImageName        *string `json:"imageName,omitempty"`
+	StackName        *string `json:"stackName,omitempty"`
+	SourceInstanceID *string `json:"sourceInstanceId,omitempty"`
+	RunnerID         *string `json:"runnerId,omitempty"`
+	HasUpdate        bool    `json:"hasUpdate"`
+	ExclusionReason  *string `json:"exclusionReason,omitempty"`
+	Status           *string `json:"status,omitempty"`
 }
 
 type LogResult struct {

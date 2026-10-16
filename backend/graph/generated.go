@@ -302,10 +302,22 @@ type ComplexityRoot struct {
 	}
 
 	IntentPreview struct {
-		ExcludedCount     func(childComplexity int) int
-		IntentID          func(childComplexity int) int
-		MatchedContainers func(childComplexity int, first *int, after *string) int
-		MatchedCount      func(childComplexity int) int
+		CurrentMatches       func(childComplexity int) int
+		ExcludedContainers   func(childComplexity int) int
+		IntentID             func(childComplexity int) int
+		NextExecutionPreview func(childComplexity int) int
+	}
+
+	IntentPreviewContainer struct {
+		ContainerID      func(childComplexity int) int
+		ContainerName    func(childComplexity int) int
+		ExclusionReason  func(childComplexity int) int
+		HasUpdate        func(childComplexity int) int
+		ImageName        func(childComplexity int) int
+		RunnerID         func(childComplexity int) int
+		SourceInstanceID func(childComplexity int) int
+		StackName        func(childComplexity int) int
+		Status           func(childComplexity int) int
 	}
 
 	LogResult struct {
@@ -2061,35 +2073,85 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.IntentExecutionContainerConnection.TotalCount(childComplexity), true
 
-	case "IntentPreview.excludedCount":
-		if e.ComplexityRoot.IntentPreview.ExcludedCount == nil {
+	case "IntentPreview.currentMatches":
+		if e.ComplexityRoot.IntentPreview.CurrentMatches == nil {
 			break
 		}
 
-		return e.ComplexityRoot.IntentPreview.ExcludedCount(childComplexity), true
+		return e.ComplexityRoot.IntentPreview.CurrentMatches(childComplexity), true
+	case "IntentPreview.excludedContainers":
+		if e.ComplexityRoot.IntentPreview.ExcludedContainers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreview.ExcludedContainers(childComplexity), true
 	case "IntentPreview.intentId":
 		if e.ComplexityRoot.IntentPreview.IntentID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.IntentPreview.IntentID(childComplexity), true
-	case "IntentPreview.matchedContainers":
-		if e.ComplexityRoot.IntentPreview.MatchedContainers == nil {
+	case "IntentPreview.nextExecutionPreview":
+		if e.ComplexityRoot.IntentPreview.NextExecutionPreview == nil {
 			break
 		}
 
-		args, err := ec.field_IntentPreview_matchedContainers_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
+		return e.ComplexityRoot.IntentPreview.NextExecutionPreview(childComplexity), true
 
-		return e.ComplexityRoot.IntentPreview.MatchedContainers(childComplexity, args["first"].(*int), args["after"].(*string)), true
-	case "IntentPreview.matchedCount":
-		if e.ComplexityRoot.IntentPreview.MatchedCount == nil {
+	case "IntentPreviewContainer.containerId":
+		if e.ComplexityRoot.IntentPreviewContainer.ContainerID == nil {
 			break
 		}
 
-		return e.ComplexityRoot.IntentPreview.MatchedCount(childComplexity), true
+		return e.ComplexityRoot.IntentPreviewContainer.ContainerID(childComplexity), true
+	case "IntentPreviewContainer.containerName":
+		if e.ComplexityRoot.IntentPreviewContainer.ContainerName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.ContainerName(childComplexity), true
+	case "IntentPreviewContainer.exclusionReason":
+		if e.ComplexityRoot.IntentPreviewContainer.ExclusionReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.ExclusionReason(childComplexity), true
+	case "IntentPreviewContainer.hasUpdate":
+		if e.ComplexityRoot.IntentPreviewContainer.HasUpdate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.HasUpdate(childComplexity), true
+	case "IntentPreviewContainer.imageName":
+		if e.ComplexityRoot.IntentPreviewContainer.ImageName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.ImageName(childComplexity), true
+	case "IntentPreviewContainer.runnerId":
+		if e.ComplexityRoot.IntentPreviewContainer.RunnerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.RunnerID(childComplexity), true
+	case "IntentPreviewContainer.sourceInstanceId":
+		if e.ComplexityRoot.IntentPreviewContainer.SourceInstanceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.SourceInstanceID(childComplexity), true
+	case "IntentPreviewContainer.stackName":
+		if e.ComplexityRoot.IntentPreviewContainer.StackName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.StackName(childComplexity), true
+	case "IntentPreviewContainer.status":
+		if e.ComplexityRoot.IntentPreviewContainer.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntentPreviewContainer.Status(childComplexity), true
 
 	case "LogResult.fileSize":
 		if e.ComplexityRoot.LogResult.FileSize == nil {
@@ -5230,12 +5292,27 @@ type Intent {
   executions(first: Int, after: String): IntentExecutionConnection!
 }
 
-# Preview result returned by previewIntent query
+# Preview result returned by previewIntent query.
+# currentMatches: containers matching the intent (regardless of update status);
+# excludedContainers: matched inclusion but excluded, with exclusionReason;
+# nextExecutionPreview: containers that would be upgraded (status "would_upgrade").
+type IntentPreviewContainer {
+  containerId: String!
+  containerName: String!
+  imageName: String
+  stackName: String
+  sourceInstanceId: ID
+  runnerId: ID
+  hasUpdate: Boolean!
+  exclusionReason: String
+  status: String
+}
+
 type IntentPreview {
   intentId: ID!
-  matchedContainers(first: Int, after: String): ContainerConnection!
-  matchedCount: Int!
-  excludedCount: Int!
+  currentMatches: [IntentPreviewContainer!]!
+  excludedContainers: [IntentPreviewContainer!]!
+  nextExecutionPreview: [IntentPreviewContainer!]!
 }
 
 type IntentExecution {
@@ -6736,14 +6813,38 @@ func (ec *executionContext) childFields_IntentPreview(ctx context.Context, field
 	switch field.Name {
 	case "intentId":
 		return ec.fieldContext_IntentPreview_intentId(ctx, field)
-	case "matchedContainers":
-		return ec.fieldContext_IntentPreview_matchedContainers(ctx, field)
-	case "matchedCount":
-		return ec.fieldContext_IntentPreview_matchedCount(ctx, field)
-	case "excludedCount":
-		return ec.fieldContext_IntentPreview_excludedCount(ctx, field)
+	case "currentMatches":
+		return ec.fieldContext_IntentPreview_currentMatches(ctx, field)
+	case "excludedContainers":
+		return ec.fieldContext_IntentPreview_excludedContainers(ctx, field)
+	case "nextExecutionPreview":
+		return ec.fieldContext_IntentPreview_nextExecutionPreview(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type IntentPreview", field.Name)
+}
+
+func (ec *executionContext) childFields_IntentPreviewContainer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "containerId":
+		return ec.fieldContext_IntentPreviewContainer_containerId(ctx, field)
+	case "containerName":
+		return ec.fieldContext_IntentPreviewContainer_containerName(ctx, field)
+	case "imageName":
+		return ec.fieldContext_IntentPreviewContainer_imageName(ctx, field)
+	case "stackName":
+		return ec.fieldContext_IntentPreviewContainer_stackName(ctx, field)
+	case "sourceInstanceId":
+		return ec.fieldContext_IntentPreviewContainer_sourceInstanceId(ctx, field)
+	case "runnerId":
+		return ec.fieldContext_IntentPreviewContainer_runnerId(ctx, field)
+	case "hasUpdate":
+		return ec.fieldContext_IntentPreviewContainer_hasUpdate(ctx, field)
+	case "exclusionReason":
+		return ec.fieldContext_IntentPreviewContainer_exclusionReason(ctx, field)
+	case "status":
+		return ec.fieldContext_IntentPreviewContainer_status(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type IntentPreviewContainer", field.Name)
 }
 
 func (ec *executionContext) childFields_LogResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7599,28 +7700,6 @@ func (ec *executionContext) field_Container_upgradeHistory_args(ctx context.Cont
 }
 
 func (ec *executionContext) field_IntentExecution_containers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["first"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["after"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_IntentPreview_matchedContainers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
@@ -13600,93 +13679,307 @@ func (ec *executionContext) fieldContext_IntentPreview_intentId(_ context.Contex
 	return graphql.NewScalarFieldContext("IntentPreview", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _IntentPreview_matchedContainers(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
+func (ec *executionContext) _IntentPreview_currentMatches(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_IntentPreview_matchedContainers(ctx, field)
+			return ec.fieldContext_IntentPreview_currentMatches(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.MatchedContainers, nil
+			return obj.CurrentMatches, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ContainerConnection) graphql.Marshaler {
-			return ec.marshalNContainerConnection2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerConnection(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.IntentPreviewContainer) graphql.Marshaler {
+			return ec.marshalNIntentPreviewContainer2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_IntentPreview_matchedContainers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_IntentPreview_currentMatches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "IntentPreview",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ContainerConnection(ctx, field)
+			return ec.childFields_IntentPreviewContainer(ctx, field)
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_IntentPreview_matchedContainers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _IntentPreview_matchedCount(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
+func (ec *executionContext) _IntentPreview_excludedContainers(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_IntentPreview_matchedCount(ctx, field)
+			return ec.fieldContext_IntentPreview_excludedContainers(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.MatchedCount, nil
+			return obj.ExcludedContainers, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.IntentPreviewContainer) graphql.Marshaler {
+			return ec.marshalNIntentPreviewContainer2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_IntentPreview_matchedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("IntentPreview", field, false, false, errors.New("field of type Int does not have child fields"))
+func (ec *executionContext) fieldContext_IntentPreview_excludedContainers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntentPreview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IntentPreviewContainer(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
-func (ec *executionContext) _IntentPreview_excludedCount(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
+func (ec *executionContext) _IntentPreview_nextExecutionPreview(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_IntentPreview_excludedCount(ctx, field)
+			return ec.fieldContext_IntentPreview_nextExecutionPreview(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ExcludedCount, nil
+			return obj.NextExecutionPreview, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.IntentPreviewContainer) graphql.Marshaler {
+			return ec.marshalNIntentPreviewContainer2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_IntentPreview_excludedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("IntentPreview", field, false, false, errors.New("field of type Int does not have child fields"))
+func (ec *executionContext) fieldContext_IntentPreview_nextExecutionPreview(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntentPreview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IntentPreviewContainer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntentPreviewContainer_containerId(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_containerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContainerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_containerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_containerName(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_containerName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContainerName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_containerName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_imageName(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_imageName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_imageName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_stackName(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_stackName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StackName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_stackName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_sourceInstanceId(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_sourceInstanceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SourceInstanceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_sourceInstanceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_runnerId(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_runnerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RunnerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_runnerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_hasUpdate(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_hasUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HasUpdate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_hasUpdate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_exclusionReason(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_exclusionReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExclusionReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_exclusionReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntentPreviewContainer_status(ctx context.Context, field graphql.CollectedField, obj *model.IntentPreviewContainer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntentPreviewContainer_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IntentPreviewContainer_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntentPreviewContainer", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _LogResult_logs(ctx context.Context, field graphql.CollectedField, obj *model.LogResult) (ret graphql.Marshaler) {
@@ -29094,19 +29387,97 @@ func (ec *executionContext) _IntentPreview(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "matchedContainers":
-			out.Values[i] = ec._IntentPreview_matchedContainers(ctx, field, obj)
+		case "currentMatches":
+			out.Values[i] = ec._IntentPreview_currentMatches(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "matchedCount":
-			out.Values[i] = ec._IntentPreview_matchedCount(ctx, field, obj)
+		case "excludedContainers":
+			out.Values[i] = ec._IntentPreview_excludedContainers(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "excludedCount":
-			out.Values[i] = ec._IntentPreview_excludedCount(ctx, field, obj)
+		case "nextExecutionPreview":
+			out.Values[i] = ec._IntentPreview_nextExecutionPreview(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var intentPreviewContainerImplementors = []string{"IntentPreviewContainer"}
+
+func (ec *executionContext) _IntentPreviewContainer(ctx context.Context, sel ast.SelectionSet, obj *model.IntentPreviewContainer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, intentPreviewContainerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntentPreviewContainer")
+		case "containerId":
+			out.Values[i] = ec._IntentPreviewContainer_containerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "containerName":
+			out.Values[i] = ec._IntentPreviewContainer_containerName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "imageName":
+			out.Values[i] = ec._IntentPreviewContainer_imageName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "stackName":
+			out.Values[i] = ec._IntentPreviewContainer_stackName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sourceInstanceId":
+			out.Values[i] = ec._IntentPreviewContainer_sourceInstanceId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "runnerId":
+			out.Values[i] = ec._IntentPreviewContainer_runnerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "hasUpdate":
+			out.Values[i] = ec._IntentPreviewContainer_hasUpdate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exclusionReason":
+			out.Values[i] = ec._IntentPreviewContainer_exclusionReason(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._IntentPreviewContainer_status(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -34515,6 +34886,32 @@ func (ec *executionContext) marshalNIntentPreview2ᚖgithubᚗcomᚋdockedappᚋ
 		return graphql.Null
 	}
 	return ec._IntentPreview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntentPreviewContainer2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.IntentPreviewContainer) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNIntentPreviewContainer2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainer(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntentPreviewContainer2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentPreviewContainer(ctx context.Context, sel ast.SelectionSet, v *model.IntentPreviewContainer) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntentPreviewContainer(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNIntentScheduleType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentScheduleType(ctx context.Context, v any) (model.IntentScheduleType, error) {
