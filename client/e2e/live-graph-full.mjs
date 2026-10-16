@@ -1123,7 +1123,7 @@ async function main() {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   page = await ctx.newPage();
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
-  console.log(`\nWaiting for login at ${BASE} (up to 5 min)...\n`);
+  console.log(`\nWaiting for login at ${BASE} (up to ${LOGIN_TIMEOUT_MS / 60000} min)...\n`);
   await page.waitForFunction(() => !!localStorage.getItem("authToken"), null, { timeout: LOGIN_TIMEOUT_MS });
   await sleep(1500);
 
