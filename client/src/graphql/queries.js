@@ -823,3 +823,31 @@ export const CLEAR_TRACKED_APP_CACHE_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const VALIDATE_SOURCE_CREDENTIALS_MUTATION = /* GraphQL */ `
+  mutation ValidateSourceCredentials($input: ValidateSourceCredentialsInput!) {
+    validateSourceCredentials(input: $input) {
+      valid
+      message
+      errorCode
+    }
+  }
+`;
+
+export const REORDER_SOURCE_INSTANCES_MUTATION = /* GraphQL */ `
+  mutation ReorderSourceInstances($instances: [ReorderSourceInput!]!) {
+    reorderSourceInstances(instances: $instances) {
+      success
+      message
+    }
+  }
+`;
+
+export const CHECK_SOURCE_INSTANCE_HEALTH_MUTATION = /* GraphQL */ `
+  mutation CheckSourceInstanceHealth($id: ID!) {
+    checkSourceInstanceHealth(id: $id) {
+      online
+      message
+    }
+  }
+`;

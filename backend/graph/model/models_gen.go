@@ -486,6 +486,11 @@ type RunnerStatusEvent struct {
 	LastHeartbeat *time.Time   `json:"lastHeartbeat,omitempty"`
 }
 
+type SourceHealthResult struct {
+	Online  bool    `json:"online"`
+	Message *string `json:"message,omitempty"`
+}
+
 type SourceInstance struct {
 	ID             string                   `json:"id"`
 	Name           string                   `json:"name"`

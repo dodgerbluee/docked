@@ -1062,6 +1062,7 @@ type Mutation {
   deleteSourceInstance(id: ID!): SuccessResult!
   reorderSourceInstances(instances: [ReorderSourceInput!]!): SuccessResult!
   validateSourceCredentials(input: ValidateSourceCredentialsInput!): ValidationResult!
+  checkSourceInstanceHealth(id: ID!): SourceHealthResult!
 
   # ── Runners ───────────────────────────────────────────────────────────────
   createRunner(input: CreateRunnerInput!): Runner!
@@ -1127,6 +1128,11 @@ type ValidationResult {
   valid: Boolean!
   message: String
   errorCode: ErrorCode
+}
+
+type SourceHealthResult {
+  online: Boolean!
+  message: String
 }
 
 type UpgradeResult {

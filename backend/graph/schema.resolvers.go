@@ -761,7 +761,22 @@ func (r *mutationResolver) ValidateSourceCredentials(ctx context.Context, input 
 		return nil, err
 	}
 
-	// Call Portainer API to validate credentials
+	// Call Portainer API to validate credentials (apikey: GET /api/endpoints with
+	// X-API-Key; password: POST /api/auth) — mirrors Node's authenticatePortainer.
+	if input.AuthType == model.AuthTypeAPIKey {
+		if input.APIKey == nil || *input.APIKey == "" {
+			return &model.ValidationResult{Valid: false, Message: strPtr("API key is required")}, nil
+		}
+		status, _, err := httpGetWithHeader(input.URL+"/api/endpoints", "X-API-Key", *input.APIKey)
+		if err != nil {
+			return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed: " + err.Error())}, nil
+		}
+		if status == 200 {
+			return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
+		}
+		return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("Auth failed (HTTP %d)", status))}, nil
+	}
+
 	url := input.URL + "/api/auth"
 	payload := map[string]string{"Username": derefStr(input.Username), "Password": derefStr(input.Password)}
 	status, body, err := httpPostJSON(url, payload, "")
@@ -773,6 +788,44 @@ func (r *mutationResolver) ValidateSourceCredentials(ctx context.Context, input 
 		return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
 	}
 	return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("Auth failed (HTTP %d)", status))}, nil
+}
+
+// CheckSourceInstanceHealth is the resolver for the checkSourceInstanceHealth field.
+func (r *mutationResolver) CheckSourceInstanceHealth(ctx context.Context, id string) (*model.SourceHealthResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sid, _ := strconv.ParseInt(id, 10, 64)
+
+	inst, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if inst == nil {
+		return nil, fmt.Errorf("source instance not found")
+	}
+
+	if inst.AuthType == "apikey" && inst.APIKey.Valid && inst.APIKey.String != "" {
+		status, _, err := httpGetWithHeader(inst.URL+"/api/endpoints", "X-API-Key", inst.APIKey.String)
+		if err != nil {
+			return &model.SourceHealthResult{Online: false, Message: strPtr(err.Error())}, nil
+		}
+		if status == 200 {
+			return &model.SourceHealthResult{Online: true}, nil
+		}
+		return &model.SourceHealthResult{Online: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
+	}
+
+	payload := map[string]string{"Username": inst.Username.String, "Password": inst.Password.String}
+	status, _, err := httpPostJSON(inst.URL+"/api/auth", payload, "")
+	if err != nil {
+		return &model.SourceHealthResult{Online: false, Message: strPtr(err.Error())}, nil
+	}
+	if status == 200 {
+		return &model.SourceHealthResult{Online: true}, nil
+	}
+	return &model.SourceHealthResult{Online: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
 }
 
 // CreateRunner is the resolver for the createRunner field.

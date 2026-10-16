@@ -3,6 +3,8 @@ import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
 import { registerCacheClear } from "../utils/cacheRegistry";
+import { graphqlClient } from "../graphql/client";
+import { SOURCE_INSTANCES_QUERY } from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so container-dependent tabs
 // (Summary, Containers) render instantly on re-navigation instead of showing
@@ -285,13 +287,13 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
 
     try {
       setSourceInstancesLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/sources/instances`);
-      if (response.data.success && response.data.instances) {
-        const formattedInstances = response.data.instances.map((inst) => ({
+      const result = await graphqlClient.query(SOURCE_INSTANCES_QUERY).toPromise();
+      if (!result.error && result.data?.sourceInstances) {
+        const formattedInstances = result.data.sourceInstances.map((inst) => ({
           name: inst.name,
           url: inst.url,
           id: inst.id,
-          display_order: inst.display_order,
+          display_order: inst.displayOrder,
           containers: [],
           upToDate: [],
         }));

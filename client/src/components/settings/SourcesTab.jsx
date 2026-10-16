@@ -29,6 +29,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
+import { graphqlClient } from "../../graphql/client";
+import { CHECK_SOURCE_INSTANCE_HEALTH_MUTATION } from "../../graphql/queries";
 import PortainerIcon from "../icons/PortainerIcon";
 import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -399,12 +401,16 @@ const SourcesTab = React.memo(function SourcesTab({
 
     sourceInstances.forEach((inst) => {
       setPortainerHealth((prev) => ({ ...prev, [inst.id]: { checking: true } }));
-      axios
-        .post(`${API_BASE_URL}/api/portainer/instances/${inst.id}/health`)
-        .then(({ data }) => {
+      graphqlClient
+        .mutation(CHECK_SOURCE_INSTANCE_HEALTH_MUTATION, { id: inst.id })
+        .toPromise()
+        .then((result) => {
           setPortainerHealth((prev) => ({
             ...prev,
-            [inst.id]: { online: data.online, checking: false },
+            [inst.id]: {
+              online: !result.error && !!result.data?.checkSourceInstanceHealth?.online,
+              checking: false,
+            },
           }));
         })
         .catch(() => {

@@ -1,6 +1,9 @@
 import { useState, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  SOURCE_INSTANCES_QUERY,
+  REORDER_SOURCE_INSTANCES_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useTabReordering Hook
@@ -11,10 +14,10 @@ export function useTabReordering(fetchContainers) {
 
   const handleReorderTabs = useCallback(
     async (fromIndex, toIndex) => {
-      // Get current instances from API to ensure we have IDs
+      // Get current instances from the graph to ensure we have IDs
       try {
-        const instancesResponse = await axios.get(`${API_BASE_URL}/api/sources/instances`);
-        const apiInstances = instancesResponse.data.instances || [];
+        const instancesResult = await graphqlClient.query(SOURCE_INSTANCES_QUERY).toPromise();
+        const apiInstances = instancesResult.data?.sourceInstances || [];
 
         if (apiInstances.length === 0) return;
 
@@ -23,15 +26,13 @@ export function useTabReordering(fetchContainers) {
         const [moved] = newOrder.splice(fromIndex, 1);
         newOrder.splice(toIndex, 0, moved);
 
-        // Build orders array for API
-        const orders = newOrder.map((instance, index) => ({
+        // Build orders array for the mutation
+        const instances = newOrder.map((instance, index) => ({
           id: instance.id,
-          display_order: index,
+          order: index,
         }));
 
-        await axios.post(`${API_BASE_URL}/api/sources/instances/reorder`, {
-          orders,
-        });
+        await graphqlClient.mutation(REORDER_SOURCE_INSTANCES_MUTATION, { instances }).toPromise();
         // Refresh containers to get updated order
         fetchContainers();
       } catch (err) {

@@ -306,6 +306,7 @@ type ComplexityRoot struct {
 	Mutation struct {
 		AssociateImages             func(childComplexity int, tokenID string, input model.AssociateImagesInput) int
 		BatchUpgrade                func(childComplexity int, input model.BatchUpgradeInput) int
+		CheckSourceInstanceHealth   func(childComplexity int, id string) int
 		CheckTrackedAppUpdate       func(childComplexity int, id string) int
 		CheckTrackedAppUpdates      func(childComplexity int) int
 		ClearContainerData          func(childComplexity int) int
@@ -473,6 +474,11 @@ type ComplexityRoot struct {
 		RunnerID      func(childComplexity int) int
 		RunnerName    func(childComplexity int) int
 		Status        func(childComplexity int) int
+	}
+
+	SourceHealthResult struct {
+		Message func(childComplexity int) int
+		Online  func(childComplexity int) int
 	}
 
 	SourceInstance struct {
@@ -688,6 +694,7 @@ type MutationResolver interface {
 	DeleteSourceInstance(ctx context.Context, id string) (*model.SuccessResult, error)
 	ReorderSourceInstances(ctx context.Context, instances []*model.ReorderSourceInput) (*model.SuccessResult, error)
 	ValidateSourceCredentials(ctx context.Context, input model.ValidateSourceCredentialsInput) (*model.ValidationResult, error)
+	CheckSourceInstanceHealth(ctx context.Context, id string) (*model.SourceHealthResult, error)
 	CreateRunner(ctx context.Context, input model.CreateRunnerInput) (*model.Runner, error)
 	UpdateRunner(ctx context.Context, id string, input model.UpdateRunnerInput) (*model.Runner, error)
 	DeleteRunner(ctx context.Context, id string) (*model.SuccessResult, error)
@@ -1952,6 +1959,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BatchUpgrade(childComplexity, args["input"].(model.BatchUpgradeInput)), true
+	case "Mutation.checkSourceInstanceHealth":
+		if e.ComplexityRoot.Mutation.CheckSourceInstanceHealth == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_checkSourceInstanceHealth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CheckSourceInstanceHealth(childComplexity, args["id"].(string)), true
 	case "Mutation.checkTrackedAppUpdate":
 		if e.ComplexityRoot.Mutation.CheckTrackedAppUpdate == nil {
 			break
@@ -3097,6 +3115,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RunnerStatusEvent.Status(childComplexity), true
+
+	case "SourceHealthResult.message":
+		if e.ComplexityRoot.SourceHealthResult.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SourceHealthResult.Message(childComplexity), true
+	case "SourceHealthResult.online":
+		if e.ComplexityRoot.SourceHealthResult.Online == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SourceHealthResult.Online(childComplexity), true
 
 	case "SourceInstance.authType":
 		if e.ComplexityRoot.SourceInstance.AuthType == nil {
@@ -5111,6 +5142,7 @@ type Mutation {
   deleteSourceInstance(id: ID!): SuccessResult!
   reorderSourceInstances(instances: [ReorderSourceInput!]!): SuccessResult!
   validateSourceCredentials(input: ValidateSourceCredentialsInput!): ValidationResult!
+  checkSourceInstanceHealth(id: ID!): SourceHealthResult!
 
   # ── Runners ───────────────────────────────────────────────────────────────
   createRunner(input: CreateRunnerInput!): Runner!
@@ -5176,6 +5208,11 @@ type ValidationResult {
   valid: Boolean!
   message: String
   errorCode: ErrorCode
+}
+
+type SourceHealthResult {
+  online: Boolean!
+  message: String
 }
 
 type UpgradeResult {
@@ -5942,6 +5979,16 @@ func (ec *executionContext) childFields_RunnerStatusEvent(ctx context.Context, f
 	return nil, fmt.Errorf("no field named %q was found under type RunnerStatusEvent", field.Name)
 }
 
+func (ec *executionContext) childFields_SourceHealthResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "online":
+		return ec.fieldContext_SourceHealthResult_online(ctx, field)
+	case "message":
+		return ec.fieldContext_SourceHealthResult_message(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SourceHealthResult", field.Name)
+}
+
 func (ec *executionContext) childFields_SourceInstance(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -6539,6 +6586,20 @@ func (ec *executionContext) field_Mutation_batchUpgrade_args(ctx context.Context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_checkSourceInstanceHealth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -12941,6 +13002,50 @@ func (ec *executionContext) fieldContext_Mutation_validateSourceCredentials(ctx 
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_checkSourceInstanceHealth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_checkSourceInstanceHealth(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CheckSourceInstanceHealth(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceHealthResult) graphql.Marshaler {
+			return ec.marshalNSourceHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceHealthResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_checkSourceInstanceHealth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SourceHealthResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_checkSourceInstanceHealth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createRunner(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17028,6 +17133,52 @@ func (ec *executionContext) _RunnerStatusEvent_lastHeartbeat(ctx context.Context
 }
 func (ec *executionContext) fieldContext_RunnerStatusEvent_lastHeartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RunnerStatusEvent", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _SourceHealthResult_online(ctx context.Context, field graphql.CollectedField, obj *model.SourceHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SourceHealthResult_online(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Online, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SourceHealthResult_online(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SourceHealthResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SourceHealthResult_message(ctx context.Context, field graphql.CollectedField, obj *model.SourceHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SourceHealthResult_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SourceHealthResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SourceHealthResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SourceInstance_id(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
@@ -25094,6 +25245,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "checkSourceInstanceHealth":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_checkSourceInstanceHealth(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createRunner":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createRunner(ctx, field)
@@ -26769,6 +26927,49 @@ func (ec *executionContext) _RunnerStatusEvent(ctx context.Context, sel ast.Sele
 			}
 		case "lastHeartbeat":
 			out.Values[i] = ec._RunnerStatusEvent_lastHeartbeat(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sourceHealthResultImplementors = []string{"SourceHealthResult"}
+
+func (ec *executionContext) _SourceHealthResult(ctx context.Context, sel ast.SelectionSet, obj *model.SourceHealthResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sourceHealthResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SourceHealthResult")
+		case "online":
+			out.Values[i] = ec._SourceHealthResult_online(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._SourceHealthResult_message(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -29537,6 +29738,16 @@ func (ec *executionContext) marshalNRunnerStatusEvent2ᚖgithubᚗcomᚋdockedap
 		return graphql.Null
 	}
 	return ec._RunnerStatusEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSourceHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceHealthResult(ctx context.Context, sel ast.SelectionSet, v *model.SourceHealthResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SourceHealthResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNSourceInstance2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SourceInstance) graphql.Marshaler {

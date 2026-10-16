@@ -36,7 +36,6 @@ const containerController = require("../controllers/containerController");
 const containerDebugController = require("../controllers/containerDebugController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
-const sourceController = require("../controllers/sourceController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedAppHistoryController = require("../controllers/trackedAppController");
@@ -502,12 +501,6 @@ router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.compl
  */
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
-// Validation endpoints (public - used during import process)
-router.post(
-  "/portainer/instances/validate",
-  publicLimiter,
-  asyncHandler(sourceController.validateInstance)
-);
 router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
 
 // Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
@@ -844,42 +837,6 @@ router.get(
   "/containers/:containerId/debug",
   asyncHandler(containerDebugController.getContainerDebugInfo)
 );
-
-// Portainer instance routes (legacy - kept for backward compatibility)
-router.post("/portainer/instances", writeLimiter, asyncHandler(sourceController.createInstance));
-
-router.put("/portainer/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
-router.post("/portainer/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
-
-// Source instance routes (new canonical paths)
-/**
- * @swagger
- * /sources/instances:
- *   get:
- *     summary: Get all source instances for current user
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of source instances
- *       401:
- *         description: Unauthorized
- *   post:
- *     summary: Create a new source instance
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       201:
- *         description: Source instance created
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- */
-router.get("/sources/instances", asyncHandler(sourceController.getInstances));
-router.post("/sources/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
 
 // Avatar routes
 router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));

@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import { Package, Lock } from "lucide-react";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
@@ -13,7 +12,12 @@ import Button from "./ui/Button";
 import ToggleButton from "./ui/ToggleButton";
 import Alert from "./ui/Alert";
 import PortainerIcon from "./icons/PortainerIcon";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  CREATE_SOURCE_INSTANCE_MUTATION,
+  UPDATE_SOURCE_INSTANCE_MUTATION,
+  VALIDATE_SOURCE_CREDENTIALS_MUTATION,
+} from "../graphql/queries";
 import styles from "./AddSourceModal.module.css";
 
 const PROTOCOL_OPTIONS = [
@@ -107,7 +111,7 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
       const requestData = {
         name: formData.name,
         url: urlWithProtocol,
-        authType: authType,
+        authType: authType === "apikey" ? "APIKEY" : "PASSWORD",
       };
 
       if (authType === "apikey") {
@@ -117,15 +121,14 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
         requestData.password = formData.password;
       }
 
-      let response;
+      let result;
       if (instanceId) {
         // Update existing instance (no validation needed)
-        response = await axios.put(
-          `${API_BASE_URL}/api/portainer/instances/${instanceId}`,
-          requestData
-        );
+        result = await graphqlClient
+          .mutation(UPDATE_SOURCE_INSTANCE_MUTATION, { id: instanceId, input: requestData })
+          .toPromise();
 
-        if (response.data.success) {
+        if (!result.error && result.data?.updateSourceInstance) {
           // Pass the updated instance data so the parent can refresh
           // onSuccess is async - wait for it to complete before closing
           await onSuccess({
@@ -138,7 +141,7 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
           setAuthType("apikey");
           onClose();
         } else {
-          setError(response.data.error || "Failed to update Portainer instance");
+          setError(result.error?.message || "Failed to update Portainer instance");
         }
       } else {
         // Create new instance - validate authentication first
@@ -156,27 +159,32 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
             validateData.password = requestData.password;
           }
 
-          const validateResponse = await axios.post(
-            `${API_BASE_URL}/api/portainer/instances/validate`,
-            validateData
-          );
+          const validateResult = await graphqlClient
+            .mutation(VALIDATE_SOURCE_CREDENTIALS_MUTATION, { input: validateData })
+            .toPromise();
 
-          if (!validateResponse.data.success) {
-            setError(validateResponse.data.error || "Authentication validation failed");
+          if (validateResult.error || !validateResult.data?.validateSourceCredentials?.valid) {
+            setError(
+              validateResult.error?.message ||
+                validateResult.data?.validateSourceCredentials?.message ||
+                "Authentication validation failed"
+            );
             setLoading(false);
             return;
           }
 
           // Authentication successful, now create the instance
-          response = await axios.post(`${API_BASE_URL}/api/portainer/instances`, requestData);
+          result = await graphqlClient
+            .mutation(CREATE_SOURCE_INSTANCE_MUTATION, { input: requestData })
+            .toPromise();
 
-          if (response.data.success) {
+          if (!result.error && result.data?.createSourceInstance) {
             // Pass instance data to onSuccess callback for new instances
             // onSuccess is async and will handle data fetching - wait for it to complete
             const instanceData = {
               name: formData.name || new URL(requestData.url).hostname,
               url: requestData.url,
-              id: response.data.id,
+              id: result.data.createSourceInstance.id,
             };
 
             // Set creating state to show "Creating..." button
@@ -199,12 +207,12 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
               setError(err.message || "Failed to prepare instance. Please try again.");
             }
           } else {
-            setError(response.data.error || "Failed to add Portainer instance");
+            setError(result.error?.message || "Failed to add Portainer instance");
           }
         } catch (validateErr) {
           // Validation failed - show error
           setError(
-            validateErr.response?.data?.error ||
+            validateErr.message ||
               "Authentication failed. Please check your credentials and try again."
           );
           setLoading(false);
@@ -213,7 +221,7 @@ function AddSourceModal({ isOpen, onClose, onSuccess, initialData = null, instan
       }
     } catch (err) {
       setError(
-        err.response?.data?.error ||
+        err.message ||
           (instanceId
             ? "Failed to update Portainer instance. Please try again."
             : "Failed to add Portainer instance. Please try again.")

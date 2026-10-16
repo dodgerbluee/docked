@@ -677,6 +677,21 @@ func httpGet(url string) (int, []byte, error) {
 	data, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, data, nil
 }
+func httpGetWithHeader(url, header, value string) (int, []byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set(header, value)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
 func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

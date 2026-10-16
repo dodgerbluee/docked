@@ -7,6 +7,8 @@ import axios from "axios";
 import { API_BASE_URL } from "../../../utils/api";
 import { validateStep } from "../utils/credentialsValidation";
 import { validateDiscordWebhookUrl } from "../../../utils/validation";
+import { graphqlClient } from "../../../graphql/client";
+import { VALIDATE_SOURCE_CREDENTIALS_MUTATION } from "../../../graphql/queries";
 
 /**
  * Hook to manage import credentials flow
@@ -81,7 +83,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
       const instance = configData.sourceInstances[index];
       const validateData = {
         url: instance.url,
-        authType: cred.auth_type,
+        authType: cred.auth_type === "apikey" ? "APIKEY" : "PASSWORD",
       };
 
       if (cred.auth_type === "apikey") {
@@ -92,17 +94,16 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
       }
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/api/portainer/instances/validate`,
-          validateData
-        );
-        return { success: response.data.success, index, error: null };
-      } catch (error) {
+        const result = await graphqlClient
+          .mutation(VALIDATE_SOURCE_CREDENTIALS_MUTATION, { input: validateData })
+          .toPromise();
         return {
-          success: false,
+          success: !result.error && !!result.data?.validateSourceCredentials?.valid,
           index,
-          error: error.response?.data?.error || "Authentication failed",
+          error: result.error?.message || result.data?.validateSourceCredentials?.message || null,
         };
+      } catch (error) {
+        return { success: false, index, error: error.message || "Authentication failed" };
       }
     });
 

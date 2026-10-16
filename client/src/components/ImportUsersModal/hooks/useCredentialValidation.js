@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../utils/api";
 import { validateStep } from "../utils/userImportValidators";
+import { graphqlClient } from "../../../graphql/client";
+import { VALIDATE_SOURCE_CREDENTIALS_MUTATION } from "../../../graphql/queries";
 
 // Step types
 const STEP_TYPES = {
@@ -81,7 +83,7 @@ export function useCredentialValidation({
 
             const validateData = {
               url: instance.url,
-              authType: cred.auth_type,
+              authType: cred.auth_type === "apikey" ? "APIKEY" : "PASSWORD",
             };
 
             if (cred.auth_type === "apikey") {
@@ -92,20 +94,24 @@ export function useCredentialValidation({
             }
 
             try {
-              const response = await validationAxios.post(
-                `/api/portainer/instances/validate`,
-                validateData
-              );
-              if (!response.data.success) {
+              const result = await graphqlClient
+                .mutation(VALIDATE_SOURCE_CREDENTIALS_MUTATION, { input: validateData })
+                .toPromise();
+              const valid = !result.error && !!result.data?.validateSourceCredentials?.valid;
+              if (!valid) {
                 console.error(`[ImportUsersModal] Validation failed for instance:`, {
                   index,
                   instanceName: instance.name,
                   instanceUrl: instance.url,
                   credUrl: cred.url,
-                  response: response.data,
+                  result: result.error?.message || result.data,
                 });
               }
-              return { success: response.data.success, index, error: response.data.error || null };
+              return {
+                success: valid,
+                index,
+                error: result.error?.message || result.data?.validateSourceCredentials?.message || null,
+              };
             } catch (err) {
               console.error(`[ImportUsersModal] Validation error for instance:`, {
                 index,
@@ -113,9 +119,8 @@ export function useCredentialValidation({
                 instanceUrl: instance.url,
                 credUrl: cred.url,
                 error: err.message,
-                response: err.response?.data,
               });
-              return { success: false, index, error: err.response?.data?.error || err.message };
+              return { success: false, index, error: err.message };
             }
           });
 
