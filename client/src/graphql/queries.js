@@ -1429,3 +1429,66 @@ export const UNINSTALL_RUNNER_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+// ── Bootstrap: first-user registration code + instance-admin import tokens ──
+
+export const REGISTRATION_CODE_STATUS_QUERY = /* GraphQL */ `
+  query RegistrationCodeStatus {
+    registrationCodeStatus {
+      requiresCode
+      codeActive
+    }
+  }
+`;
+
+export const GENERATE_REGISTRATION_CODE_MUTATION = /* GraphQL */ `
+  mutation GenerateRegistrationCode {
+    generateRegistrationCode {
+      success
+      message
+      error
+    }
+  }
+`;
+
+export const VERIFY_REGISTRATION_CODE_MUTATION = /* GraphQL */ `
+  mutation VerifyRegistrationCode($code: String!) {
+    verifyRegistrationCode(code: $code) {
+      success
+      message
+      error
+    }
+  }
+`;
+
+export const GENERATE_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
+  mutation GenerateInstanceAdminToken($username: String!) {
+    generateInstanceAdminToken(username: $username) {
+      success
+      token
+      message
+      error
+    }
+  }
+`;
+
+export const REGENERATE_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
+  mutation RegenerateInstanceAdminToken($username: String!) {
+    regenerateInstanceAdminToken(username: $username) {
+      success
+      token
+      message
+      error
+    }
+  }
+`;
+
+export const VERIFY_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
+  mutation VerifyInstanceAdminToken($username: String!, $token: String!) {
+    verifyInstanceAdminToken(username: $username, token: $token) {
+      success
+      message
+      error
+    }
+  }
+`;

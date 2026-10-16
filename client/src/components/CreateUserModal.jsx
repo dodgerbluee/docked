@@ -6,13 +6,13 @@
 
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import Modal from "./ui/Modal";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
 import RegistrationCodeStep from "./CreateUserModal/RegistrationCodeStep";
 import UserFormStep from "./CreateUserModal/components/UserFormStep";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { REGISTER_MUTATION } from "../graphql/queries";
 import {
   validateUsername,
   validatePassword,
@@ -148,33 +148,22 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
     setLoading(true);
 
     try {
-      // Create a completely clean axios instance for registration
-      const registerAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      // Explicitly remove any Authorization header
-      delete registerAxios.defaults.headers.common["Authorization"];
-      delete registerAxios.defaults.headers.Authorization;
-
-      const requestBody = {
+      const input = {
         username: formData.username,
         password: formData.password,
-        confirmPassword: formData.confirmPassword,
         email: formData.email || null,
       };
 
       // Include registration code if required (remove dashes before sending)
       if (requiresCode && formData.registrationCode) {
-        requestBody.registrationCode = formData.registrationCode.replace(/-/g, "");
+        input.registrationCode = formData.registrationCode.replace(/-/g, "");
       }
 
-      const response = await registerAxios.post("/api/auth/register", requestBody);
+      const { data, error } = await graphqlClient
+        .mutation(REGISTER_MUTATION, { input })
+        .toPromise();
 
-      if (response.data.success) {
+      if (!error && data?.register) {
         if (onSuccess) {
           // Pass username to success callback for personalized message
           // onSuccess will handle closing the modal, so don't call onClose() here
@@ -184,7 +173,7 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
           onClose();
         }
       } else {
-        setError(getErrorMessage(response.data, "Failed to create user"));
+        setError(error?.message || "Failed to create user. Please try again.");
       }
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create user. Please try again."));

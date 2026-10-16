@@ -115,15 +115,25 @@ func CreateUser(ctx context.Context, database *sql.DB, username, passwordHash, r
 // the lock another writer already holds, without waiting out the busy timeout.
 // A failed attempt inserts nothing, so we retry a bounded number of times with
 // a short backoff; the COUNT(*) guard is re-evaluated on each attempt.
-func RegisterUser(ctx context.Context, database *sql.DB, username, passwordHash string) (id int64, role string, instanceAdmin int, err error) {
-	const stmt = `INSERT INTO users (username, password_hash, role, instance_admin)
-	             SELECT ?, ?,
+//
+// Deliberate deviation from the retired Node registerUser, which hardcoded
+// role='Administrator' for EVERY public registration: here only the first
+// user bootstraps to Administrator + instance_admin, later registrants get
+// Member. Public registration must not mint admins; role changes go through
+// the admin-gated user-management mutations.
+func RegisterUser(ctx context.Context, database *sql.DB, username, passwordHash, email string) (id int64, role string, instanceAdmin int, err error) {
+	const stmt = `INSERT INTO users (username, password_hash, email, role, instance_admin)
+	             SELECT ?, ?, ?,
 		            CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'Administrator' ELSE 'Member' END,
 		            CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END
 	             RETURNING id, role, instance_admin`
 
+	var emailArg any
+	if email != "" {
+		emailArg = email
+	}
 	for attempt := 0; ; attempt++ {
-		err = database.QueryRowContext(ctx, stmt, username, passwordHash).Scan(&id, &role, &instanceAdmin)
+		err = database.QueryRowContext(ctx, stmt, username, passwordHash, emailArg).Scan(&id, &role, &instanceAdmin)
 		if err == nil {
 			return id, role, instanceAdmin, nil
 		}
@@ -140,13 +150,17 @@ func RegisterUser(ctx context.Context, database *sql.DB, username, passwordHash 
 
 // RegisterUserWithCode atomically consumes a shared bootstrap code and inserts
 // the user. If either operation fails, neither is committed.
-func RegisterUserWithCode(ctx context.Context, database *sql.DB, username, passwordHash, storedCode string) (id int64, role string, instanceAdmin int, err error) {
-	const insert = `INSERT INTO users (username, password_hash, role, instance_admin)
-		SELECT ?, ?,
+func RegisterUserWithCode(ctx context.Context, database *sql.DB, username, passwordHash, email, storedCode string) (id int64, role string, instanceAdmin int, err error) {
+	const insert = `INSERT INTO users (username, password_hash, email, role, instance_admin)
+		SELECT ?, ?, ?,
 			CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'Administrator' ELSE 'Member' END,
 			CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END
 		RETURNING id, role, instance_admin`
 
+	var emailArg any
+	if email != "" {
+		emailArg = email
+	}
 	for attempt := 0; ; attempt++ {
 		tx, beginErr := database.BeginTx(ctx, nil)
 		if beginErr != nil {
@@ -156,7 +170,7 @@ func RegisterUserWithCode(ctx context.Context, database *sql.DB, username, passw
 			err = tx.QueryRowContext(ctx,
 				"SELECT value FROM settings WHERE key = 'registration_code' AND value = ? LIMIT 1", storedCode).Scan(&current)
 			if err == nil {
-				err = tx.QueryRowContext(ctx, insert, username, passwordHash).Scan(&id, &role, &instanceAdmin)
+				err = tx.QueryRowContext(ctx, insert, username, passwordHash, emailArg).Scan(&id, &role, &instanceAdmin)
 			}
 			if err == nil {
 				var result sql.Result
@@ -234,6 +248,34 @@ func GetUserCount(ctx context.Context, database *sql.DB) (int, error) {
 	var count int
 	err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	return count, err
+}
+
+// UpdateVerificationToken stores a one-time instance-admin verification
+// token for an existing user (mirrors Node's updateVerificationToken).
+func UpdateVerificationToken(ctx context.Context, database *sql.DB, username, token string) error {
+	_, err := database.ExecContext(ctx,
+		"UPDATE users SET verification_token = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
+		token, username)
+	if err != nil {
+		return fmt.Errorf("update verification token: %w", err)
+	}
+	return nil
+}
+
+// VerifyAndClearToken consumes a stored verification token in a single
+// atomic statement; true means the token matched and was cleared.
+func VerifyAndClearToken(ctx context.Context, database *sql.DB, username, token string) (bool, error) {
+	result, err := database.ExecContext(ctx,
+		"UPDATE users SET verification_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE username = ? AND verification_token = ?",
+		username, token)
+	if err != nil {
+		return false, fmt.Errorf("verify and clear token: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("verify and clear token rows: %w", err)
+	}
+	return changed == 1, nil
 }
 
 // UserStats carries per-user counts shown in the admin user detail modal.

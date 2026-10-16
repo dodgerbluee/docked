@@ -12,12 +12,9 @@ const {
   getUserById,
   verifyPassword,
   updateLastLogin,
-  hasAnyUsers,
   createUser,
-  registerUser,
   getAllUsers,
   updateVerificationToken,
-  verifyAndClearToken,
   getAllSourceInstances,
   getAllDiscordWebhooks,
   getAllTrackedApps,
@@ -33,261 +30,13 @@ const {
   setSystemSetting,
 } = require("../db/index");
 const {
-  validateRegistrationCode,
-  clearRegistrationCode,
-  isRegistrationCodeActive,
-} = require("../utils/registrationCode");
-const {
   generateVerificationToken,
   logVerificationToken,
-  storePendingToken,
-  verifyAndClearPendingToken,
   clearPendingToken,
 } = require("../utils/verificationToken");
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
 const fs = require("fs");
 const path = require("path");
-
-/**
- * Validate registration input
- * @param {string} username - Username to validate
- * @param {string} password - Password to validate
- * @param {string} confirmPassword - Password confirmation
- * @param {string} email - Email to validate (optional)
- * @returns {Object|null} Error object or null if valid
- */
-function validateRegistrationInput(username, password, confirmPassword, email) {
-  const validationError = validateRequiredFields({ username, password }, ["username", "password"]);
-  if (validationError) {
-    return validationError;
-  }
-
-  if (password !== confirmPassword) {
-    return {
-      success: false,
-      error: "Passwords do not match",
-    };
-  }
-
-  if (password.length < 8) {
-    return {
-      success: false,
-      error: "Password must be at least 8 characters long",
-    };
-  }
-
-  if (username.length < 3) {
-    return {
-      success: false,
-      error: "Username must be at least 3 characters long",
-    };
-  }
-
-  if (email && email.trim() !== "") {
-    if (!isValidEmail(email.trim())) {
-      return {
-        success: false,
-        error: "Invalid email format",
-      };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Validate registration code for first user
- * @param {boolean} isFirstUser - Whether this is the first user
- * @param {string} registrationCode - Registration code to validate
- * @returns {Object|null} Error object or null if valid
- */
-function validateRegistrationCodeForFirstUser(isFirstUser, registrationCode) {
-  if (!isFirstUser) {
-    return null;
-  }
-
-  if (!registrationCode) {
-    return {
-      success: false,
-      error: "Registration code is required for the first user",
-    };
-  }
-
-  if (!validateRegistrationCode(registrationCode)) {
-    return {
-      success: false,
-      error: "Invalid registration code",
-    };
-  }
-
-  return null;
-}
-
-/**
- * Register endpoint
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-
-async function register(req, res, next) {
-  try {
-    const { username, password, confirmPassword, email, registrationCode } = req.body;
-
-    const inputError = validateRegistrationInput(username, password, confirmPassword, email);
-    if (inputError) {
-      return res.status(400).json(inputError);
-    }
-
-    const isFirstUser = !(await hasAnyUsers());
-
-    const codeError = validateRegistrationCodeForFirstUser(isFirstUser, registrationCode);
-    if (codeError) {
-      return res
-        .status(codeError.error === "Invalid registration code" ? 401 : 400)
-        .json(codeError);
-    }
-
-    const existingUser = await getUserByUsername(username);
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: "Username already exists",
-      });
-    }
-
-    await registerUser(username, password, email || null);
-
-    if (isFirstUser) {
-      clearRegistrationCode();
-    }
-
-    return res.json({
-      success: true,
-      message: "User created successfully",
-    });
-  } catch (error) {
-    if (error.message && error.message.includes("UNIQUE constraint failed")) {
-      return res.status(400).json({
-        success: false,
-        error: "Username already exists",
-      });
-    }
-    next(error);
-  }
-}
-
-/**
- * Check if registration code is required
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-
-async function checkRegistrationCodeRequired(req, res, next) {
-  try {
-    const hasUsers = await hasAnyUsers();
-    const codeActive = isRegistrationCodeActive();
-
-    return res.json({
-      success: true,
-      requiresCode: !hasUsers,
-      codeActive,
-    });
-  } catch (error) {
-    return next(error);
-  }
-}
-
-/**
- * Generate registration code for first user
- * Called when user clicks "Create User" and no users exist
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function generateRegistrationCodeEndpoint(req, res, next) {
-  try {
-    const hasUsers = await hasAnyUsers();
-
-    if (hasUsers) {
-      return res.status(400).json({
-        success: false,
-        error: "Registration code can only be generated when no users exist",
-      });
-    }
-
-    // Generate and log the code (code is NOT returned to frontend)
-    const { initializeRegistrationCode } = require("../utils/registrationCode");
-    initializeRegistrationCode();
-
-    return res.json({
-      success: true,
-      message: "Registration code generated and logged to container logs",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Verify registration code
- * Called when user enters registration code to verify it matches
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function verifyRegistrationCode(req, res, next) {
-  try {
-    const { registrationCode } = req.body;
-
-    logger.info("[authController] verifyRegistrationCode called", {
-      hasCode: Boolean(registrationCode),
-      codeLength: registrationCode?.length,
-    });
-
-    if (!registrationCode) {
-      logger.warn("[authController] No registration code provided");
-      return res.status(400).json({
-        success: false,
-        error: "Registration code is required",
-      });
-    }
-
-    const {
-      isRegistrationCodeActive: isRegistrationCodeActiveLocal,
-    } = require("../utils/registrationCode");
-    const codeActive = isRegistrationCodeActiveLocal();
-    logger.info("[authController] Registration code status", { codeActive });
-
-    if (!codeActive) {
-      logger.warn("[authController] No registration code has been generated");
-      return res.status(400).json({
-        success: false,
-        error: "Registration code has not been generated. Please click 'Create User' first.",
-      });
-    }
-
-    const isValid = validateRegistrationCode(registrationCode);
-    logger.info("[authController] Code validation result", { isValid });
-
-    if (isValid) {
-      logger.info("[authController] Registration code verified successfully");
-      return res.json({
-        success: true,
-        message: "Registration code is valid",
-      });
-    }
-    logger.warn("[authController] Invalid registration code provided");
-    return res.status(401).json({
-      success: false,
-      error: "Invalid registration code",
-    });
-  } catch (error) {
-    logger.error("[authController] Error verifying registration code:", error);
-    next(error);
-  }
-}
 
 /**
  * Login endpoint
@@ -872,142 +621,6 @@ async function importGeneralSettings(generalSettings, user, results) {
  */
 
 /**
- * Generate a verification token for an instance admin user (without creating the user)
- * Used during import flow to generate tokens before user creation
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function generateInstanceAdminToken(req, res, next) {
-  try {
-    const { username } = req.body;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        error: "Username is required",
-      });
-    }
-
-    // Generate verification token
-    const verificationToken = generateVerificationToken();
-
-    // Log the token
-    logVerificationToken(username, verificationToken);
-
-    // Store token temporarily (for users that don't exist yet during import)
-    storePendingToken(username, verificationToken);
-
-    return res.json({
-      success: true,
-      token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
-      message: "Verification token generated and logged to server logs",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Regenerate verification token for an instance admin user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function regenerateInstanceAdminToken(req, res, next) {
-  try {
-    const { username } = req.body;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        error: "Username is required",
-      });
-    }
-
-    // Check if user exists and is instance admin
-    const user = await getUserByUsername(username);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    if (user.instance_admin !== 1) {
-      return res.status(400).json({
-        success: false,
-        error: "User is not an instance admin",
-      });
-    }
-
-    // Generate new verification token
-    const verificationToken = generateVerificationToken();
-
-    // Update token in database
-    await updateVerificationToken(username, verificationToken);
-
-    // Clear any pending token (user exists now)
-    clearPendingToken(username);
-
-    // Log the token
-    logVerificationToken(username, verificationToken);
-
-    return res.json({
-      success: true,
-      token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
-      message: "Verification token regenerated and logged to server logs",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Verify instance admin token
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function verifyInstanceAdminToken(req, res, next) {
-  try {
-    const { username, token } = req.body;
-
-    if (!username || !token) {
-      return res.status(400).json({
-        success: false,
-        error: "Username and token are required",
-      });
-    }
-
-    // First check pending tokens (for users that don't exist yet during import)
-    const pendingValid = verifyAndClearPendingToken(username, token);
-    if (pendingValid) {
-      return res.json({
-        success: true,
-        message: "Token verified successfully",
-      });
-    }
-
-    // Then check database (for existing users)
-    const isValid = await verifyAndClearToken(username, token);
-
-    if (isValid) {
-      return res.json({
-        success: true,
-        message: "Token verified successfully",
-      });
-    }
-    return res.status(401).json({
-      success: false,
-      error: "Invalid token",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
  * Create user with configuration in one operation
  * Used for importing users one at a time with their full configuration
  * @param {Object} req - Express request object
@@ -1097,7 +710,7 @@ async function createUserWithConfig(req, res, next) {
     }
 
     // Clear pending token if it exists (user now exists in database)
-    clearPendingToken(username);
+    await clearPendingToken(username);
 
     // If verification token was generated (not provided), log it
     // If token was provided, it was already logged when generated upfront
@@ -1304,16 +917,9 @@ async function exportUsersEndpoint(req, res, next) {
 }
 
 module.exports = {
-  register,
   login,
   verifyToken,
   exportUserConfig,
   createUserWithConfig,
-  generateInstanceAdminToken,
-  regenerateInstanceAdminToken,
-  verifyInstanceAdminToken,
-  checkRegistrationCodeRequired,
-  generateRegistrationCodeEndpoint,
-  verifyRegistrationCode,
   exportUsersEndpoint,
 };

@@ -429,24 +429,11 @@ router.get("/version", publicLimiter, versionController.getVersion);
  *       400:
  *         description: Missing required fields
  */
-router.get(
-  "/auth/registration-code-required",
-  publicLimiter,
-  asyncHandler(authController.checkRegistrationCodeRequired)
-);
 // Auth routes (public - no authentication required)
 // check-user-exists is served by the graph (userExists query).
-router.post(
-  "/auth/generate-registration-code",
-  authLimiter,
-  asyncHandler(authController.generateRegistrationCodeEndpoint)
-);
-router.post(
-  "/auth/verify-registration-code",
-  authLimiter,
-  asyncHandler(authController.verifyRegistrationCode)
-);
-router.post("/auth/register", authLimiter, asyncHandler(authController.register));
+// First-user registration (registration code + register) is served by the graph
+// (registrationCodeStatus query; generateRegistrationCode, verifyRegistrationCode,
+// register mutations).
 router.post("/auth/login", authLimiter, asyncHandler(authController.login));
 router.post(
   "/auth/create-user-with-config",
@@ -490,22 +477,9 @@ router.post("/runners/re-enroll", publicLimiter, asyncHandler(runnerController.r
 // All routes below this line require authentication
 router.use(authenticate);
 
-// Instance admin token routes (require authentication)
-router.post(
-  "/auth/generate-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.generateInstanceAdminToken)
-);
-router.post(
-  "/auth/regenerate-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.regenerateInstanceAdminToken)
-);
-router.post(
-  "/auth/verify-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.verifyInstanceAdminToken)
-);
+// Instance admin token routes are served by the graph
+// (generateInstanceAdminToken, regenerateInstanceAdminToken,
+// verifyInstanceAdminToken mutations).
 
 // Admin SSO provider management is served by the graph (ssoProviders,
 // ssoSettings queries; createSSOProvider, updateSSOProvider, deleteSSOProvider,

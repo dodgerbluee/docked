@@ -18,15 +18,25 @@ func UserIDFromContext(ctx context.Context) int64 {
 }
 
 // HashPassword hashes a plaintext password using bcrypt.
+// bcrypt only consumes the first 72 bytes of the input; Node's bcrypt truncates
+// silently, so we do the same rather than erroring on longer passwords that
+// existing hashes were created from.
 func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	bytes, err := bcrypt.GenerateFromPassword(truncateBcrypt([]byte(password)), bcrypt.DefaultCost)
 	return string(bytes), err
 }
 
 // CheckPassword compares a bcrypt hash with a plaintext password.
 func CheckPassword(hash, password string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(hash), truncateBcrypt([]byte(password)))
 	return err == nil
+}
+
+func truncateBcrypt(b []byte) []byte {
+	if len(b) > 72 {
+		return b[:72]
+	}
+	return b
 }
 
 // TokenClaims holds the claims we embed in access/refresh tokens.

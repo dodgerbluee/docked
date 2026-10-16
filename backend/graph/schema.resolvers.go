@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockedapp/backend/graph/model"
@@ -22,7 +23,6 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
 	runnerclient "github.com/dockedapp/backend/internal/runner"
-	"sync"
 )
 
 // UpgradeHistory is the resolver for the upgradeHistory field.
@@ -169,10 +169,31 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
-	// Node keeps its first-user registration code in process memory, which the
-	// standalone Go process cannot validate. Fail closed on an empty database
-	// unless an operator explicitly configured a shared DB-backed code; otherwise
-	// Go would provide an unauthenticated bypass around Node's bootstrap gate.
+	if !allowPublicOp(ctx, "register") {
+		return nil, fmt.Errorf(tooManyRequestsMsg)
+	}
+	// Input validation mirrors Node's validateRegistrationInput (the client
+	// form validates too, but the server is the security boundary). Lengths
+	// count UTF-16 code units so they agree with JS string length exactly,
+	// including astral-plane characters like emoji.
+	if jsLen(input.Username) < 3 {
+		return nil, fmt.Errorf("Username must be at least 3 characters long")
+	}
+	if jsLen(input.Password) < 8 {
+		return nil, fmt.Errorf("Password must be at least 8 characters long")
+	}
+	email := ""
+	if input.Email != nil {
+		email = strings.TrimSpace(*input.Email)
+		if email != "" && !isValidEmailFormat(email) {
+			return nil, fmt.Errorf("Invalid email format")
+		}
+	}
+
+	// The first-user registration code lives in the shared settings table:
+	// generateRegistrationCode writes it, RegisterUserWithCode consumes it
+	// atomically with the INSERT. An empty database with no stored code means
+	// the operator has not clicked "Create User" yet — fail closed.
 	userCount, err := db.GetUserCount(ctx, r.DB)
 	if err != nil {
 		return nil, fmt.Errorf("check registration: %w", err)
@@ -181,14 +202,17 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 	if err != nil {
 		return nil, fmt.Errorf("check registration: %w", err)
 	}
-	if userCount == 0 && !hasCode {
-		return nil, fmt.Errorf("first-user registration must be completed through the primary server or with a shared registration code")
-	}
 	var sharedCode *string
-	if hasCode {
+	if userCount == 0 {
+		if !hasCode {
+			return nil, fmt.Errorf("Registration code is required for the first user")
+		}
+		if input.RegistrationCode == nil || strings.TrimSpace(*input.RegistrationCode) == "" {
+			return nil, fmt.Errorf("Registration code is required for the first user")
+		}
 		code, _ := db.GetRegistrationCode(ctx, r.DB)
-		if code == nil || input.RegistrationCode == nil || !registrationCodesEqual(*input.RegistrationCode, *code) {
-			return nil, fmt.Errorf("invalid registration code")
+		if code == nil || !registrationCodesEqual(*input.RegistrationCode, *code) {
+			return nil, fmt.Errorf("Invalid registration code")
 		}
 		sharedCode = code
 	}
@@ -199,7 +223,7 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 		return nil, fmt.Errorf("check user: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("username already taken")
+		return nil, fmt.Errorf("Username already exists")
 	}
 
 	// Hash first so a hashing failure cannot leave a half-registered user.
@@ -215,10 +239,10 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 	// and the GraphQL enum agree.
 	var id int64
 	var role string
-	if userCount == 0 && sharedCode != nil {
-		id, role, _, err = db.RegisterUserWithCode(ctx, r.DB, input.Username, hash, *sharedCode)
+	if sharedCode != nil {
+		id, role, _, err = db.RegisterUserWithCode(ctx, r.DB, input.Username, hash, email, *sharedCode)
 	} else {
-		id, role, _, err = db.RegisterUser(ctx, r.DB, input.Username, hash)
+		id, role, _, err = db.RegisterUser(ctx, r.DB, input.Username, hash, email)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
@@ -336,6 +360,50 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.Updat
 		Token:        strPtr(newToken),
 		RefreshToken: strPtr(newRefresh),
 	}, nil
+}
+
+// GenerateRegistrationCode is the resolver for the generateRegistrationCode field.
+func (r *mutationResolver) GenerateRegistrationCode(ctx context.Context) (*model.BootstrapResult, error) {
+	if !allowPublicOp(ctx, "generateRegistrationCode") {
+		return bootstrapFail(tooManyRequestsMsg), nil
+	}
+	return generateRegistrationCodeImpl(ctx, r.DB), nil
+}
+
+// VerifyRegistrationCode is the resolver for the verifyRegistrationCode field.
+func (r *mutationResolver) VerifyRegistrationCode(ctx context.Context, code string) (*model.BootstrapResult, error) {
+	if !allowPublicOp(ctx, "verifyRegistrationCode") {
+		return bootstrapFail(tooManyRequestsMsg), nil
+	}
+	return verifyRegistrationCodeImpl(ctx, r.DB, code), nil
+}
+
+// The instance-admin import-token mutations are public, matching Node's
+// routes (rate-limited only, no auth middleware): the import flow runs from
+// the login page before anyone is authenticated, and the actual privilege
+// grant happens in create-user-with-config, not here.
+// GenerateInstanceAdminToken is the resolver for the generateInstanceAdminToken field.
+func (r *mutationResolver) GenerateInstanceAdminToken(ctx context.Context, username string) (*model.InstanceAdminTokenResult, error) {
+	if !allowPublicOp(ctx, "generateInstanceAdminToken") {
+		return tokenFail(tooManyRequestsMsg), nil
+	}
+	return generateInstanceAdminTokenImpl(ctx, r.DB, username), nil
+}
+
+// RegenerateInstanceAdminToken is the resolver for the regenerateInstanceAdminToken field.
+func (r *mutationResolver) RegenerateInstanceAdminToken(ctx context.Context, username string) (*model.InstanceAdminTokenResult, error) {
+	if !allowPublicOp(ctx, "regenerateInstanceAdminToken") {
+		return tokenFail(tooManyRequestsMsg), nil
+	}
+	return regenerateInstanceAdminTokenImpl(ctx, r.DB, username), nil
+}
+
+// VerifyInstanceAdminToken is the resolver for the verifyInstanceAdminToken field.
+func (r *mutationResolver) VerifyInstanceAdminToken(ctx context.Context, username string, token string) (*model.BootstrapResult, error) {
+	if !allowPublicOp(ctx, "verifyInstanceAdminToken") {
+		return bootstrapFail(tooManyRequestsMsg), nil
+	}
+	return verifyInstanceAdminTokenImpl(ctx, r.DB, username, token), nil
 }
 
 // SetUserPassword is the resolver for the setUserPassword field.
@@ -2451,6 +2519,19 @@ func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error
 func (r *queryResolver) RegistrationCodeRequired(ctx context.Context) (bool, error) {
 	has, _ := db.HasRegistrationCode(ctx, r.DB)
 	return has, nil
+}
+
+// RegistrationCodeStatus is the resolver for the registrationCodeStatus field.
+func (r *queryResolver) RegistrationCodeStatus(ctx context.Context) (*model.RegistrationCodeStatus, error) {
+	count, err := db.GetUserCount(ctx, r.DB)
+	if err != nil {
+		return nil, fmt.Errorf("check users: %w", err)
+	}
+	active, err := db.HasRegistrationCode(ctx, r.DB)
+	if err != nil {
+		return nil, fmt.Errorf("check registration code: %w", err)
+	}
+	return &model.RegistrationCodeStatus{RequiresCode: count == 0, CodeActive: active}, nil
 }
 
 // UserExists is the resolver for the userExists field.

@@ -93,10 +93,28 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 	})
 
 	// Auth middleware for GraphQL: extracts JWT and puts userID in context
+	//
+	// Public abuse protection: unauthenticated /graphql traffic (bootstrap
+	// mutations, register, login-page queries) gets a per-IP budget, replacing
+	// the express-rate-limit guards Node applied to the pruned REST auth
+	// routes. Sensitive public operations additionally enforce their own
+	// per-operation budget inside the resolvers (see graph.publicOpLimiter),
+	// which closes the aliasing and authenticated-exemption bypasses.
+	// Identity comes from ClientKeyFromRequest: the rightmost X-Forwarded-For
+	// entry (the one the Node proxy controls), never client-supplied prefixes.
+	publicLimiter := apimiddleware.NewRateLimiter(60, time.Minute, 10000)
 	graphqlAuth := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := apimiddleware.WithClientIP(req.Context(), apimiddleware.ClientKeyFromRequest(req))
+			req = req.WithContext(ctx)
+			clientKey := apimiddleware.ClientIP(ctx)
+
 			// For WebSocket upgrades, check connection params
 			if req.Header.Get("Upgrade") == "websocket" {
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
 				next.ServeHTTP(w, req)
 				return
 			}
@@ -104,6 +122,10 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			raw, ok := bearerToken(req)
 			if !ok {
 				// Allow unauthenticated access (health, login, register handle their own auth)
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
 				next.ServeHTTP(w, req)
 				return
 			}
@@ -112,6 +134,10 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			if err != nil {
 				// Token invalid — proceed without user context
 				slog.Debug("graphql auth: token validation failed", "error", err.Error())
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
 				next.ServeHTTP(w, req)
 				return
 			}
@@ -121,12 +147,16 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			user, err := db.GetUserByID(req.Context(), database, userID)
 			if err != nil || user == nil {
 				slog.Debug("graphql auth: token user no longer exists", "userID", userID)
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
 				next.ServeHTTP(w, req)
 				return
 			}
 			slog.Debug("graphql auth: token validated", "userID", userID)
 
-			ctx := auth.ContextWithUserID(req.Context(), userID)
+			ctx = auth.ContextWithUserID(ctx, userID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	}

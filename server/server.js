@@ -202,6 +202,11 @@ app.use("/graphql", (req, res) => {
   const body = isGet || passthrough ? null : JSON.stringify(req.body || {});
   const headers = {
     ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+    // OVERWRITE (never append) X-Forwarded-For with the validated client IP:
+    // any client-supplied prefix is spoofable and would let attackers mint
+    // fresh buckets in the Go backend's per-IP rate limiter. req.ip already
+    // honors express' trust-proxy setting.
+    "X-Forwarded-For": req.ip,
   };
   if (passthrough) {
     headers["Content-Type"] = contentType;
@@ -230,47 +235,8 @@ app.use("/graphql", (req, res) => {
 
 // Proxy WebSocket upgrades for /graphql to the Go backend so graphql-ws
 // subscriptions reach the Go transport through the same path as HTTP.
-function attachGraphqlWsProxy(server) {
-  server.on("upgrade", (req, socket, head) => {
-    const url = req.url || "";
-    if (!url.startsWith("/graphql")) {
-      socket.destroy();
-      return;
-    }
-    const target = new URL(GRAPHQL_BACKEND);
-    const targetPort = target.port || 80;
-    const proxyReq = http.request({
-      host: target.hostname,
-      port: targetPort,
-      method: "GET",
-      path: url,
-      headers: { ...req.headers, host: `${target.hostname}:${targetPort}` },
-    });
-    proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
-      const headerLines = [];
-      for (const [k, v] of Object.entries(proxyRes.headers)) {
-        headerLines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
-      }
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headerLines.join("\r\n")}\r\n\r\n`);
-      if (proxyHead && proxyHead.length) socket.write(proxyHead);
-      proxySocket.pipe(socket);
-      socket.pipe(proxySocket);
-      const destroy = () => {
-        proxySocket.destroy();
-        socket.destroy();
-      };
-      proxySocket.on("error", destroy);
-      socket.on("error", destroy);
-      proxySocket.on("close", destroy);
-      socket.on("close", destroy);
-    });
-    proxyReq.on("error", (err) => {
-      logger.warn("GraphQL WS proxy error", { module: "server", error: err.message });
-      socket.destroy();
-    });
-    proxyReq.end();
-  });
-}
+// Implementation lives in utils/graphqlWsProxy.js (unit-tested there).
+const { attachGraphqlWsProxy } = require("./utils/graphqlWsProxy");
 
 const shouldServeStatic =
   process.env.NODE_ENV === "production" ||
@@ -400,7 +366,11 @@ if (shouldStartServer) {
       });
 
       // graphql-ws subscriptions: bridge /graphql WebSocket upgrades to Go
-      attachGraphqlWsProxy(server);
+      attachGraphqlWsProxy(server, {
+        backendUrl: GRAPHQL_BACKEND,
+        trustProxy: shouldTrustProxy,
+        logger,
+      });
 
       if (process.env.NODE_ENV === "development") {
         logger.debug("Development configuration", {

@@ -114,21 +114,14 @@ describe("Authentication API", () => {
   });
 
   describe("GET /api/auth/me", () => {
-    it("should get current user with valid token", async () => {
-      const response = await request(app)
+    // Route pruned in the auth/users graph cutover: current-user reads are
+    // served by the GraphQL `me` query. The 404 assertion is a tombstone so
+    // the route can never silently come back.
+    it("is retired and returns 404", async () => {
+      await request(app)
         .get("/api/auth/me")
         .set("Authorization", `Bearer ${authToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.user).toBeDefined();
-      expect(response.body.user.username).toBeDefined();
-    });
-
-    it("should reject request without authentication", async () => {
-      const response = await request(app).get("/api/auth/me").expect(401);
-
-      expect(response.body.error).toBeDefined();
+        .expect(404);
     });
   });
 });

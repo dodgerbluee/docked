@@ -1,9 +1,11 @@
 const { customAlphabet } = require("nanoid");
 const logger = require("./logger");
+const { getDatabase } = require("../db/connection");
 
-// Temporary storage for tokens generated for users that don't exist yet (during import)
-// Format: { username: token }
-const pendingTokens = new Map();
+// Pending instance-admin verification tokens live in the shared
+// pending_auth_tokens SQLite table: the graph (Go) generates and verifies
+// them, while Node's create-user-with-config consumes them, so process
+// memory is not an option.
 
 /**
  * Generate a secure random verification token using nanoid
@@ -24,51 +26,9 @@ function generateVerificationToken() {
 }
 
 /**
- * Store a token temporarily for a username (for users that don't exist yet)
- * @param {string} username - Username
- * @param {string} token - Verification token
- */
-function storePendingToken(username, token) {
-  pendingTokens.set(username, token);
-}
-
-/**
- * Verify and clear a pending token (for users that don't exist yet)
- * @param {string} username - Username
- * @param {string} token - Token to verify
- * @returns {boolean} True if token matches and was cleared
- */
-function verifyAndClearPendingToken(username, token) {
-  const storedToken = pendingTokens.get(username);
-  if (storedToken === token) {
-    pendingTokens.delete(username);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Get a pending token for a username (without clearing it)
- * @param {string} username - Username
- * @returns {string|null} The token if it exists, null otherwise
- */
-function getPendingToken(username) {
-  return pendingTokens.get(username) || null;
-}
-
-/**
- * Clear a pending token (used when user is created)
- * @param {string} username - Username
- */
-function clearPendingToken(username) {
-  pendingTokens.delete(username);
-}
-
-/**
- * Log verification token to server logs (similar to registration code)
- * Logs without request context to avoid noise (like first user registration code)
- * @param {string} username - Username
- * @param {string} token - Verification token
+ * Log the verification token for the operator (import flow)
+ * @param {string} username
+ * @param {string} token
  */
 function logVerificationToken(username, token) {
   // Log without request context to match first user registration code format
@@ -84,11 +44,36 @@ function logVerificationToken(username, token) {
   });
 }
 
+/**
+ * Remove any pending (graph-generated) verification token for a username.
+ * Called after create-user-with-config persists the user, since the token
+ * now lives on the users row instead.
+ * @param {string} username
+ * @returns {Promise<void>}
+ */
+function clearPendingToken(username) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        "DELETE FROM pending_auth_tokens WHERE kind = 'instance_admin' AND username = ?",
+        [username],
+        (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   generateVerificationToken,
   logVerificationToken,
-  storePendingToken,
-  verifyAndClearPendingToken,
-  getPendingToken,
   clearPendingToken,
 };

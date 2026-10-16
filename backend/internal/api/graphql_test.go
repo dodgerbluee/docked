@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,6 +311,13 @@ func (r gqlResp) hasErrorContaining(sub string) bool {
 }
 
 func (e *testEnv) gql(t *testing.T, token, query string, vars map[string]any) gqlResp {
+	return e.gqlAs(t, "", token, query, vars)
+}
+
+// gqlAs sends X-Forwarded-For with the given client IP (empty = none). The Go
+// limiter keys on the rightmost XFF entry, so tests use distinct IPs to keep
+// their rate-limit budgets isolated from each other.
+func (e *testEnv) gqlAs(t *testing.T, ip, token, query string, vars map[string]any) gqlResp {
 	t.Helper()
 	payload := map[string]any{"query": query}
 	if vars != nil {
@@ -321,6 +329,9 @@ func (e *testEnv) gql(t *testing.T, token, query string, vars map[string]any) gq
 		t.Fatalf("new request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if ip != "" {
+		req.Header.Set("X-Forwarded-For", ip)
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -421,8 +432,8 @@ func TestSetUserRoleAuthzAndPersistence(t *testing.T) {
 func TestRegistrationRoleAssignment(t *testing.T) {
 	// Seeded DB already has users, so a new registration must be a Member.
 	env := newTestEnv(t, true)
-	r := env.gql(t, "", `mutation($in: RegisterInput!){ register(input: $in){ user { username role } } }`,
-		map[string]any{"in": map[string]any{"username": "newbie", "password": "pw12345"}})
+	r := env.gqlAs(t, "10.0.1.1", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username role } } }`,
+		map[string]any{"in": map[string]any{"username": "newbie", "password": "pw123456"}})
 	if len(r.Errors) != 0 {
 		t.Fatalf("register errored: %+v", r.Errors)
 	}
@@ -434,18 +445,18 @@ func TestRegistrationRoleAssignment(t *testing.T) {
 func TestFirstRegistrationBecomesAdministrator(t *testing.T) {
 	// Empty DB must fail closed unless an operator supplied a shared code.
 	env := newTestEnv(t, false)
-	withoutCode := env.gql(t, "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
-		map[string]any{"in": map[string]any{"username": "blocked", "password": "pw12345"}})
-	if !withoutCode.hasErrorContaining("first-user registration must be completed") {
+	withoutCode := env.gqlAs(t, "10.0.1.2", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "blocked", "password": "pw123456"}})
+	if !withoutCode.hasErrorContaining("Registration code is required") {
 		t.Fatalf("first register without shared code must be rejected, got: %+v", withoutCode)
 	}
 	if _, err := env.database.Exec(
 		"INSERT INTO settings (user_id, key, value) VALUES (0, 'registration_code', 'ABCD-EFGH-IJKL')"); err != nil {
 		t.Fatalf("seed registration code: %v", err)
 	}
-	r := env.gql(t, "", `mutation($in: RegisterInput!){ register(input: $in){ user { username role } } }`,
+	r := env.gqlAs(t, "10.0.1.2", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username role } } }`,
 		map[string]any{"in": map[string]any{
-			"username": "root", "password": "pw12345", "registrationCode": "abcdefghijkl",
+			"username": "root", "password": "pw123456", "registrationCode": "abcdefghijkl",
 		}})
 	if len(r.Errors) != 0 {
 		t.Fatalf("first register errored: %+v", r.Errors)
@@ -467,6 +478,186 @@ func TestFirstRegistrationBecomesAdministrator(t *testing.T) {
 	}
 	if codes != 0 {
 		t.Fatalf("registration code was not consumed")
+	}
+}
+
+func TestRegisterValidationBoundaries(t *testing.T) {
+	env := newTestEnv(t, true) // seeded users exist, so no shared code needed
+
+	// Lengths count UTF-16 code units, exactly like JS String.length: a
+	// 2-character unicode username must be rejected with the same message
+	// ASCII would produce.
+	r := env.gqlAs(t, "10.0.1.3", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "猫", "password": "pw123456"}})
+	if !r.hasErrorContaining("at least 3 characters") {
+		t.Fatalf("2-rune unicode username must be rejected, got: %+v", r)
+	}
+	r = env.gqlAs(t, "10.0.1.3", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "猫小大", "password": "pw123456"}})
+	if len(r.Errors) != 0 {
+		t.Fatalf("3-rune unicode username should register, got: %+v", r.Errors)
+	}
+
+	// 7-character password stays rejected (>=8 rule).
+	r = env.gqlAs(t, "10.0.1.3", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "shortpw", "password": "pw12345"}})
+	if !r.hasErrorContaining("at least 8 characters") {
+		t.Fatalf("7-char password must be rejected, got: %+v", r)
+	}
+
+	// UTF-16 parity: four emoji are 8 UTF-16 units (JS length 8) and must
+	// pass, while three (6 units) must fail — Node would accept the former
+	// and a rune count would wrongly reject it.
+	r = env.gqlAs(t, "10.0.1.3", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "emojipass", "password": "😀😁😂🤣"}})
+	if len(r.Errors) != 0 {
+		t.Fatalf("4-emoji password (8 UTF-16 units) should register, got: %+v", r.Errors)
+	}
+	r = env.gqlAs(t, "10.0.1.3", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "emojifail", "password": "😀😁😂"}})
+	if !r.hasErrorContaining("at least 8 characters") {
+		t.Fatalf("3-emoji password (6 UTF-16 units) must be rejected, got: %+v", r)
+	}
+}
+
+func TestFirstRegistrationEmptyCodeGetsRequiredMessage(t *testing.T) {
+	// Node parity: with a shared code on file but an empty submission, the
+	// error is "required", not "invalid".
+	env := newTestEnv(t, false)
+	if _, err := env.database.Exec(
+		"INSERT INTO settings (user_id, key, value) VALUES (0, 'registration_code', 'ABCD-EFGH-IJKL')"); err != nil {
+		t.Fatalf("seed registration code: %v", err)
+	}
+	r := env.gqlAs(t, "10.0.1.4", "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "blocked", "password": "pw123456", "registrationCode": ""}})
+	if !r.hasErrorContaining("Registration code is required") {
+		t.Fatalf("empty code must report required, got: %+v", r)
+	}
+}
+
+func TestInstanceAdminTokenInputGuards(t *testing.T) {
+	env := newTestEnv(t, true)
+
+	r := env.gqlAs(t, "10.0.1.5", "", `mutation($username: String!){ generateInstanceAdminToken(username: $username){ success error } }`,
+		map[string]any{"username": ""})
+	if len(r.Errors) != 0 {
+		t.Fatalf("generate errored at GraphQL level: %+v", r.Errors)
+	}
+	var gen struct {
+		Success bool    `json:"success"`
+		Error   *string `json:"error"`
+	}
+	if err := json.Unmarshal(r.Data["generateInstanceAdminToken"], &gen); err != nil {
+		t.Fatalf("decode generate envelope: %v", err)
+	}
+	if gen.Success || gen.Error == nil || *gen.Error != "Username is required" {
+		t.Fatalf("empty-username envelope = %+v, want success=false error=%q", gen, "Username is required")
+	}
+
+	r = env.gqlAs(t, "10.0.1.5", "", `mutation($username: String!, $token: String!){ verifyInstanceAdminToken(username: $username, token: $token){ success error } }`,
+		map[string]any{"username": "", "token": ""})
+	var ver struct {
+		Success bool    `json:"success"`
+		Error   *string `json:"error"`
+	}
+	if err := json.Unmarshal(r.Data["verifyInstanceAdminToken"], &ver); err != nil {
+		t.Fatalf("decode verify envelope: %v", err)
+	}
+	if ver.Success || ver.Error == nil || *ver.Error != "Username and token are required" {
+		t.Fatalf("empty-input verify envelope = %+v, want required message", ver)
+	}
+}
+
+func TestUnauthenticatedGraphqlIsRateLimited(t *testing.T) {
+	// Public abuse protection replacing Node's authLimiter on the pruned REST
+	// auth routes: unauthenticated /graphql gets a per-IP budget.
+	env := newTestEnv(t, true)
+	for i := 0; i < 60; i++ {
+		r := env.gql(t, "", `{ version }`, nil)
+		if r.hasErrorContaining("too many requests") {
+			t.Fatalf("rate limited too early at request %d", i+1)
+		}
+	}
+	r := env.gql(t, "", `{ version }`, nil)
+	if !r.hasErrorContaining("too many requests") {
+		t.Fatalf("61st unauthenticated request must be rate limited, got: %+v", r)
+	}
+	// Authenticated traffic is exempt from the public budget.
+	tok := env.token(t, env.adminID, "admin")
+	r = env.gql(t, tok, `{ me { id } }`, nil)
+	if r.hasErrorContaining("too many requests") {
+		t.Fatalf("authenticated traffic must not be rate limited: %+v", r)
+	}
+}
+
+func TestResolverLimiterDefeatsAuthExemption(t *testing.T) {
+	// The per-operation resolver budget applies to authenticated callers too:
+	// a member token cannot brute-force verifyInstanceAdminToken past Node's
+	// 20-per-15-minutes route limit.
+	env := newTestEnv(t, true)
+	tok := env.token(t, env.memberID, "member")
+	mutation := `mutation($username: String!, $token: String!){ verifyInstanceAdminToken(username: $username, token: $token){ success error } }`
+	for i := 0; i < 20; i++ {
+		r := env.gqlAs(t, "10.0.2.1", tok, mutation, map[string]any{"username": "ghost", "token": "WRONG-TOKN"})
+		if bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Too many requests")) {
+			t.Fatalf("legitimate budget exhausted too early at attempt %d", i+1)
+		}
+	}
+	r := env.gqlAs(t, "10.0.2.1", tok, mutation, map[string]any{"username": "ghost", "token": "WRONG-TOKN"})
+	if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Too many requests")) {
+		t.Fatalf("21st authenticated verify must be limited, got: %+v", r)
+	}
+}
+
+func TestAliasedMutationsConsumeBudget(t *testing.T) {
+	// Aliasing folds many sensitive operations into one HTTP request; the
+	// resolver-level limiter counts each execution, so 25 aliases of
+	// verifyInstanceAdminToken get 20 attempts and 5 refusals — not 25.
+	env := newTestEnv(t, true)
+	var sb strings.Builder
+	sb.WriteString("mutation {")
+	for i := 0; i < 25; i++ {
+		fmt.Fprintf(&sb, ` a%d: verifyInstanceAdminToken(username: "ghost", token: "WRONG-TOKN") { success error }`, i)
+	}
+	sb.WriteString("}")
+	r := env.gqlAs(t, "10.0.2.2", "", sb.String(), nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("aliased query errored: %+v", r.Errors)
+	}
+	var limited, invalid int
+	for _, raw := range r.Data {
+		if bytes.Contains(raw, []byte("Too many requests")) {
+			limited++
+		}
+		if bytes.Contains(raw, []byte("Invalid token")) {
+			invalid++
+		}
+	}
+	if invalid != 20 || limited != 5 {
+		t.Fatalf("alias budget split = invalid:%d limited:%d, want 20/5", invalid, limited)
+	}
+}
+
+func TestSpoofedXFFPrefixDoesNotResetBudget(t *testing.T) {
+	// The limiter keys on the RIGHTMOST XFF entry (the hop the Node proxy
+	// controls). Changing a client-supplied prefix must not mint a new bucket.
+	env := newTestEnv(t, true)
+	mutation := `mutation($username: String!, $token: String!){ verifyInstanceAdminToken(username: $username, token: $token){ success error } }`
+	for i := 0; i < 20; i++ {
+		r := env.gqlAs(t, "1.2.3.4, 10.0.2.3", "", mutation, map[string]any{"username": "ghost", "token": "WRONG-TOKN"})
+		if bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Too many requests")) {
+			t.Fatalf("budget exhausted too early at attempt %d", i+1)
+		}
+	}
+	// Different spoofed prefix, same real client (rightmost) → still limited.
+	r := env.gqlAs(t, "9.9.9.9, 10.0.2.3", "", mutation, map[string]any{"username": "ghost", "token": "WRONG-TOKN"})
+	if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Too many requests")) {
+		t.Fatalf("spoofed prefix must not reset the budget, got: %+v", r)
+	}
+	// A genuinely different rightmost IP keeps its own budget.
+	r = env.gqlAs(t, "10.0.2.4", "", mutation, map[string]any{"username": "ghost", "token": "WRONG-TOKN"})
+	if bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Too many requests")) {
+		t.Fatalf("distinct client must not share the bucket, got: %+v", r)
 	}
 }
 

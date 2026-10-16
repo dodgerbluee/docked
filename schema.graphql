@@ -198,6 +198,27 @@ type AuthPayload {
   user: User!
 }
 
+# Bootstrap (first-user registration + instance-admin import tokens).
+# These mirror the legacy REST envelopes: success flag + message/error
+# rather than GraphQL errors, because the client hooks branch on them.
+type RegistrationCodeStatus {
+  requiresCode: Boolean!
+  codeActive: Boolean!
+}
+
+type BootstrapResult {
+  success: Boolean!
+  message: String
+  error: String
+}
+
+type InstanceAdminTokenResult {
+  success: Boolean!
+  token: String
+  message: String
+  error: String
+}
+
 type SourceInstance implements ContainerSource {
   id: ID!
   name: String!
@@ -833,6 +854,7 @@ input LoginInput {
 input RegisterInput {
   username: String!
   password: String!
+  email: String
   registrationCode: String
 }
 
@@ -1095,6 +1117,7 @@ type Query {
   users: [User!]!                          # admin only
   user(id: ID!): User                      # admin only
   registrationCodeRequired: Boolean!
+  registrationCodeStatus: RegistrationCodeStatus!
   userExists(username: String!): Boolean!
 
   # ── SSO / OAuth admin (instance admin only) ───────────────────────────────
@@ -1238,6 +1261,13 @@ type Mutation {
   logout: SuccessResult!
   updatePassword(input: UpdatePasswordInput!): SuccessResult!
   updateUsername(input: UpdateUsernameInput!): UpdateUsernameResult!
+
+  # ── Bootstrap (first-user registration code + instance-admin import) ─────
+  generateRegistrationCode: BootstrapResult!
+  verifyRegistrationCode(code: String!): BootstrapResult!
+  generateInstanceAdminToken(username: String!): InstanceAdminTokenResult!
+  regenerateInstanceAdminToken(username: String!): InstanceAdminTokenResult!
+  verifyInstanceAdminToken(username: String!, token: String!): BootstrapResult!
 
   # Admin user management
   setUserPassword(userId: ID!, newPassword: String!): SuccessResult!

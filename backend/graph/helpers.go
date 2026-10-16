@@ -16,11 +16,20 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 )
+
+// jsLen returns the length of s in UTF-16 code units, which is exactly what
+// JavaScript's String.length counts. Validation rules ported from Node must
+// measure the same thing, or astral-plane characters (emoji) diverge: four
+// emoji are 8 UTF-16 units but only 4 runes.
+func jsLen(s string) int {
+	return len(utf16.Encode([]rune(s)))
+}
 
 // readFromOffset returns the bytes of a file after the given offset and the
 // file's current size. When the file is smaller than the offset (rotation),

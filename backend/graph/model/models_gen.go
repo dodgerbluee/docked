@@ -90,6 +90,12 @@ type BatchUpgradeResult struct {
 
 func (BatchUpgradeResult) IsOperationResult() {}
 
+type BootstrapResult struct {
+	Success bool    `json:"success"`
+	Message *string `json:"message,omitempty"`
+	Error   *string `json:"error,omitempty"`
+}
+
 type Container struct {
 	ID                string                   `json:"id"`
 	DockerContainerID string                   `json:"dockerContainerId"`
@@ -303,6 +309,13 @@ type ImageVersionInfo struct {
 	LastChecked               time.Time  `json:"lastChecked"`
 }
 
+type InstanceAdminTokenResult struct {
+	Success bool    `json:"success"`
+	Token   *string `json:"token,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Error   *string `json:"error,omitempty"`
+}
+
 type Intent struct {
 	ID                 string                     `json:"id"`
 	Name               string                     `json:"name"`
@@ -475,7 +488,13 @@ type RefreshTokenInput struct {
 type RegisterInput struct {
 	Username         string  `json:"username"`
 	Password         string  `json:"password"`
+	Email            *string `json:"email,omitempty"`
 	RegistrationCode *string `json:"registrationCode,omitempty"`
+}
+
+type RegistrationCodeStatus struct {
+	RequiresCode bool `json:"requiresCode"`
+	CodeActive   bool `json:"codeActive"`
 }
 
 type ReorderSourceInput struct {

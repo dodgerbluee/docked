@@ -177,3 +177,8 @@ func HasRegistrationCode(ctx context.Context, database *sql.DB) (bool, error) {
 		"SELECT COUNT(*) FROM settings WHERE key = 'registration_code' AND value != ''").Scan(&count)
 	return count > 0, err
 }
+
+// SetRegistrationCode stores a new first-user registration code (system row).
+func SetRegistrationCode(ctx context.Context, database *sql.DB, code string) error {
+	return SetSystemSetting(ctx, database, "registration_code", code)
+}

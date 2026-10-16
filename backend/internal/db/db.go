@@ -48,6 +48,15 @@ func Open(path string) (*sql.DB, error) {
 	)`); err != nil {
 		return nil, fmt.Errorf("ensure idempotency claims: %w", err)
 	}
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS pending_auth_tokens (
+		kind TEXT NOT NULL,
+		username TEXT NOT NULL DEFAULT '',
+		token TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (kind, username)
+	)`); err != nil {
+		return nil, fmt.Errorf("ensure pending auth tokens: %w", err)
+	}
 
 	return database, nil
 }

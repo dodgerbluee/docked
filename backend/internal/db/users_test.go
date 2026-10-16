@@ -13,9 +13,11 @@ CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT,
+  email TEXT,
   role TEXT DEFAULT 'Administrator',
   password_changed INTEGER DEFAULT 0,
   instance_admin INTEGER DEFAULT 0,
+  verification_token TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,7 +48,7 @@ func TestRegisterUserSequentialBootstrap(t *testing.T) {
 	database := newUsersDB(t)
 	ctx := context.Background()
 
-	id, role, ia, err := RegisterUser(ctx, database, "root", "hash")
+	id, role, ia, err := RegisterUser(ctx, database, "root", "hash", "")
 	if err != nil {
 		t.Fatalf("first RegisterUser: %v", err)
 	}
@@ -54,7 +56,7 @@ func TestRegisterUserSequentialBootstrap(t *testing.T) {
 		t.Fatalf("first user = (id %d, role %q, ia %d), want Administrator/1", id, role, ia)
 	}
 
-	_, role, ia, err = RegisterUser(ctx, database, "second", "hash")
+	_, role, ia, err = RegisterUser(ctx, database, "second", "hash", "")
 	if err != nil {
 		t.Fatalf("second RegisterUser: %v", err)
 	}
@@ -79,7 +81,7 @@ func TestRegisterUserConcurrentBootstrap(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, role, _, err := RegisterUser(ctx, database, "user"+string(rune('a'+i)), "hash")
+			_, role, _, err := RegisterUser(ctx, database, "user"+string(rune('a'+i)), "hash", "")
 			if err != nil {
 				t.Errorf("RegisterUser: %v", err)
 				return
@@ -112,7 +114,7 @@ func TestRegisterUserWithCodeConsumesCodeAtomically(t *testing.T) {
 		"INSERT INTO settings (user_id, key, value) VALUES (0, 'registration_code', 'SHARED')"); err != nil {
 		t.Fatal(err)
 	}
-	_, role, admin, err := RegisterUserWithCode(ctx, database, "root", "hash", "SHARED")
+	_, role, admin, err := RegisterUserWithCode(ctx, database, "root", "hash", "", "SHARED")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +132,7 @@ func TestRegisterUserWithCodeConsumesCodeAtomically(t *testing.T) {
 		t.Fatalf("users/codes = %d/%d, want 1/0", users, codes)
 	}
 
-	if _, _, _, err := RegisterUserWithCode(ctx, database, "second", "hash", "SHARED"); err == nil {
+	if _, _, _, err := RegisterUserWithCode(ctx, database, "second", "hash", "", "SHARED"); err == nil {
 		t.Fatal("consumed code was accepted again")
 	}
 	if err := database.QueryRow("SELECT COUNT(*) FROM users").Scan(&users); err != nil {

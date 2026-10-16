@@ -308,32 +308,6 @@ async function createUser(
 }
 
 /**
- * Register a public user while deciding instance-admin status in the same SQL
- * statement as the insert. This prevents two Node requests, or Node and Go,
- * from both persisting a stale "first user" decision.
- */
-async function registerUser(username, password, email = null) {
-  const passwordHash = await bcrypt.hash(password, 10);
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(
-        `INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin)
-         SELECT ?, ?, ?, 'Administrator', 1,
-                CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END`,
-        [username, passwordHash, email],
-        function onRegistered(err) {
-          if (err) reject(err);
-          else resolve({ id: this.lastID });
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
  * Update verification token for a user
  * @param {string} username - Username
  * @param {string} token - Verification token
@@ -360,42 +334,6 @@ function updateVerificationToken(username, token) {
   });
 }
 
-/**
- * Verify and clear verification token
- * @param {string} username - Username
- * @param {string} token - Verification token to verify
- * @returns {Promise<boolean>} - True if token matches
- */
-function verifyAndClearToken(username, token) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.get("SELECT verification_token FROM users WHERE username = ?", [username], (err, row) => {
-        if (err) {
-          reject(err);
-        } else if (!row || row.verification_token !== token) {
-          resolve(false);
-        } else {
-          // Clear token after verification
-          db.run(
-            "UPDATE users SET verification_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
-            [username],
-            (updateErr) => {
-              if (updateErr) {
-                reject(updateErr);
-              } else {
-                resolve(true);
-              }
-            }
-          );
-        }
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
 module.exports = {
   getUserByUsername,
   getUserById,
@@ -407,8 +345,6 @@ module.exports = {
   updateLastLogin,
   hasAnyUsers,
   createUser,
-  registerUser,
   updateVerificationToken,
-  verifyAndClearToken,
   getAllUsers,
 };

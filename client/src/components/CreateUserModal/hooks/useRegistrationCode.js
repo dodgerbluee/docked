@@ -3,8 +3,12 @@
  */
 
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../utils/api";
+import { graphqlClient } from "../../../graphql/client";
+import {
+  REGISTRATION_CODE_STATUS_QUERY,
+  GENERATE_REGISTRATION_CODE_MUTATION,
+  VERIFY_REGISTRATION_CODE_MUTATION,
+} from "../../../graphql/queries";
 import { validateRegistrationCode } from "../../../utils/validation";
 import { getErrorMessage } from "../../../utils/errorHandling";
 
@@ -27,25 +31,13 @@ export const useRegistrationCode = (isOpen) => {
     if (isOpen) {
       setCheckingCode(true);
 
-      // Check if registration code is required
-      const checkAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      delete checkAxios.defaults.headers.common["Authorization"];
-      delete checkAxios.defaults.headers.Authorization;
-
-      checkAxios
-        .get("/api/auth/registration-code-required")
-        .then((response) => {
-          if (response.data.success) {
-            const needsCode = response.data.requiresCode || false;
-            setRequiresCode(needsCode);
-          }
+      graphqlClient
+        .query(REGISTRATION_CODE_STATUS_QUERY)
+        .toPromise()
+        .then(({ data }) => {
+          setRequiresCode(data?.registrationCodeStatus?.requiresCode ?? false);
         })
-        .catch((err) => {
+        .catch(() => {
           // Default to false if check fails
           setRequiresCode(false);
         })
@@ -65,23 +57,19 @@ export const useRegistrationCode = (isOpen) => {
     setGenerating(true);
 
     try {
-      const codeAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: { "Content-Type": "application/json" },
-      });
-      delete codeAxios.defaults.headers.common["Authorization"];
+      const { data, error } = await graphqlClient
+        .mutation(GENERATE_REGISTRATION_CODE_MUTATION)
+        .toPromise();
 
-      const response = await codeAxios.post("/api/auth/generate-registration-code");
-
-      if (response.data.success) {
+      const result = data?.generateRegistrationCode;
+      if (result?.success) {
         setCodeGenerated(true);
         return { success: true };
-      } else {
-        return {
-          success: false,
-          error: response.data.error || "Failed to generate registration code",
-        };
       }
+      return {
+        success: false,
+        error: result?.error || error?.message || "Failed to generate registration code",
+      };
     } catch (err) {
       return {
         success: false,
@@ -97,24 +85,20 @@ export const useRegistrationCode = (isOpen) => {
     setRegenerating(true);
 
     try {
-      const codeAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: { "Content-Type": "application/json" },
-      });
-      delete codeAxios.defaults.headers.common["Authorization"];
+      const { data, error } = await graphqlClient
+        .mutation(GENERATE_REGISTRATION_CODE_MUTATION)
+        .toPromise();
 
-      const response = await codeAxios.post("/api/auth/generate-registration-code");
-
-      if (response.data.success) {
+      const result = data?.generateRegistrationCode;
+      if (result?.success) {
         setCodeGenerated(true);
         setVerified(undefined);
         return { success: true };
-      } else {
-        return {
-          success: false,
-          error: response.data.error || "Failed to regenerate registration code",
-        };
       }
+      return {
+        success: false,
+        error: result?.error || error?.message || "Failed to regenerate registration code",
+      };
     } catch (err) {
       return {
         success: false,
@@ -145,33 +129,27 @@ export const useRegistrationCode = (isOpen) => {
       }
 
       // Then verify code with server
-      const verifyAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: { "Content-Type": "application/json" },
-      });
-      delete verifyAxios.defaults.headers.common["Authorization"];
-
       const codeToVerify = registrationCode.replace(/-/g, "");
 
-      const response = await verifyAxios.post("/api/auth/verify-registration-code", {
-        registrationCode: codeToVerify,
-      });
+      const { data, error } = await graphqlClient
+        .mutation(VERIFY_REGISTRATION_CODE_MUTATION, { code: codeToVerify })
+        .toPromise();
 
-      if (response.data.success) {
+      const result = data?.verifyRegistrationCode;
+      if (result?.success) {
         setVerified(true);
         setVerifying(false);
         return { success: true };
-      } else {
-        const errorMessage =
-          response.data.error ||
-          "Invalid registration code. Please check the server logs for the correct code.";
-        setVerified(undefined);
-        setVerifying(false);
-        return { success: false, error: errorMessage };
       }
+      const errorMessage =
+        result?.error ||
+        error?.message ||
+        "Invalid registration code. Please check the server logs for the correct code.";
+      setVerified(undefined);
+      setVerifying(false);
+      return { success: false, error: errorMessage };
     } catch (err) {
       const errorMessage =
-        err.response?.data?.error ||
         err.message ||
         "Invalid registration code. Please check the server logs for the correct code.";
       setVerified(undefined);

@@ -1,6 +1,10 @@
 import { useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../utils/api";
+import { graphqlClient } from "../../../graphql/client";
+import {
+  GENERATE_INSTANCE_ADMIN_TOKEN_MUTATION,
+  REGENERATE_INSTANCE_ADMIN_TOKEN_MUTATION,
+  VERIFY_INSTANCE_ADMIN_TOKEN_MUTATION,
+} from "../../../graphql/queries";
 
 /**
  * useInstanceAdminToken Hook
@@ -21,24 +25,22 @@ export function useInstanceAdminToken({
       setGenerating((prev) => ({ ...prev, [username]: true }));
 
       try {
-        const tokenAxios = axios.create({
-          baseURL: API_BASE_URL,
-          headers: { "Content-Type": "application/json" },
-        });
-        delete tokenAxios.defaults.headers.common["Authorization"];
+        const { data, error } = await graphqlClient
+          .mutation(GENERATE_INSTANCE_ADMIN_TOKEN_MUTATION, { username })
+          .toPromise();
 
-        const response = await tokenAxios.post("/api/auth/generate-instance-admin-token", {
-          username,
-        });
-
-        if (response.data.success && response.data.token) {
-          setVerificationTokens((prev) => ({ ...prev, [username]: response.data.token }));
+        const result = data?.generateInstanceAdminToken;
+        if (result?.success && result?.token) {
+          setVerificationTokens((prev) => ({ ...prev, [username]: result.token }));
+          setError("");
+        } else {
+          setError(
+            result?.error || error?.message || "Failed to generate token. Check server logs."
+          );
         }
-
-        setError("");
       } catch (err) {
         console.error("Error generating token:", err);
-        setError(err.response?.data?.error || "Failed to generate token. Check server logs.");
+        setError("Failed to generate token. Check server logs.");
       } finally {
         setGenerating((prev) => ({ ...prev, [username]: false }));
       }
@@ -51,31 +53,29 @@ export function useInstanceAdminToken({
       setRegenerating((prev) => ({ ...prev, [username]: true }));
 
       try {
-        const tokenAxios = axios.create({
-          baseURL: API_BASE_URL,
-          headers: { "Content-Type": "application/json" },
-        });
-        delete tokenAxios.defaults.headers.common["Authorization"];
-
         const userExists = importedUsers.includes(username);
-        const endpoint = userExists
-          ? "/api/auth/regenerate-instance-admin-token"
-          : "/api/auth/generate-instance-admin-token";
+        const doc = userExists
+          ? REGENERATE_INSTANCE_ADMIN_TOKEN_MUTATION
+          : GENERATE_INSTANCE_ADMIN_TOKEN_MUTATION;
 
-        const response = await tokenAxios.post(endpoint, {
-          username,
-        });
+        const { data, error } = await graphqlClient.mutation(doc, { username }).toPromise();
 
-        if (response.data.success && response.data.token) {
-          setVerificationTokens((prev) => ({ ...prev, [username]: response.data.token }));
+        const result = userExists
+          ? data?.regenerateInstanceAdminToken
+          : data?.generateInstanceAdminToken;
+        if (result?.success && result?.token) {
+          setVerificationTokens((prev) => ({ ...prev, [username]: result.token }));
+          setError("");
+        } else {
+          setError(
+            result?.error ||
+              error?.message ||
+              "Failed to generate/regenerate token. Check server logs."
+          );
         }
-
-        setError("");
       } catch (err) {
         console.error("Error generating/regenerating token:", err);
-        setError(
-          err.response?.data?.error || "Failed to generate/regenerate token. Check server logs."
-        );
+        setError("Failed to generate/regenerate token. Check server logs.");
       } finally {
         setRegenerating((prev) => ({ ...prev, [username]: false }));
       }
@@ -96,19 +96,25 @@ export function useInstanceAdminToken({
         return updated;
       });
 
+      const markFailure = (detail) => {
+        setVerificationStatus((prev) => ({ ...prev, [username]: false }));
+        setUserStepErrors((prev) => ({
+          ...prev,
+          [username]: {
+            ...prev[username],
+            instance_admin_verification:
+              detail || "Invalid token. Please check the server logs for the correct token.",
+          },
+        }));
+      };
+
       try {
-        const verifyAxios = axios.create({
-          baseURL: API_BASE_URL,
-          headers: { "Content-Type": "application/json" },
-        });
-        delete verifyAxios.defaults.headers.common["Authorization"];
+        const { data, error } = await graphqlClient
+          .mutation(VERIFY_INSTANCE_ADMIN_TOKEN_MUTATION, { username, token })
+          .toPromise();
 
-        const response = await verifyAxios.post("/api/auth/verify-instance-admin-token", {
-          username,
-          token,
-        });
-
-        if (response.data.success) {
+        const result = data?.verifyInstanceAdminToken;
+        if (result?.success) {
           setVerificationStatus((prev) => ({ ...prev, [username]: true }));
           setUserStepErrors((prev) => {
             const updated = { ...prev };
@@ -118,32 +124,11 @@ export function useInstanceAdminToken({
             return updated;
           });
           return true;
-        } else {
-          const errorMsg =
-            response.data.error ||
-            "Invalid token. Please check the server logs for the correct token.";
-          setVerificationStatus((prev) => ({ ...prev, [username]: false }));
-          setUserStepErrors((prev) => ({
-            ...prev,
-            [username]: {
-              ...prev[username],
-              instance_admin_verification: errorMsg,
-            },
-          }));
-          return false;
         }
+        markFailure(result?.error || result?.message || error?.message);
+        return false;
       } catch (err) {
-        const errorMsg =
-          err.response?.data?.error ||
-          "Invalid token. Please check the server logs for the correct token.";
-        setVerificationStatus((prev) => ({ ...prev, [username]: false }));
-        setUserStepErrors((prev) => ({
-          ...prev,
-          [username]: {
-            ...prev[username],
-            instance_admin_verification: errorMsg,
-          },
-        }));
+        markFailure(err?.message);
         return false;
       } finally {
         setVerifying((prev) => ({ ...prev, [username]: false }));
