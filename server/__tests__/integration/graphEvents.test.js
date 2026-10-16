@@ -59,8 +59,10 @@ describe("publishGraphEvent failure callbacks", () => {
 
   test("rejected response (401) logs warn and does not throw", async () => {
     let gotPath = null;
+    let gotToken = null;
     const server = http.createServer((req, res) => {
       gotPath = req.url;
+      gotToken = req.headers["x-internal-token"];
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "unauthorized" }));
     });
@@ -74,6 +76,12 @@ describe("publishGraphEvent failure callbacks", () => {
       expect(msg).toBe("Graph event bridge rejected");
       expect(meta).toMatchObject({ module: "graphEvents", type: "containersUpdated", status: 401 });
       expect(gotPath).toBe("/internal/events");
+      // Regression guard for the production 401: the bridge must send the
+      // effective signing secret (jwt.js), never a bare env read that can be
+      // empty while the Go backend still expects its default fallback.
+      const { JWT_SECRET } = require("../../utils/jwt");
+      expect(gotToken).toBe(JWT_SECRET);
+      expect(gotToken).not.toBe("");
     } finally {
       await close(server);
     }

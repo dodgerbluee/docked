@@ -4,9 +4,12 @@
 // debug level and never surface to request handlers.
 const http = require("http");
 const logger = require("./logger");
+// Import the effective signing secret, not the raw env var: jwt.js applies the
+// same default fallback the Go config uses, so the bridge token always matches
+// what the Go backend expects even when JWT_SECRET is unset.
+const { JWT_SECRET } = require("./jwt");
 
 const GRAPHQL_BACKEND = process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
-const JWT_SECRET = process.env.JWT_SECRET || "";
 
 // Event types mirror the Go /internal/events handler switch.
 const EVENT_TYPES = new Set([
