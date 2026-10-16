@@ -21,7 +21,7 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
-	"github.com/dockedapp/backend/internal/runnerclient"
+	runnerclient "github.com/dockedapp/backend/internal/runner"
 )
 
 // UpgradeHistory is the resolver for the upgradeHistory field.

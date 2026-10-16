@@ -1,8 +1,7 @@
-// Package runnerclient is an HTTP client for dockhand runner agents,
 // covering the operations the UI triggers from the server: health pings,
 // restart, self-update, self-uninstall, and service log fetches.
 // Mirrors Node's services/runnerService.js outbound calls.
-package runnerclient
+package runner
 
 import (
 	"bytes"
@@ -12,10 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
-
-const requestTimeout = 10 * time.Second
 
 // Client talks to a single runner endpoint set.
 type Client struct {
