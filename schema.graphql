@@ -976,6 +976,7 @@ type Query {
   # ── Auth / User ───────────────────────────────────────────────────────────
   me: User!
   users: [User!]!                          # admin only
+  user(id: ID!): User                      # admin only
   registrationCodeRequired: Boolean!
   userExists(username: String!): Boolean!
 
@@ -1118,6 +1119,7 @@ type Mutation {
   # Admin user management
   setUserPassword(userId: ID!, newPassword: String!): SuccessResult!
   setUserRole(userId: ID!, role: Role!, instanceAdmin: Boolean): SuccessResult!
+  deleteUser(userId: ID!): SuccessResult!
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull

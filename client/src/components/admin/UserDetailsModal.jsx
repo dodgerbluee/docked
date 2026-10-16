@@ -13,7 +13,11 @@ import { formatDate } from "../../utils/batchFormatters";
 import { selectStyles } from "../AddTrackedAppModal/utils/selectStyles";
 import ChangePasswordModal from "./ChangePasswordModal";
 import { graphqlClient } from "../../graphql/client";
-import { SET_USER_ROLE_MUTATION } from "../../graphql/queries";
+import {
+  SET_USER_ROLE_MUTATION,
+  USER_STATS_QUERY,
+  DELETE_USER_MUTATION,
+} from "../../graphql/queries";
 import styles from "./UserDetailsModal.module.css";
 
 /**
@@ -93,15 +97,22 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
     setError(null);
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/auth/users/${user.id}/stats`);
-      if (response.data.success) {
-        setStats(response.data.stats);
+      const { data, error: gqlError } = await graphqlClient
+        .query(USER_STATS_QUERY, { id: String(user.id) })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      const u = data?.user;
+      if (!u) {
+        setError("User not found");
       } else {
-        setError(response.data.error || "Failed to fetch user statistics");
+        setStats({
+          portainerInstancesCount: u.sourceInstanceCount,
+          trackedAppsCount: u.trackedAppCount,
+        });
       }
     } catch (err) {
       console.error("Error fetching user stats:", err);
-      setError(err.response?.data?.error || err.message || "Failed to fetch user statistics");
+      setError(err.message || "Failed to fetch user statistics");
     } finally {
       setLoadingStats(false);
     }
@@ -212,17 +223,16 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
     setError(null);
 
     try {
-      const response = await axios.delete(`${API_BASE_URL}/api/auth/users/${user.id}`);
-      if (response.data.success) {
-        onClose();
-        if (onUserUpdated) {
-          onUserUpdated();
-        }
-      } else {
-        setError(response.data.error || "Failed to delete user");
+      const { error: gqlError } = await graphqlClient
+        .mutation(DELETE_USER_MUTATION, { userId: String(user.id) })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      onClose();
+      if (onUserUpdated) {
+        onUserUpdated();
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to delete user");
+      setError(err.message || "Failed to delete user");
     } finally {
       setDeleting(false);
     }

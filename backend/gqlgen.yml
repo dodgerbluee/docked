@@ -43,6 +43,12 @@ models:
         resolver: true
       preferences:
         resolver: true
+      containerCount:
+        resolver: true
+      sourceInstanceCount:
+        resolver: true
+      trackedAppCount:
+        resolver: true
   SourceInstance:
     fields:
       containers:

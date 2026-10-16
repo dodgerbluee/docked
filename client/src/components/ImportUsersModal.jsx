@@ -6,13 +6,13 @@
 
 import React, { useMemo, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import Modal from "./ui/Modal";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
 import FileUploadStep from "./ImportUsersModal/FileUploadStep";
 import StepRenderer from "./ImportUsersModal/StepRenderer";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { USER_EXISTS_QUERY } from "../graphql/queries";
 import { parseUserImportFile, isInstanceAdmin } from "./ImportUsersModal/utils/userImportParsers";
 import {
   initializeUserCredentials,
@@ -223,13 +223,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
           try {
             const result = parseUserImportFile(e.target.result);
             if (result.success) {
-              // Check for existing users
-              const checkAxios = axios.create({
-                baseURL: API_BASE_URL,
-                headers: { "Content-Type": "application/json" },
-              });
-              delete checkAxios.defaults.headers.common["Authorization"];
-
+              // Check for existing users (public graph query, works pre-auth)
               const existingUsers = [];
               const validUsers = [];
               const preImportErrors = [];
@@ -238,11 +232,11 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
                 if (!user || !user.username) continue;
 
                 try {
-                  const response = await checkAxios.get(`/api/auth/check-user-exists`, {
-                    params: { username: user.username },
-                  });
+                  const { data } = await graphqlClient
+                    .query(USER_EXISTS_QUERY, { username: user.username })
+                    .toPromise();
 
-                  if (response.data.success && response.data.exists) {
+                  if (data?.userExists) {
                     existingUsers.push(user.username);
                     preImportErrors.push(`User "${user.username}" already exists`);
                   } else {

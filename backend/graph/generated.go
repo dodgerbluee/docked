@@ -340,6 +340,7 @@ type ComplexityRoot struct {
 		DeleteRunner                func(childComplexity int, id string) int
 		DeleteSourceInstance        func(childComplexity int, id string) int
 		DeleteTrackedApp            func(childComplexity int, id string) int
+		DeleteUser                  func(childComplexity int, userID string) int
 		DryRunIntent                func(childComplexity int, id string) int
 		GenerateEnrollmentToken     func(childComplexity int) int
 		Login                       func(childComplexity int, input model.LoginInput) int
@@ -446,6 +447,7 @@ type ComplexityRoot struct {
 		UnusedImages                  func(childComplexity int) int
 		UpgradeHistory                func(childComplexity int, filter *model.UpgradeHistoryFilterInput, first *int, after *string) int
 		UpgradeHistoryStats           func(childComplexity int) int
+		User                          func(childComplexity int, id string) int
 		UserExists                    func(childComplexity int, username string) int
 		UserPreferences               func(childComplexity int) int
 		Users                         func(childComplexity int) int
@@ -752,6 +754,7 @@ type MutationResolver interface {
 	UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.UpdateUsernameResult, error)
 	SetUserPassword(ctx context.Context, userID string, newPassword string) (*model.SuccessResult, error)
 	SetUserRole(ctx context.Context, userID string, role model.Role, instanceAdmin *bool) (*model.SuccessResult, error)
+	DeleteUser(ctx context.Context, userID string) (*model.SuccessResult, error)
 	PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error)
 	UpgradeContainer(ctx context.Context, input model.UpgradeContainerInput) (*model.Operation, error)
 	BatchUpgrade(ctx context.Context, input model.BatchUpgradeInput) (*model.Operation, error)
@@ -806,6 +809,7 @@ type QueryResolver interface {
 	LatestRelease(ctx context.Context) (*model.GitHubRelease, error)
 	Me(ctx context.Context) (*model.User, error)
 	Users(ctx context.Context) ([]*model.User, error)
+	User(ctx context.Context, id string) (*model.User, error)
 	RegistrationCodeRequired(ctx context.Context) (bool, error)
 	UserExists(ctx context.Context, username string) (bool, error)
 	Containers(ctx context.Context, filter *model.ContainerFilterInput, first *int, after *string) (*model.ContainerConnection, error)
@@ -873,6 +877,9 @@ type UserResolver interface {
 	DiscordWebhooks(ctx context.Context, obj *model.User) ([]*model.DiscordWebhook, error)
 	RepositoryTokens(ctx context.Context, obj *model.User) ([]*model.RepositoryAccessToken, error)
 	Preferences(ctx context.Context, obj *model.User) (*model.UserPreferences, error)
+	ContainerCount(ctx context.Context, obj *model.User) (int, error)
+	SourceInstanceCount(ctx context.Context, obj *model.User) (int, error)
+	TrackedAppCount(ctx context.Context, obj *model.User) (int, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -2290,6 +2297,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteTrackedApp(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteUser":
+		if e.ComplexityRoot.Mutation.DeleteUser == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteUser_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteUser(childComplexity, args["userId"].(string)), true
 	case "Mutation.dryRunIntent":
 		if e.ComplexityRoot.Mutation.DryRunIntent == nil {
 			break
@@ -3104,6 +3122,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.UpgradeHistoryStats(childComplexity), true
+	case "Query.user":
+		if e.ComplexityRoot.Query.User == nil {
+			break
+		}
+
+		args, err := ec.field_Query_user_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.User(childComplexity, args["id"].(string)), true
 	case "Query.userExists":
 		if e.ComplexityRoot.Query.UserExists == nil {
 			break
@@ -5501,6 +5530,7 @@ type Query {
   # ── Auth / User ───────────────────────────────────────────────────────────
   me: User!
   users: [User!]!                          # admin only
+  user(id: ID!): User                      # admin only
   registrationCodeRequired: Boolean!
   userExists(username: String!): Boolean!
 
@@ -5643,6 +5673,7 @@ type Mutation {
   # Admin user management
   setUserPassword(userId: ID!, newPassword: String!): SuccessResult!
   setUserRole(userId: ID!, role: Role!, instanceAdmin: Boolean): SuccessResult!
+  deleteUser(userId: ID!): SuccessResult!
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull
@@ -7475,6 +7506,20 @@ func (ec *executionContext) field_Mutation_deleteTrackedApp_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_dryRunIntent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8418,6 +8463,20 @@ func (ec *executionContext) field_Query_userExists_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["username"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -13604,6 +13663,50 @@ func (ec *executionContext) fieldContext_Mutation_setUserRole(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteUser(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteUser(ctx, fc.Args["userId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteUser_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_pullContainers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16297,6 +16400,50 @@ func (ec *executionContext) fieldContext_Query_users(_ context.Context, field gr
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_User(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_user(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_user(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().User(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.User) graphql.Marshaler {
+			return ec.marshalOUser2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUser(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_user_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -22494,7 +22641,7 @@ func (ec *executionContext) _User_containerCount(ctx context.Context, field grap
 			return ec.fieldContext_User_containerCount(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ContainerCount, nil
+			return ec.Resolvers.User().ContainerCount(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
@@ -22505,7 +22652,7 @@ func (ec *executionContext) _User_containerCount(ctx context.Context, field grap
 	)
 }
 func (ec *executionContext) fieldContext_User_containerCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Int does not have child fields"))
+	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _User_sourceInstanceCount(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -22517,7 +22664,7 @@ func (ec *executionContext) _User_sourceInstanceCount(ctx context.Context, field
 			return ec.fieldContext_User_sourceInstanceCount(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.SourceInstanceCount, nil
+			return ec.Resolvers.User().SourceInstanceCount(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
@@ -22528,7 +22675,7 @@ func (ec *executionContext) _User_sourceInstanceCount(ctx context.Context, field
 	)
 }
 func (ec *executionContext) fieldContext_User_sourceInstanceCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Int does not have child fields"))
+	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _User_trackedAppCount(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -22540,7 +22687,7 @@ func (ec *executionContext) _User_trackedAppCount(ctx context.Context, field gra
 			return ec.fieldContext_User_trackedAppCount(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.TrackedAppCount, nil
+			return ec.Resolvers.User().TrackedAppCount(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
@@ -22551,7 +22698,7 @@ func (ec *executionContext) _User_trackedAppCount(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_User_trackedAppCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Int does not have child fields"))
+	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _UserPreferences_colorScheme(ctx context.Context, field graphql.CollectedField, obj *model.UserPreferences) (ret graphql.Marshaler) {
@@ -27585,6 +27732,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "deleteUser":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteUser(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "pullContainers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_pullContainers(ctx, field)
@@ -28268,6 +28422,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_users(ctx, field)
 				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "user":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_user(ctx, field)
+				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -31180,20 +31356,119 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "containerCount":
-			out.Values[i] = ec._User_containerCount(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_containerCount(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "sourceInstanceCount":
-			out.Values[i] = ec._User_sourceInstanceCount(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_sourceInstanceCount(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "trackedAppCount":
-			out.Values[i] = ec._User_trackedAppCount(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_trackedAppCount(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

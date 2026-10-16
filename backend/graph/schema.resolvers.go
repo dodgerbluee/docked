@@ -388,6 +388,39 @@ func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role 
 	return &model.SuccessResult{Success: true, Message: strPtr("User role updated successfully")}, nil
 }
 
+// DeleteUser is the resolver for the deleteUser field.
+func (r *mutationResolver) DeleteUser(ctx context.Context, userID string) (*model.SuccessResult, error) {
+	uid, err := requireAdmin(ctx, r.DB)
+	if err != nil {
+		return nil, err
+	}
+	target, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user id")
+	}
+	if uid == target {
+		return nil, fmt.Errorf("you cannot delete your own account")
+	}
+	user, err := db.GetUserByID(ctx, r.DB, target)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	changes, err := db.DeleteUser(ctx, r.DB, target)
+	if err != nil {
+		return nil, err
+	}
+	if changes == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+	return &model.SuccessResult{
+		Success: true,
+		Message: strPtr(fmt.Sprintf("User %q deleted successfully", user.Username)),
+	}, nil
+}
+
 // PullContainers is the resolver for the pullContainers field.
 func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error) {
 	uid, err := requireUser(ctx)
@@ -2049,6 +2082,26 @@ func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 	return users, nil
 }
 
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	_, err := requireAdmin(ctx, r.DB)
+	if err != nil {
+		return nil, err
+	}
+	uid, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user id")
+	}
+	row, err := db.GetUserByID(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, nil
+	}
+	return userRowToModel(row), nil
+}
+
 // RegistrationCodeRequired is the resolver for the registrationCodeRequired field.
 func (r *queryResolver) RegistrationCodeRequired(ctx context.Context) (bool, error) {
 	has, _ := db.HasRegistrationCode(ctx, r.DB)
@@ -3311,6 +3364,53 @@ func (r *userResolver) Preferences(ctx context.Context, obj *model.User) (*model
 		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
 		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
 	}, nil
+}
+
+// ContainerCount is the resolver for the containerCount field.
+func (r *userResolver) ContainerCount(ctx context.Context, obj *model.User) (int, error) {
+	stats, err := r.userStatsFor(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
+	return stats.Containers, nil
+}
+
+// SourceInstanceCount is the resolver for the sourceInstanceCount field.
+func (r *userResolver) SourceInstanceCount(ctx context.Context, obj *model.User) (int, error) {
+	stats, err := r.userStatsFor(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
+	return stats.PortainerInstances, nil
+}
+
+// TrackedAppCount is the resolver for the trackedAppCount field.
+func (r *userResolver) TrackedAppCount(ctx context.Context, obj *model.User) (int, error) {
+	stats, err := r.userStatsFor(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
+	return stats.TrackedApps, nil
+}
+
+// userStatsFor gates the per-user count fields: instance admins may view any
+// user's counts, everyone else only their own (parity with the old admin-only
+// /auth/users/:id/stats route, relaxed for self-service).
+func (r *userResolver) userStatsFor(ctx context.Context, obj *model.User) (*db.UserStats, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target, err := strconv.ParseInt(obj.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user id")
+	}
+	if uid != target {
+		if _, err := requireAdmin(ctx, r.DB); err != nil {
+			return nil, err
+		}
+	}
+	return db.CountUserStats(ctx, r.DB, target)
 }
 
 // Container returns ContainerResolver implementation.

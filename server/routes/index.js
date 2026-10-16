@@ -457,7 +457,7 @@ router.get(
   asyncHandler(authController.checkRegistrationCodeRequired)
 );
 // Auth routes (public - no authentication required)
-router.get("/auth/check-user-exists", publicLimiter, asyncHandler(authController.checkUserExists));
+// check-user-exists is served by the graph (userExists query).
 router.post(
   "/auth/generate-registration-code",
   authLimiter,
@@ -550,14 +550,8 @@ router.delete(
 router.get("/admin/sso/settings", asyncHandler(ssoAdminController.getSettings));
 router.put("/admin/sso/settings", writeLimiter, asyncHandler(ssoAdminController.updateSettings));
 
-// User management routes (protected)
-router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
+// User management routes: served by the graph (user query, deleteUser mutation).
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
-router.delete(
-  "/auth/users/:userId",
-  destructiveLimiter,
-  asyncHandler(authController.adminDeleteUser)
-);
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 
 // Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)

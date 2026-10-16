@@ -235,3 +235,47 @@ func GetUserCount(ctx context.Context, database *sql.DB) (int, error) {
 	err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	return count, err
 }
+
+// UserStats carries per-user counts shown in the admin user detail modal.
+type UserStats struct {
+	PortainerInstances int
+	TrackedApps        int
+	Containers         int
+}
+
+func CountUserStats(ctx context.Context, database *sql.DB, userID int64) (*UserStats, error) {
+	var s UserStats
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM portainer_instances WHERE user_id = ?", userID).Scan(&s.PortainerInstances); err != nil {
+		return nil, fmt.Errorf("count portainer instances: %w", err)
+	}
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", userID).Scan(&s.TrackedApps); err != nil {
+		return nil, fmt.Errorf("count tracked apps: %w", err)
+	}
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM containers WHERE user_id = ?", userID).Scan(&s.Containers); err != nil {
+		return nil, fmt.Errorf("count containers: %w", err)
+	}
+	return &s, nil
+}
+
+// DeleteUser removes a user and cascades their associated data, mirroring
+// Node's deleteUser table list. Returns rows deleted from users (0 or 1).
+func DeleteUser(ctx context.Context, database *sql.DB, userID int64) (int, error) {
+	tables := []string{
+		"portainer_instances", "tracked_apps", "discord_webhooks", "containers",
+		"deployed_images", "settings", "batch_config",
+	}
+	for _, t := range tables {
+		if _, err := database.ExecContext(ctx, "DELETE FROM "+t+" WHERE user_id = ?", userID); err != nil {
+			return 0, fmt.Errorf("delete %s for user: %w", t, err)
+		}
+	}
+	res, err := database.ExecContext(ctx, "DELETE FROM users WHERE id = ?", userID)
+	if err != nil {
+		return 0, fmt.Errorf("delete user: %w", err)
+	}
+	changes, err := res.RowsAffected()
+	return int(changes), err
+}

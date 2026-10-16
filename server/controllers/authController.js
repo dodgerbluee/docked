@@ -11,7 +11,6 @@ const {
   getUserByUsername,
   getUserById,
   verifyPassword,
-  getUserStats,
   updateLastLogin,
   hasAnyUsers,
   createUser,
@@ -19,7 +18,6 @@ const {
   getAllUsers,
   updateVerificationToken,
   verifyAndClearToken,
-  deleteUser,
   getAllSourceInstances,
   getAllDiscordWebhooks,
   getAllTrackedApps,
@@ -1182,130 +1180,6 @@ async function createUserWithConfig(req, res, next) {
 }
 
 /**
- * Check if a user exists
- * Public endpoint to check if a username is already taken
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function checkUserExists(req, res, next) {
-  try {
-    const { username } = req.query;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        error: "Username is required",
-      });
-    }
-
-    const user = await getUserByUsername(username);
-
-    return res.json({
-      success: true,
-      exists: Boolean(user),
-      username,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Admin delete user (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function adminDeleteUser(req, res, next) {
-  try {
-    // Only instance admins can delete users
-    if (!req.user?.instanceAdmin) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
-    }
-
-    const { userId } = req.params;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "User ID is required",
-      });
-    }
-
-    const targetId = parseInt(userId, 10);
-
-    // Prevent deleting yourself
-    if (req.user.userId === targetId) {
-      return res.status(400).json({
-        success: false,
-        error: "You cannot delete your own account",
-      });
-    }
-
-    // Verify user exists
-    const user = await getUserById(targetId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    // Delete user and associated data
-    const changes = await deleteUser(targetId);
-
-    if (changes === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    logger.info(
-      `User "${user.username}" (ID: ${targetId}) deleted by admin "${req.user.username}"`
-    );
-
-    return res.json({
-      success: true,
-      message: `User "${user.username}" deleted successfully`,
-    });
-  } catch (error) {
-    logger.error("Error deleting user:", error);
-    next(error);
-  }
-}
-
-/**
- * Get user statistics (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getUserStatsEndpoint(req, res, next) {
-  try {
-    // Only instance admins can view user stats
-    if (!req.user?.instanceAdmin) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
-    }
-
-    const { userId } = req.params;
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "User ID is required",
-      });
-    }
-
-    const stats = await getUserStats(parseInt(userId, 10));
-    return res.json({ success: true, stats });
-  } catch (error) {
-    logger.error("Error getting user stats:", error);
-    next(error);
-  }
-}
-
-/**
  * Export all users (admin only)
  * Exports all users in the same format as exportUserConfig but in a users array
  * @param {Object} req - Express request object
@@ -1441,8 +1315,5 @@ module.exports = {
   checkRegistrationCodeRequired,
   generateRegistrationCodeEndpoint,
   verifyRegistrationCode,
-  checkUserExists,
   exportUsersEndpoint,
-  getUserStatsEndpoint,
-  adminDeleteUser,
 };

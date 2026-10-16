@@ -1199,3 +1199,28 @@ export const TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+export const USER_STATS_QUERY = /* GraphQL */ `
+  query GetUserStats($id: ID!) {
+    user(id: $id) {
+      id
+      sourceInstanceCount
+      trackedAppCount
+    }
+  }
+`;
+
+export const DELETE_USER_MUTATION = /* GraphQL */ `
+  mutation DeleteUser($userId: ID!) {
+    deleteUser(userId: $userId) {
+      success
+      message
+    }
+  }
+`;
+
+export const USER_EXISTS_QUERY = /* GraphQL */ `
+  query UserExists($username: String!) {
+    userExists(username: $username)
+  }
+`;
