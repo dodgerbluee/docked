@@ -957,6 +957,24 @@ export const LOGS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const UPLOAD_AVATAR_MUTATION = /* GraphQL */ `
+  mutation UploadAvatar($file: Upload!) {
+    uploadAvatar(file: $file) {
+      success
+      message
+    }
+  }
+`;
+
+export const DELETE_AVATAR_MUTATION = /* GraphQL */ `
+  mutation DeleteAvatar {
+    deleteAvatar {
+      success
+      message
+    }
+  }
+`;
+
 export const REPOSITORY_TOKENS_QUERY = /* GraphQL */ `
   query RepositoryTokens {
     repositoryTokens {

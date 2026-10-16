@@ -834,8 +834,6 @@ router.get(
   avatarLimiter,
   asyncHandler(avatarController.getRecentAvatar)
 );
-router.post("/avatars", writeLimiter, asyncHandler(avatarController.uploadAvatar));
-router.delete("/avatars", destructiveLimiter, asyncHandler(avatarController.deleteAvatar));
 
 // Batch configuration routes
 router.post(

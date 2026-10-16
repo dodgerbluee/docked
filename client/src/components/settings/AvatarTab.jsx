@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
+import { graphqlClient } from "../../graphql/client";
+import { uploadGraphQL } from "../../graphql/upload";
+import { UPLOAD_AVATAR_MUTATION, DELETE_AVATAR_MUTATION } from "../../graphql/queries";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -119,25 +122,25 @@ const AvatarTab = React.memo(function AvatarTab({
     try {
       const response = await fetch(croppedImageUrl);
       const blob = await response.blob();
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
 
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(blob);
-      });
+      const data = await uploadGraphQL(UPLOAD_AVATAR_MUTATION, { file: null }, { file });
+      const result = data.uploadAvatar;
 
-      const uploadResponse = await axios.post(`${API_BASE_URL}/api/avatars`, {
-        avatar: base64,
-      });
-
-      if (uploadResponse.data.success) {
-        const avatarUrl = uploadResponse.data.avatarUrl;
+      if (result?.success) {
+        const avatarUrl = result.message || "/api/avatars";
         if (onAvatarChange) {
           await onAvatarChange(avatarUrl);
         }
 
-        const serverRecentAvatars = uploadResponse.data.recentAvatars || [];
+        // Refresh the recent list from the (still REST) recent-avatars endpoint
+        let serverRecentAvatars = [];
+        try {
+          const recentResp = await axios.get(`${API_BASE_URL}/api/avatars/recent`);
+          serverRecentAvatars = recentResp.data.avatars || [];
+        } catch (err) {
+          console.error("Error refreshing recent avatars:", err);
+        }
         if (onRecentAvatarsChange) {
           onRecentAvatarsChange(serverRecentAvatars);
         }
@@ -154,7 +157,7 @@ const AvatarTab = React.memo(function AvatarTab({
           }, 200);
         }
       } else {
-        throw new Error(uploadResponse.data.error || "Failed to upload avatar");
+        throw new Error("Failed to upload avatar");
       }
     } catch (err) {
       console.error("Avatar upload error:", err);
@@ -166,9 +169,9 @@ const AvatarTab = React.memo(function AvatarTab({
   const handleDeleteAvatar = async () => {
     try {
       setAvatarError("");
-      const response = await axios.delete(`${API_BASE_URL}/api/avatars`);
+      const result = await graphqlClient.mutation(DELETE_AVATAR_MUTATION).toPromise();
 
-      if (response.data.success) {
+      if (!result.error && result.data?.deleteAvatar?.success) {
         if (avatar && avatar.startsWith("blob:")) {
           URL.revokeObjectURL(avatar);
         }
@@ -190,11 +193,11 @@ const AvatarTab = React.memo(function AvatarTab({
           }, 200);
         }
       } else {
-        throw new Error(response.data.error || "Failed to delete avatar");
+        throw new Error(result.error?.message || "Failed to delete avatar");
       }
     } catch (err) {
       console.error("Error deleting avatar:", err);
-      setAvatarError(err.response?.data?.error || "Failed to delete avatar. Please try again.");
+      setAvatarError(err.message || "Failed to delete avatar. Please try again.");
       setShowDeleteConfirm(false);
     }
   };

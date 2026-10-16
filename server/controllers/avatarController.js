@@ -1,6 +1,6 @@
 /**
  * Avatar Controller
- * Handles avatar upload, retrieval, and management
+ * Handles avatar retrieval (binary image routes). Upload and delete are served by the GraphQL backend.
  */
 
 const fs = require("fs");
@@ -228,141 +228,6 @@ async function getRecentAvatar(req, res, next) {
   }
 }
 
-/**
- * Upload avatar
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-// eslint-disable-next-line max-lines-per-function -- Complex avatar upload logic with validation
-function uploadAvatar(req, res, next) {
-  try {
-    const userId = req.user.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "User ID not found",
-      });
-    }
-
-    const { avatar } = req.body; // Base64 encoded image
-
-    if (!avatar) {
-      return res.status(400).json({
-        success: false,
-        error: "Avatar data is required",
-      });
-    }
-
-    // Validate base64 image
-    if (!avatar.startsWith("data:image/")) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid image format",
-      });
-    }
-
-    // Extract base64 data
-    const base64Data = avatar.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Ensure user's avatar directory exists (using user ID)
-    // Security: Validate paths are contained within AVATARS_DIR
-    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
-    const userAvatarDir = path.resolve(AVATARS_DIR, userId.toString());
-    const recentAvatarsDir = path.resolve(userAvatarDir, "recent");
-
-    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
-    if (!userAvatarDir.startsWith(normalizedAvatarsDir)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid user path",
-      });
-    }
-    if (!fs.existsSync(userAvatarDir)) {
-      fs.mkdirSync(userAvatarDir, { recursive: true });
-    }
-    if (!fs.existsSync(recentAvatarsDir)) {
-      fs.mkdirSync(recentAvatarsDir, { recursive: true });
-    }
-
-    // Save main avatar
-    const avatarPath = path.join(userAvatarDir, "avatar.jpg");
-    fs.writeFileSync(avatarPath, buffer);
-
-    // Save to recent avatars with timestamp
-    const timestamp = Date.now();
-    const recentAvatarPath = path.join(recentAvatarsDir, `${timestamp}.jpg`);
-    fs.writeFileSync(recentAvatarPath, buffer);
-
-    // Clean up old recent avatars (keep only 3 most recent)
-    const recentFiles = fs
-      .readdirSync(recentAvatarsDir)
-      .filter((file) => file.endsWith(".jpg"))
-      .map((file) => {
-        const filePath = path.join(recentAvatarsDir, file);
-        return {
-          filename: file,
-          path: filePath,
-          mtime: fs.statSync(filePath).mtime,
-        };
-      })
-      .sort((a, b) => b.mtime - a.mtime);
-
-    // Delete files beyond the 3 most recent
-    if (recentFiles.length > 3) {
-      recentFiles.slice(3).forEach((file) => {
-        fs.unlinkSync(file.path);
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: "Avatar uploaded successfully",
-      avatarUrl: `/api/avatars`,
-      recentAvatars: recentFiles.slice(0, 3).map((file) => `/api/avatars/recent/${file.filename}`),
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * Delete avatar
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function deleteAvatar(req, res, next) {
-  try {
-    const userId = req.user.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "User ID not found",
-      });
-    }
-
-    const avatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
-    if (fs.existsSync(avatarPath)) {
-      fs.unlinkSync(avatarPath);
-    }
-
-    return res.json({
-      success: true,
-      message: "Avatar deleted successfully",
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * Get another user's avatar (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
 function getAvatarByUserId(req, res, next) {
   try {
     // Only instance admins can view other users' avatars
@@ -527,6 +392,4 @@ module.exports = {
   getAvatarByUserId,
   getRecentAvatars,
   getRecentAvatar,
-  uploadAvatar,
-  deleteAvatar,
 };
