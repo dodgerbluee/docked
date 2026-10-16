@@ -172,65 +172,6 @@ async function getRunners(req, res, next) {
 }
 
 /**
- * GET /api/runners/:id
- */
-async function getRunner(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runner = await getRunnerById(parseInt(req.params.id, 10), userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-    const { api_key: _apiKey, ...safe } = runner;
-    return res.json({ success: true, runner: safe });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * POST /api/runners
- */
-async function createRunnerHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const { name, url, apiKey } = req.body;
-
-    if (!name || !url || !apiKey) {
-      return res.status(400).json({ success: false, error: "name, url, and apiKey are required" });
-    }
-
-    // Validate URL format
-    try {
-      const parsed = new URL(url);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return res.status(400).json({ success: false, error: "URL must use http:// or https://" });
-      }
-    } catch {
-      return res.status(400).json({ success: false, error: "Invalid URL format" });
-    }
-
-    const existing = await getRunnerByNameAndUser(name.trim(), userId);
-    if (existing) {
-      return res
-        .status(409)
-        .json({ success: false, error: "A runner with that name already exists" });
-    }
-
-    const id = await createRunner({ userId, name: name.trim(), url: url.trim(), apiKey });
-    return res.status(201).json({ success: true, id, message: "Runner created successfully" });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
  * PUT /api/runners/:id
  */
 async function updateRunnerHandler(req, res, next) {
@@ -418,38 +359,6 @@ async function upgradeRunnerContainer(req, res, next) {
     } finally {
       await upgradeLockManager.release(containerId, { ...lockOpts, lockToken });
     }
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * GET /api/runners/:runnerId/containers/:containerId/logs  (SSE)
- * Proxies the runner's log SSE stream to the browser.
- */
-async function streamRunnerContainerLogs(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runnerId = parseInt(req.params.runnerId, 10);
-    const { containerId } = req.params;
-
-    const runner = await getRunnerById(runnerId, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-    if (!runner.enabled) {
-      return res.status(400).json({ success: false, error: "Runner is disabled" });
-    }
-
-    const opts = {
-      tail: req.query.tail || "",
-      follow: req.query.follow === "true",
-    };
-
-    await proxyLogsStream(runner, containerId, opts, req, res);
   } catch (err) {
     next(err);
   }
@@ -874,33 +783,6 @@ async function getRunnerOperations(req, res, next) {
 }
 
 /**
- * GET /api/runners/:runnerId/operations/:name/history
- * Returns execution history for a named operation.
- */
-async function getRunnerOperationHistory(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runnerId = parseInt(req.params.runnerId, 10);
-    const { name } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 20;
-    const runner = await getRunnerById(runnerId, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-    if (!runner.enabled) {
-      return res.status(400).json({ success: false, error: "Runner is disabled" });
-    }
-    const data = await fetchRunnerOperationHistory(runner.url, runner.api_key, name, limit);
-    res.json({ success: true, ...data });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
  * POST /api/runners/:runnerId/operations/:name/run  (SSE)
  * Proxies a live operation run stream from the runner to the browser.
  */
@@ -971,39 +853,6 @@ async function runRunnerAppOperation(req, res, next) {
       return res.status(400).json({ success: false, error: "Runner is disabled" });
     }
     await proxyAppOperationRunStream(runner, appName, opName, req, res);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * GET /api/runners/:runnerId/apps/:appName/operations/:opName/history
- * Returns execution history for a named app operation.
- */
-async function getRunnerAppOperationHistory(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runnerId = parseInt(req.params.runnerId, 10);
-    const { appName, opName } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 20;
-    const runner = await getRunnerById(runnerId, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-    if (!runner.enabled) {
-      return res.status(400).json({ success: false, error: "Runner is disabled" });
-    }
-    const data = await fetchRunnerAppOperationHistory(
-      runner.url,
-      runner.api_key,
-      appName,
-      opName,
-      limit
-    );
-    res.json({ success: true, ...data });
   } catch (err) {
     next(err);
   }
@@ -1469,19 +1318,14 @@ async function getRunnerLogsHandler(req, res, next) {
 
 module.exports = {
   getRunners,
-  getRunner,
-  createRunnerHandler,
   updateRunnerHandler,
   deleteRunnerHandler,
   healthCheckRunner,
   upgradeRunnerContainer,
-  streamRunnerContainerLogs,
   getRunnerOperations,
-  getRunnerOperationHistory,
   runRunnerOperation,
   getRunnerApps,
   runRunnerAppOperation,
-  getRunnerAppOperationHistory,
   getRunnerAppsHistory,
   createEnrollment,
   getEnrollmentStatus,

@@ -121,43 +121,6 @@ async function getInstances(req, res, next) {
 }
 
 /**
- * Get a single Source instance
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getInstance(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { id } = req.params;
-    const instance = await getSourceInstanceById(parseInt(id, 10), userId);
-
-    if (!instance) {
-      return res.status(404).json({
-        success: false,
-        error: "Source instance not found",
-      });
-    }
-
-    // Don't return password or API key in the response
-
-    const { password: _password, api_key: _apiKey, ...safeInstance } = instance;
-    return res.json({
-      success: true,
-      instance: safeInstance,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
  * Create a new Source instance
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -416,67 +379,6 @@ async function updateInstance(req, res, next) {
 }
 
 /**
- * Delete a Source instance
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function deleteInstance(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { id } = req.params;
-
-    // Check if instance exists
-    const existing = await getSourceInstanceById(parseInt(id, 10), userId);
-    if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: "Source instance not found",
-      });
-    }
-
-    // Get the instance URL before deletion so we can remove its containers from cache
-    const deletedInstanceUrl = existing.url;
-
-    // Normalize URL for comparison (remove trailing slash, lowercase)
-    const normalizeUrl = (url) => {
-      if (!url) {
-        return "";
-      }
-      return url.trim().replace(/\/+$/, "").toLowerCase();
-    };
-    const _normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
-
-    // Delete instance
-    await deleteSourceInstance(parseInt(id, 10), userId);
-
-    // Containers are automatically deleted from normalized tables via CASCADE
-    // when the source instance is deleted, so no manual cleanup needed
-    logger.info(
-      "Source instance deleted, containers will be removed from normalized tables via CASCADE",
-      {
-        module: "sourceController",
-        operation: "deleteInstance",
-        instanceUrl: deletedInstanceUrl,
-      }
-    );
-
-    return res.json({
-      success: true,
-      message: "Source instance deleted successfully",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
  * Update the display order of Source instances
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -565,10 +467,8 @@ async function healthCheckInstance(req, res, next) {
 module.exports = {
   validateInstance,
   getInstances,
-  getInstance,
   createInstance,
   updateInstance,
-  deleteInstance,
   updateInstanceOrder,
   healthCheckInstance,
 };

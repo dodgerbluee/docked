@@ -4,11 +4,7 @@
  */
 
 const logger = require("../utils/logger");
-const {
-  getTrackedAppUpgradeHistory,
-  getTrackedAppUpgradeHistoryById,
-  getTrackedAppUpgradeHistoryStats,
-} = require("../db");
+const { getTrackedAppUpgradeHistory, getTrackedAppUpgradeHistoryStats } = require("../db");
 
 /**
  * Get upgrade history for tracked apps
@@ -36,49 +32,6 @@ async function getTrackedAppHistory(req, res) {
     });
   } catch (error) {
     logger.error("Error fetching tracked app upgrade history:", { error, userId: req.user?.id });
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch tracked app upgrade history",
-    });
-  }
-}
-
-/**
- * Get a single tracked app upgrade history record by ID
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- */
-async function getTrackedAppHistoryById(req, res) {
-  try {
-    const userId = req.user.id;
-    const upgradeId = parseInt(req.params.id, 10);
-
-    if (isNaN(upgradeId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid upgrade ID",
-      });
-    }
-
-    const history = await getTrackedAppUpgradeHistoryById(userId, upgradeId);
-
-    if (!history) {
-      return res.status(404).json({
-        success: false,
-        error: "Upgrade history record not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      history,
-    });
-  } catch (error) {
-    logger.error("Error fetching tracked app upgrade history by ID:", {
-      error,
-      userId: req.user?.id,
-      upgradeId: req.params.id,
-    });
     res.status(500).json({
       success: false,
       error: "Failed to fetch tracked app upgrade history",
@@ -115,6 +68,5 @@ async function getTrackedAppHistoryStats(req, res) {
 
 module.exports = {
   getTrackedAppHistory,
-  getTrackedAppHistoryById,
   getTrackedAppHistoryStats,
 };

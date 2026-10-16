@@ -497,46 +497,6 @@ async function updateUserPassword(req, res, next) {
 }
 
 /**
- * Get current user info
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getCurrentUser(req, res, next) {
-  try {
-    const username = req.user?.username;
-
-    if (!username) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-
-    const user = await getUserByUsername(username);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    return res.json({
-      success: true,
-      user: {
-        username: user.username,
-        role: user.role,
-        instanceAdmin: user.instance_admin === 1,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
  * Update username endpoint
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -1085,91 +1045,6 @@ async function importGeneralSettings(generalSettings, user, results) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-// eslint-disable-next-line max-lines-per-function, complexity -- Complex import logic with validation and error handling
-async function importUserConfig(req, res, next) {
-  try {
-    const username = req.user?.username;
-    const { configData, credentials, skippedSteps = [] } = req.body;
-
-    if (!username) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-
-    if (!configData) {
-      return res.status(400).json({
-        success: false,
-        error: "Configuration data is required",
-      });
-    }
-
-    // Check if user already exists (from imported config)
-    if (configData.user) {
-      const existingUser = await getUserByUsername(configData.user.username);
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          error: `User "${configData.user.username}" already exists. Cannot import configuration for existing user.`,
-        });
-      }
-    }
-
-    const results = {
-      portainerInstances: [],
-      discordWebhooks: [],
-      trackedApps: [],
-      generalSettings: null,
-      errors: [],
-    };
-
-    const user = await getUserByUsername(username);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    if (
-      configData.portainerInstances &&
-      Array.isArray(configData.portainerInstances) &&
-      !skippedSteps.includes("portainer")
-    ) {
-      await importPortainerInstances(configData.portainerInstances, credentials, results, user.id);
-    }
-
-    if (
-      configData.discordWebhooks &&
-      Array.isArray(configData.discordWebhooks) &&
-      !skippedSteps.includes("discord")
-    ) {
-      await importDiscordWebhooks(configData.discordWebhooks, credentials, user, results);
-    }
-
-    if (configData.trackedApps && Array.isArray(configData.trackedApps)) {
-      await importTrackedApps(configData.trackedApps, user, results);
-    }
-
-    if (configData.generalSettings) {
-      try {
-        await importGeneralSettings(configData.generalSettings, user, results);
-      } catch (error) {
-        results.errors.push(`General settings: ${error.message || "Failed to import"}`);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: "Configuration imported successfully",
-      results,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
 
 /**
  * Import users from JSON file
@@ -1177,130 +1052,6 @@ async function importUserConfig(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-// eslint-disable-next-line max-lines-per-function, complexity -- Complex user import logic with validation
-async function importUsers(req, res, next) {
-  try {
-    const { users } = req.body;
-
-    if (!users || !Array.isArray(users)) {
-      return res.status(400).json({
-        success: false,
-        error: "Users array is required",
-      });
-    }
-
-    const results = {
-      imported: [],
-      errors: [],
-      verificationTokens: [],
-    };
-
-    for (const userData of users) {
-      try {
-        // Support both camelCase (instanceAdmin) and snake_case (instance_admin) to match export format
-        const {
-          username,
-          password,
-          email,
-          role = "Administrator",
-          instanceAdmin,
-          instance_admin,
-        } = userData;
-        const isInstanceAdmin =
-          instanceAdmin !== undefined
-            ? instanceAdmin
-            : instance_admin === true || instance_admin === 1;
-
-        // Validate required fields
-        if (!username) {
-          results.errors.push(`User missing username: ${username || "unknown"}`);
-          continue;
-        }
-        if (!password) {
-          results.errors.push(
-            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`
-          );
-          continue;
-        }
-
-        // Validate username length
-        if (username.length < 3) {
-          results.errors.push(`Username "${username}" must be at least 3 characters long`);
-          continue;
-        }
-
-        // Validate password length
-        if (password.length < 8) {
-          results.errors.push(`Password for "${username}" must be at least 8 characters long`);
-          continue;
-        }
-
-        // Validate email format if provided
-        const hasEmail = email && email.trim() !== "";
-        const emailIsInvalid = hasEmail && !isValidEmail(email.trim());
-        if (emailIsInvalid) {
-          results.errors.push(`Invalid email format for "${username}"`);
-          continue;
-        }
-
-        // Check if user already exists
-        const existingUser = await getUserByUsername(username);
-        if (existingUser) {
-          results.errors.push(`User "${username}" already exists`);
-          continue;
-        }
-
-        // Generate verification token if instance admin
-        let verificationToken = null;
-        if (isInstanceAdmin) {
-          verificationToken = generateVerificationToken();
-          logVerificationToken(username, verificationToken);
-          logger.info(`🔐 Generated verification token for instance admin: ${username}`);
-        } else {
-          logger.info(`ℹ️  User ${username} is not an instance admin, skipping token generation`);
-        }
-
-        // Create user
-        await createUser(username, password, email || null, role, isInstanceAdmin);
-
-        // Set verification token if provided (for instance admins)
-        if (verificationToken) {
-          await updateVerificationToken(username, verificationToken);
-        }
-
-        results.imported.push({
-          username,
-          instanceAdmin: isInstanceAdmin,
-          requiresVerification: isInstanceAdmin,
-        });
-
-        if (isInstanceAdmin) {
-          results.verificationTokens.push({
-            username,
-            token: verificationToken,
-          });
-          logger.info(`✅ Added verification token to results for ${username}`);
-        }
-      } catch (error) {
-        results.errors.push(
-          `Error importing user "${userData.username || "unknown"}": ${error.message}`
-        );
-      }
-    }
-
-    logger.info(
-      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`
-    );
-
-    return res.json({
-      success: true,
-      message: `Imported ${results.imported.length} user(s)`,
-      results,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
 
 /**
  * Generate a verification token for an instance admin user (without creating the user)
@@ -2010,10 +1761,7 @@ module.exports = {
   verifyToken,
   updateUserPassword,
   updateUserUsername,
-  getCurrentUser,
   exportUserConfig,
-  importUserConfig,
-  importUsers,
   createUserWithConfig,
   generateInstanceAdminToken,
   regenerateInstanceAdminToken,

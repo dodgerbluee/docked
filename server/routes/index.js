@@ -476,7 +476,6 @@ router.post(
 );
 router.post("/auth/register", authLimiter, asyncHandler(authController.register));
 router.post("/auth/login", authLimiter, asyncHandler(authController.login));
-router.post("/auth/import-users", authLimiter, asyncHandler(authController.importUsers));
 router.post(
   "/auth/create-user-with-config",
   authLimiter,
@@ -508,11 +507,6 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 // Validation endpoints (public - used during import process)
 router.post(
   "/portainer/instances/validate",
-  publicLimiter,
-  asyncHandler(sourceController.validateInstance)
-);
-router.post(
-  "/sources/instances/validate",
   publicLimiter,
   asyncHandler(sourceController.validateInstance)
 );
@@ -571,7 +565,6 @@ router.get("/admin/sso/settings", asyncHandler(ssoAdminController.getSettings));
 router.put("/admin/sso/settings", writeLimiter, asyncHandler(ssoAdminController.updateSettings));
 
 // User management routes (protected)
-router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
 router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
@@ -593,7 +586,6 @@ router.delete(
   asyncHandler(authController.adminDeleteUser)
 );
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
-router.post("/user/import-config", writeLimiter, asyncHandler(authController.importUserConfig));
 
 // Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
 // Users should run 'docker login' on the server if authentication is needed
@@ -822,71 +814,11 @@ router.post(
   asyncHandler(containerController.upgradeContainer)
 );
 
-// Container lifecycle routes (work for both Portainer and runner backends)
-// NOTE: must come before parameterized /containers/:containerId routes if path conflicts arise
-router.post(
-  "/containers/:containerId/stop",
-  destructiveLimiter,
-  asyncHandler(containerController.stopContainer)
-);
-router.post(
-  "/containers/:containerId/start",
-  destructiveLimiter,
-  asyncHandler(containerController.startContainer)
-);
-
-// Backend image management routes (Portainer or runner backend selected by query params)
-router.get("/containers/backend-images", asyncHandler(containerController.getImages));
-router.post(
-  "/containers/backend-images/delete",
-  destructiveLimiter,
-  asyncHandler(containerController.deleteImage)
-);
-
 // Image routes
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", destructiveLimiter, asyncHandler(imageController.deleteImages));
 
 // Upgrade history routes
-/**
- * @swagger
- * /containers/upgrade-history:
- *   get:
- *     summary: Get upgrade history
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 100
- *         description: Maximum number of records to return
- *       - in: query
- *         name: offset
- *         schema:
- *           type: integer
- *           default: 0
- *         description: Offset for pagination
- *       - in: query
- *         name: containerName
- *         schema:
- *           type: string
- *         description: Filter by container name
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [success, failed]
- *         description: Filter by status
- *     responses:
- *       200:
- *         description: Upgrade history retrieved successfully
- *       401:
- *         description: Authentication required
- */
-router.get("/containers/upgrade-history", asyncHandler(containerController.getUpgradeHistory));
 router.get(
   "/containers/upgrade-history/stats",
   asyncHandler(containerController.getUpgradeHistoryStats)
@@ -905,10 +837,6 @@ router.get(
   "/tracked-apps/upgrade-history/stats",
   asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats)
 );
-router.get(
-  "/tracked-apps/upgrade-history/:id",
-  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryById)
-);
 
 /**
  * Get container debug information (developer mode only)
@@ -920,199 +848,10 @@ router.get(
 );
 
 // Portainer instance routes (legacy - kept for backward compatibility)
-/**
- * @swagger
- * /portainer/instances:
- *   get:
- *     summary: Get all Portainer instances for current user (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of Portainer instances
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 instances:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: integer
- *                       url:
- *                         type: string
- *                       name:
- *                         type: string
- *       401:
- *         description: Unauthorized
- *   post:
- *     summary: Create a new Portainer instance (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - url
- *             properties:
- *               url:
- *                 type: string
- *                 example: "http://portainer:9000"
- *               name:
- *                 type: string
- *                 example: "Local Portainer"
- *               username:
- *                 type: string
- *               password:
- *                 type: string
- *               apiKey:
- *                 type: string
- *               authType:
- *                 type: string
- *                 enum: [apikey, basic]
- *                 default: apikey
- *     responses:
- *       201:
- *         description: Portainer instance created
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- */
-router.get("/portainer/instances", asyncHandler(sourceController.getInstances));
 router.post("/portainer/instances", writeLimiter, asyncHandler(sourceController.createInstance));
 
-/**
- * @swagger
- * /portainer/instances/{id}:
- *   get:
- *     summary: Get a specific Portainer instance (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Portainer instance ID
- *     responses:
- *       200:
- *         description: Portainer instance details
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Instance not found
- *   put:
- *     summary: Update a Portainer instance (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               url:
- *                 type: string
- *               name:
- *                 type: string
- *               username:
- *                 type: string
- *               password:
- *                 type: string
- *               apiKey:
- *                 type: string
- *               authType:
- *                 type: string
- *                 enum: [apikey, basic]
- *     responses:
- *       200:
- *         description: Instance updated successfully
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Instance not found
- *   delete:
- *     summary: Delete a Portainer instance (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Instance deleted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Instance not found
- */
-router.get("/portainer/instances/:id", asyncHandler(sourceController.getInstance));
 router.put("/portainer/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
-router.delete(
-  "/portainer/instances/:id",
-  destructiveLimiter,
-  asyncHandler(sourceController.deleteInstance)
-);
 router.post("/portainer/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
-
-/**
- * @swagger
- * /portainer/instances/reorder:
- *   post:
- *     summary: Update the display order of Portainer instances (legacy)
- *     tags: [Sources]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - orders
- *             properties:
- *               orders:
- *                 type: object
- *                 additionalProperties:
- *                   type: integer
- *                 example: { "1": 0, "2": 1, "3": 2 }
- *     responses:
- *       200:
- *         description: Order updated successfully
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- */
-router.post("/portainer/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
 
 // Source instance routes (new canonical paths)
 /**
@@ -1142,15 +881,6 @@ router.post("/portainer/instances/reorder", asyncHandler(sourceController.update
  *         description: Unauthorized
  */
 router.get("/sources/instances", asyncHandler(sourceController.getInstances));
-router.post("/sources/instances", writeLimiter, asyncHandler(sourceController.createInstance));
-router.get("/sources/instances/:id", asyncHandler(sourceController.getInstance));
-router.put("/sources/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
-router.delete(
-  "/sources/instances/:id",
-  destructiveLimiter,
-  asyncHandler(sourceController.deleteInstance)
-);
-router.post("/sources/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
 router.post("/sources/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
 
 // Avatar routes
@@ -1167,13 +897,11 @@ router.get(
   asyncHandler(avatarController.getRecentAvatar)
 );
 router.post("/avatars", writeLimiter, asyncHandler(avatarController.uploadAvatar));
-router.post("/avatars/set-current", writeLimiter, asyncHandler(avatarController.setCurrentAvatar));
 router.delete("/avatars", destructiveLimiter, asyncHandler(avatarController.deleteAvatar));
 
 // Batch configuration routes
 router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
 router.post("/batch/config", writeLimiter, asyncHandler(batchController.updateBatchConfigHandler));
-router.get("/batch/status", asyncHandler(batchController.getBatchStatusHandler));
 router.post(
   "/batch/trigger",
   destructiveLimiter,
@@ -1185,37 +913,16 @@ router.post("/batch/runs", writeLimiter, asyncHandler(batchController.createBatc
 router.put("/batch/runs/:id", writeLimiter, asyncHandler(batchController.updateBatchRunHandler));
 router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
-router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
 // Intent routes
 // IMPORTANT: Specific/static routes must come before parameterized routes
-router.get("/intents", asyncHandler(intentController.listIntents));
-router.post("/intents", writeLimiter, asyncHandler(intentController.createIntentHandler));
 router.get("/intents/executions/recent", asyncHandler(intentController.getRecentExecutionsHandler));
 router.get(
   "/intents/executions/:executionId",
   asyncHandler(intentController.getExecutionDetailHandler)
 );
-router.get("/intents/:id", asyncHandler(intentController.getIntent));
 router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPreviewHandler));
-router.put("/intents/:id", writeLimiter, asyncHandler(intentController.updateIntentHandler));
-router.delete(
-  "/intents/:id",
-  destructiveLimiter,
-  asyncHandler(intentController.deleteIntentHandler)
-);
-router.post(
-  "/intents/:id/toggle",
-  writeLimiter,
-  asyncHandler(intentController.toggleIntentHandler)
-);
-router.post(
-  "/intents/:id/execute",
-  destructiveLimiter,
-  asyncHandler(intentController.executeIntentHandler)
-);
 router.post("/intents/:id/dry-run", asyncHandler(intentController.dryRunIntentHandler));
-router.get("/intents/:id/executions", asyncHandler(intentController.getIntentExecutionsHandler));
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
@@ -1317,80 +1024,6 @@ router.delete(
   asyncHandler(trackedAppController.clearGitHubCache)
 );
 
-/**
- * @swagger
- * /tracked-apps/{id}:
- *   get:
- *     summary: Get a specific tracked application
- *     tags: [Tracked Apps]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Tracked app details
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Tracked app not found
- *   put:
- *     summary: Update a tracked application
- *     tags: [Tracked Apps]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               imageName:
- *                 type: string
- *               githubRepo:
- *                 type: string
- *     responses:
- *       200:
- *         description: Tracked app updated
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Tracked app not found
- *   delete:
- *     summary: Delete a tracked application
- *     tags: [Tracked Apps]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Tracked app deleted
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Tracked app not found
- */
-router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedImage));
 router.put("/tracked-apps/:id", writeLimiter, asyncHandler(trackedAppController.updateTrackedApp));
 router.delete(
   "/tracked-apps/:id",
@@ -1426,8 +1059,6 @@ router.post(
 );
 
 // Discord notification routes
-router.get("/discord/webhooks", asyncHandler(discordController.getDiscordWebhooks));
-router.get("/discord/webhooks/:id", asyncHandler(discordController.getDiscordWebhook));
 router.post(
   "/discord/webhooks",
   writeLimiter,
@@ -1438,74 +1069,14 @@ router.put(
   writeLimiter,
   asyncHandler(discordController.updateDiscordWebhook)
 );
-router.delete(
-  "/discord/webhooks/:id",
-  destructiveLimiter,
-  asyncHandler(discordController.deleteDiscordWebhook)
-);
 router.post(
   "/discord/webhooks/:id/test",
   writeLimiter,
   asyncHandler(discordController.testDiscordWebhookById)
 );
 router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
-router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
 // Settings routes
-/**
- * @swagger
- * /settings/color-scheme:
- *   get:
- *     summary: Get user's color scheme preference
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Color scheme preference
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 colorScheme:
- *                   type: string
- *                   enum: [light, dark, auto]
- *       401:
- *         description: Unauthorized
- *   post:
- *     summary: Set user's color scheme preference
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - colorScheme
- *             properties:
- *               colorScheme:
- *                 type: string
- *                 enum: [light, dark, auto]
- *     responses:
- *       200:
- *         description: Color scheme updated
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- */
-router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
-router.post(
-  "/settings/color-scheme",
-  writeLimiter,
-  asyncHandler(settingsController.setColorSchemeHandler)
-);
 
 /**
  * @swagger
@@ -1542,11 +1113,6 @@ router.get(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
 );
-router.post(
-  "/settings/refreshing-toggles-enabled",
-  writeLimiter,
-  asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
-);
 
 router.get(
   "/settings/disallowed-containers",
@@ -1569,21 +1135,6 @@ router.post(
 );
 
 // Repository access token routes
-router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
-router.get(
-  "/repository-access-tokens/:provider",
-  asyncHandler(repositoryAccessTokenController.getTokenByProvider)
-);
-router.post(
-  "/repository-access-tokens",
-  writeLimiter,
-  asyncHandler(repositoryAccessTokenController.upsertToken)
-);
-router.delete(
-  "/repository-access-tokens/:id",
-  destructiveLimiter,
-  asyncHandler(repositoryAccessTokenController.deleteToken)
-);
 
 router.get(
   "/repository-access-tokens/:id/associated-images",
@@ -1603,10 +1154,8 @@ router.get("/logs", asyncHandler(logsController.getLogsHandler));
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes
 router.get("/runners", asyncHandler(runnerController.getRunners));
-router.post("/runners", writeLimiter, asyncHandler(runnerController.createRunnerHandler));
 router.post("/runners/enrollment", writeLimiter, asyncHandler(runnerController.createEnrollment));
 router.get("/runners/enrollment-status", asyncHandler(runnerController.getEnrollmentStatus));
-router.get("/runners/:id", asyncHandler(runnerController.getRunner));
 router.put("/runners/:id", writeLimiter, asyncHandler(runnerController.updateRunnerHandler));
 router.delete(
   "/runners/:id",
@@ -1634,16 +1183,8 @@ router.post(
   destructiveLimiter,
   asyncHandler(runnerController.upgradeRunnerContainer)
 );
-router.get(
-  "/runners/:runnerId/containers/:containerId/logs",
-  asyncHandler(runnerController.streamRunnerContainerLogs)
-);
 // Runner operation routes
 router.get("/runners/:runnerId/operations", asyncHandler(runnerController.getRunnerOperations));
-router.get(
-  "/runners/:runnerId/operations/:name/history",
-  asyncHandler(runnerController.getRunnerOperationHistory)
-);
 router.post(
   "/runners/:runnerId/operations/:name/run",
   writeLimiter,
@@ -1657,10 +1198,6 @@ router.post(
   "/runners/:runnerId/apps/:appName/operations/:opName/run",
   writeLimiter,
   asyncHandler(runnerController.runRunnerAppOperation)
-);
-router.get(
-  "/runners/:runnerId/apps/:appName/operations/:opName/history",
-  asyncHandler(runnerController.getRunnerAppOperationHistory)
 );
 
 // Debug routes (admin-only introspection, mounted after authenticate middleware)

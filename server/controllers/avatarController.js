@@ -328,76 +328,6 @@ function uploadAvatar(req, res, next) {
 }
 
 /**
- * Set a recent avatar as current
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function setCurrentAvatar(req, res, next) {
-  try {
-    const userId = req.user.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "User ID not found",
-      });
-    }
-
-    const { filename } = req.body;
-
-    if (!filename) {
-      return res.status(400).json({
-        success: false,
-        error: "Filename is required",
-      });
-    }
-
-    // Security: ensure filename is safe
-    if (!/^[a-zA-Z0-9_-]+\.jpg$/.test(filename)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid filename",
-      });
-    }
-
-    // Security: Validate userId and construct contained paths
-    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
-    const recentAvatarPath = path.resolve(AVATARS_DIR, userId.toString(), "recent", filename);
-    const currentAvatarPath = path.resolve(AVATARS_DIR, userId.toString(), "avatar.jpg");
-
-    // Containment check: ensure both paths are within AVATARS_DIR
-    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
-    if (
-      !recentAvatarPath.startsWith(normalizedAvatarsDir) ||
-      !currentAvatarPath.startsWith(normalizedAvatarsDir)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid path",
-      });
-    }
-
-    if (!fs.existsSync(recentAvatarPath)) {
-      return res.status(404).json({
-        success: false,
-        error: "Avatar not found",
-      });
-    }
-
-    // Copy recent avatar to current avatar
-    fs.copyFileSync(recentAvatarPath, currentAvatarPath);
-
-    return res.json({
-      success: true,
-      message: "Avatar set as current",
-      avatarUrl: `/api/avatars`,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
  * Delete avatar
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -598,6 +528,5 @@ module.exports = {
   getRecentAvatars,
   getRecentAvatar,
   uploadAvatar,
-  setCurrentAvatar,
   deleteAvatar,
 };

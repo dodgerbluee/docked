@@ -17,77 +17,6 @@ const DEFAULT_REFRESHING_TOGGLES_ENABLED = false;
 const DISALLOWED_CONTAINERS_KEY = "disallowed_containers";
 
 /**
- * Get color scheme preference
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-
-async function getColorSchemeHandler(req, res, _next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const colorScheme = await getSetting(COLOR_SCHEME_KEY, userId);
-    return res.json({
-      success: true,
-      colorScheme: colorScheme || DEFAULT_COLOR_SCHEME,
-    });
-  } catch (error) {
-    logger.error("Error getting color scheme:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Failed to get color scheme",
-    });
-  }
-}
-
-/**
- * Set color scheme preference
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-
-async function setColorSchemeHandler(req, res, _next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { colorScheme } = req.body;
-
-    if (!colorScheme || !["system", "light", "dark"].includes(colorScheme)) {
-      return res.status(400).json({
-        success: false,
-        error: 'colorScheme must be "system", "light", or "dark"',
-      });
-    }
-
-    await setSetting(COLOR_SCHEME_KEY, colorScheme, userId);
-
-    return res.json({
-      success: true,
-      colorScheme,
-      message: `Color scheme set to ${colorScheme}`,
-    });
-  } catch (error) {
-    logger.error("Error setting color scheme:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Failed to set color scheme",
-    });
-  }
-}
-
-/**
  * Get refreshing toggles enabled setting
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -118,47 +47,6 @@ async function getRefreshingTogglesEnabledHandler(req, res, _next) {
     return res.status(500).json({
       success: false,
       error: error.message || "Failed to get refreshing toggles enabled",
-    });
-  }
-}
-
-/**
- * Set refreshing toggles enabled setting
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-
-async function setRefreshingTogglesEnabledHandler(req, res, _next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { enabled } = req.body;
-
-    if (typeof enabled !== "boolean") {
-      return res.status(400).json({
-        success: false,
-        error: "enabled must be a boolean value",
-      });
-    }
-
-    await setSetting(REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString(), userId);
-
-    return res.json({
-      success: true,
-      enabled,
-      message: `Refreshing toggles ${enabled ? "enabled" : "disabled"}`,
-    });
-  } catch (error) {
-    logger.error("Error setting refreshing toggles enabled:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Failed to set refreshing toggles enabled",
     });
   }
 }
@@ -277,10 +165,7 @@ async function setDebugEndpointsEnabledHandler(req, res, _next) {
 }
 
 module.exports = {
-  getColorSchemeHandler,
-  setColorSchemeHandler,
   getRefreshingTogglesEnabledHandler,
-  setRefreshingTogglesEnabledHandler,
   getDisallowedContainersHandler,
   setDisallowedContainersHandler,
   getDebugEndpointsEnabledHandler,

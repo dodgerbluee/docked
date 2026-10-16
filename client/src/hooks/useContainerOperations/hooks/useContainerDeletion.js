@@ -7,6 +7,16 @@ import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
 import { showContainerError } from "../utils/containerErrorHandling";
 
+/** Map an unused-image row to the /api/images/delete payload contract
+ *  (same shape as useContainersPage/hooks/useImageDeletion). */
+const toDeletePayload = (image) => ({
+  id: image.id,
+  portainerUrl: image.portainerUrl,
+  sourceUrl: image.sourceUrl,
+  endpointId: image.endpointId,
+  runnerId: image.runnerId,
+});
+
 /**
  * Hook for container image deletion operations
  * @param {Object} params - Parameters
@@ -33,10 +43,8 @@ export const useContainerDeletion = ({
     async (image) => {
       try {
         setDeletingImages(true);
-        const response = await axios.delete(`${API_BASE_URL}/api/images/${image.id}`, {
-          data: {
-            portainerUrl: image.portainerUrl,
-          },
+        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
+          images: [toDeletePayload(image)],
         });
 
         if (response.data.success) {
@@ -48,6 +56,8 @@ export const useContainerDeletion = ({
             next.delete(image.id);
             return next;
           });
+        } else {
+          throw new Error(response.data.error || "image delete failed");
         }
       } catch (err) {
         console.error("Error deleting image:", err);
@@ -91,30 +101,23 @@ export const useContainerDeletion = ({
         setDeletingImagesState(true);
         updateLastImageDeleteTime();
 
-        const deletePromises = imagesToDelete.map((image) =>
-          axios.delete(`${API_BASE_URL}/api/images/${image.id}`, {
-            data: {
-              portainerUrl: image.portainerUrl,
-            },
-          })
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
+          images: imagesToDelete.map(toDeletePayload),
+        });
 
-        const results = await Promise.allSettled(deletePromises);
-        const successful = results.filter((r) => r.status === "fulfilled");
-        const failed = results.filter((r) => r.status === "rejected");
-
-        if (successful.length > 0) {
-          const deletedIds = new Set(successful.map((r, idx) => imagesToDelete[idx].id));
+        if (response.data.success) {
+          const deletedIds = new Set(imagesToDelete.map((img) => img.id));
           setUnusedImages((prev) => prev.filter((img) => !deletedIds.has(img.id)));
-          setUnusedImagesCount((prev) => Math.max(0, prev - successful.length));
+          setUnusedImagesCount((prev) =>
+            Math.max(0, prev - (response.data.deleted || imagesToDelete.length))
+          );
           setSelectedImages(new Set());
-        }
-
-        if (failed.length > 0) {
-          alert(`Failed to delete ${failed.length} image(s). Please try again.`);
+        } else {
+          throw new Error(response.data.error || "image delete failed");
         }
       } catch (err) {
         console.error("Error deleting images:", err);
+        showContainerError("delete", "image", err);
       } finally {
         setDeletingImagesState(false);
       }

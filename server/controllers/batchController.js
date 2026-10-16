@@ -309,50 +309,6 @@ async function getRecentBatchRunsHandler(req, res, _next) {
 }
 
 /**
- * Get batch run by ID
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getBatchRunByIdHandler(req, res, _next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const runId = parseInt(req.params.id, 10);
-    if (isNaN(runId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid run ID",
-      });
-    }
-
-    const run = await getBatchRunById(runId, userId);
-    if (!run) {
-      return res.status(404).json({
-        success: false,
-        error: "Batch run not found",
-      });
-    }
-
-    return res.json({
-      success: true,
-      run,
-    });
-  } catch (error) {
-    logger.error("Error fetching batch run:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "Failed to fetch batch run",
-    });
-  }
-}
-
-/**
  * Trigger a batch job manually
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -407,28 +363,6 @@ function triggerBatchJobHandler(req, res, _next) {
     res.status(500).json({
       success: false,
       error: error.message || "Failed to trigger batch job",
-    });
-  }
-}
-
-/**
- * Get batch system status
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function getBatchStatusHandler(req, res, _next) {
-  try {
-    const status = batchSystem.getStatus();
-    return res.json({
-      success: true,
-      status,
-    });
-  } catch (error) {
-    logger.error("Error fetching batch status:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Failed to fetch batch status",
     });
   }
 }
@@ -516,9 +450,7 @@ module.exports = {
   updateBatchRunHandler,
   getLatestBatchRunHandler,
   getRecentBatchRunsHandler,
-  getBatchRunByIdHandler,
   triggerBatchJobHandler,
-  getBatchStatusHandler,
   getLogLevelHandler,
   setLogLevelHandler,
 };

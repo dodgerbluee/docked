@@ -90,40 +90,6 @@ async function getTrackedApps(req, res, next) {
 }
 
 /**
- * Get a single tracked app
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getTrackedApp(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { id } = req.params;
-    const image = await getTrackedAppById(parseInt(id, 10), userId);
-
-    if (!image) {
-      return res.status(404).json({
-        success: false,
-        error: "Tracked app not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      image,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
  * Create a new tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -606,7 +572,6 @@ async function clearGitHubCache(req, res, next) {
 
 module.exports = {
   getTrackedImages: getTrackedApps,
-  getTrackedImage: getTrackedApp,
   createTrackedApp: createTrackedAppEndpoint,
   updateTrackedApp: updateTrackedAppEndpoint,
   deleteTrackedApp: deleteTrackedAppEndpoint,

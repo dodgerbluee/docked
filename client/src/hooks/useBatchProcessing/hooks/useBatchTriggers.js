@@ -191,7 +191,7 @@ export const useBatchTriggers = ({
       log("🔄 Checking for tracked app updates...");
       log("Initiating tracked apps update check...");
       const response = await axios.post(
-        `${API_BASE_URL}/api/tracked-images/check-updates`,
+        `${API_BASE_URL}/api/tracked-apps/check-updates`,
         {},
         {
           timeout: 300000,
@@ -201,7 +201,7 @@ export const useBatchTriggers = ({
       if (response.data.success) {
         log("Tracked apps check completed successfully");
 
-        const updatedResponse = await axios.get(`${API_BASE_URL}/api/tracked-images`);
+        const updatedResponse = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
         if (!updatedResponse.data.success) {
           throw new Error("Failed to fetch updated tracked images");
         }

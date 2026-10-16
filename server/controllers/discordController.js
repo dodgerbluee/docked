@@ -23,128 +23,6 @@ function getDatabase() {
 const logger = require("../utils/logger");
 
 /**
- * Get all Discord webhooks
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getDiscordWebhooks(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { getAllDiscordWebhooks, getDiscordWebhookById, updateDiscordWebhook } = getDatabase();
-    const webhooks = await getAllDiscordWebhooks(userId);
-
-    // Refresh avatar URLs for webhooks that don't have them
-    // This ensures webhook avatars from Discord are always displayed correctly
-    // This is important because webhooks should show their Discord avatar, not user avatars
-    const discord = getDiscordService();
-    const refreshPromises = webhooks.map(async (webhook) => {
-      // If webhook has a URL but no avatar URL, try to fetch it from Discord
-      if (webhook.hasWebhook && !webhook.avatarUrl) {
-        try {
-          // Get the full webhook from database to access webhook_url (not exposed in sanitized response)
-          const fullWebhook = await getDiscordWebhookById(webhook.id);
-          if (fullWebhook && fullWebhook.webhook_url) {
-            const webhookInfo = await discord.getWebhookInfo(fullWebhook.webhook_url);
-            if (webhookInfo.success && webhookInfo.avatarUrl) {
-              // Update the webhook with the avatar URL from Discord
-              const updatedAvatarUrl = webhookInfo.avatarUrl;
-              await updateDiscordWebhook(webhook.id, { avatarUrl: updatedAvatarUrl });
-              // Update the webhook object in the response so it's immediately available
-              // Use the value from webhookInfo to avoid race condition
-              // eslint-disable-next-line require-atomic-updates -- Using webhookInfo.avatarUrl directly to avoid race condition
-              webhook.avatarUrl = webhookInfo.avatarUrl;
-              logger.info(`Refreshed avatar URL for webhook ${webhook.id} from Discord`);
-            }
-          }
-        } catch (error) {
-          // Non-blocking: if we can't fetch avatar, continue with existing data
-          // The frontend will show default avatar as fallback
-          logger.debug(`Could not refresh avatar URL for webhook ${webhook.id}:`, error.message);
-        }
-      }
-    });
-
-    // Wait for all refresh attempts to complete (non-blocking)
-    // This ensures webhooks get their Discord avatars even if they were created before avatar support
-    await Promise.allSettled(refreshPromises);
-
-    // Map database fields (snake_case) to response format (camelCase)
-    const formattedWebhooks = webhooks.map((webhook) => ({
-      id: webhook.id,
-      webhookUrl: webhook.webhook_url ? "***configured***" : null,
-      serverName: webhook.server_name || null,
-      channelName: webhook.channel_name || null,
-      avatarUrl: webhook.avatar_url || null,
-      guildId: webhook.guild_id || null,
-      channelId: webhook.channel_id || null,
-      enabled: webhook.enabled === 1,
-      name: webhook.name || null,
-      createdAt: webhook.created_at,
-      updatedAt: webhook.updated_at,
-      hasWebhook: Boolean(webhook.webhook_url),
-    }));
-
-    return res.json({
-      success: true,
-      webhooks: formattedWebhooks,
-    });
-  } catch (error) {
-    logger.error("Error getting Discord webhooks:", error);
-    next(error);
-  }
-}
-
-/**
- * Get a single Discord webhook by ID
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getDiscordWebhook(req, res, next) {
-  try {
-    const { id } = req.params;
-    const { getDiscordWebhookById } = getDatabase();
-    const webhook = await getDiscordWebhookById(parseInt(id, 10));
-
-    if (!webhook) {
-      return res.status(404).json({
-        success: false,
-        error: "Webhook not found",
-      });
-    }
-
-    // Don't expose full webhook URL for security
-    return res.json({
-      success: true,
-      webhook: {
-        id: webhook.id,
-        webhookUrl: webhook.webhook_url ? "***configured***" : null,
-        serverName: webhook.server_name || null,
-        channelName: webhook.channel_name || null,
-        avatarUrl: webhook.avatar_url || null,
-        guildId: webhook.guild_id || null,
-        channelId: webhook.channel_id || null,
-        enabled: webhook.enabled === 1,
-        name: webhook.name || null,
-        createdAt: webhook.created_at,
-        updatedAt: webhook.updated_at,
-        hasWebhook: Boolean(webhook.webhook_url),
-      },
-    });
-  } catch (error) {
-    logger.error("Error getting Discord webhook:", error);
-    next(error);
-  }
-}
-
-/**
  * Validate webhook URL
  * @param {string} webhookUrl - Webhook URL to validate
  * @returns {Object} - Validation result with isValid and error message
@@ -425,38 +303,6 @@ async function updateDiscordWebhookEndpoint(req, res, next) {
 }
 
 /**
- * Delete a Discord webhook
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function deleteDiscordWebhookEndpoint(req, res, next) {
-  try {
-    const { id } = req.params;
-
-    // Check if webhook exists
-    const { getDiscordWebhookById, deleteDiscordWebhook } = getDatabase();
-    const existing = await getDiscordWebhookById(parseInt(id, 10));
-    if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: "Webhook not found",
-      });
-    }
-
-    await deleteDiscordWebhook(parseInt(id, 10));
-
-    return res.json({
-      success: true,
-      message: "Discord webhook deleted successfully",
-    });
-  } catch (error) {
-    logger.error("Error deleting Discord webhook:", error);
-    next(error);
-  }
-}
-
-/**
  * Test Discord webhook
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -581,43 +427,10 @@ async function getWebhookInfo(req, res, next) {
   }
 }
 
-/**
- * Get Discord bot invite URL
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-function getDiscordBotInvite(req, res, next) {
-  try {
-    // For webhooks, we don't need a bot invite - webhooks work without a bot
-    // But we can provide instructions
-    return res.json({
-      success: true,
-      message:
-        "Discord webhooks do not require a bot invite. Simply create a webhook in your Discord channel settings.",
-      instructions: [
-        "1. Open your Discord server",
-        "2. Go to Server Settings > Integrations > Webhooks",
-        '3. Click "New Webhook"',
-        "4. Configure the webhook (name, channel, etc.)",
-        "5. Copy the webhook URL",
-        "6. Paste it in the Discord settings below",
-      ],
-    });
-  } catch (error) {
-    logger.error("Error getting Discord bot invite:", error);
-    return next(error);
-  }
-}
-
 module.exports = {
-  getDiscordWebhooks,
-  getDiscordWebhook,
   createDiscordWebhook: createDiscordWebhookEndpoint,
   updateDiscordWebhook: updateDiscordWebhookEndpoint,
-  deleteDiscordWebhook: deleteDiscordWebhookEndpoint,
   testDiscordWebhook,
   testDiscordWebhookById,
   getWebhookInfo,
-  getDiscordBotInvite,
 };
