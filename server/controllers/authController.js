@@ -16,6 +16,7 @@ const {
   hasAnyUsers,
   createUser,
   registerUser,
+  getAllUsers,
   updateVerificationToken,
   verifyAndClearToken,
   deleteUser,
@@ -1271,6 +1272,159 @@ async function adminDeleteUser(req, res, next) {
     });
   } catch (error) {
     logger.error("Error deleting user:", error);
+    next(error);
+  }
+}
+
+/**
+ * Get user statistics (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getUserStatsEndpoint(req, res, next) {
+  try {
+    // Only instance admins can view user stats
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const stats = await getUserStats(parseInt(userId, 10));
+    return res.json({ success: true, stats });
+  } catch (error) {
+    logger.error("Error getting user stats:", error);
+    next(error);
+  }
+}
+
+/**
+ * Export all users (admin only)
+ * Exports all users in the same format as exportUserConfig but in a users array
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+// eslint-disable-next-line max-lines-per-function -- Complex export logic with multiple data sources
+async function exportUsersEndpoint(req, res, next) {
+  try {
+    // Only instance admins can export all users
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const registryRepository = require("../repositories/RegistryRepository");
+    const allUsers = await getAllUsers();
+
+    // For each user, export their data in the same format as exportUserConfig
+    // Since data is now per-user, we need to fetch it for each user
+    const usersExport = await Promise.all(
+      // eslint-disable-next-line max-lines-per-function -- Complex user data export logic
+      allUsers.map(async (user) => {
+        // Fetch user-specific data
+        const [
+          portainerInstances,
+          dockerHubCredentials,
+          discordWebhooks,
+          trackedApps,
+          batchConfig,
+          colorScheme,
+          logLevel,
+          refreshingTogglesEnabled,
+        ] = await Promise.all([
+          getAllSourceInstances(user.id),
+          registryRepository.getDockerHubCredentials(user.id),
+          getAllDiscordWebhooks(user.id),
+          getAllTrackedApps(user.id),
+          getBatchConfig(user.id),
+          getSetting("color_scheme", user.id),
+          getSystemSetting("log_level"), // Log level is system-wide
+          getSetting("refreshing_toggles_enabled", user.id),
+        ]);
+
+        return {
+          user: {
+            username: user.username,
+            email: user.email || null,
+            role: user.role || "Administrator",
+            instance_admin: user.instanceAdmin,
+            created_at: user.createdAt,
+            updated_at: user.updatedAt,
+          },
+          portainerInstances: portainerInstances.map((instance) => ({
+            id: instance.id,
+            name: instance.name,
+            url: instance.url,
+            auth_type: instance.auth_type,
+            display_order: instance.display_order,
+            ip_address: instance.ip_address,
+            created_at: instance.created_at,
+            updated_at: instance.updated_at,
+          })),
+          dockerHubCredentials: dockerHubCredentials
+            ? {
+                username: dockerHubCredentials.username || null,
+                token: dockerHubCredentials.token ? "***configured***" : null,
+              }
+            : null,
+          discordWebhooks: discordWebhooks.map((webhook) => ({
+            id: webhook.id,
+            server_name: webhook.serverName || null,
+            channel_name: webhook.channelName || null,
+            avatar_url: webhook.avatarUrl || null,
+            guild_id: webhook.guildId || null,
+            channel_id: webhook.channelId || null,
+            enabled: webhook.enabled,
+            name: webhook.name || null,
+            created_at: webhook.createdAt,
+            updated_at: webhook.updatedAt,
+          })),
+          trackedApps: trackedApps.map((image) => ({
+            id: image.id,
+            name: image.name,
+            image_name: image.image_name,
+            github_repo: image.github_repo || null,
+            source_type: image.source_type || "docker",
+            gitlab_token: image.gitlab_token || null,
+            current_version: image.current_version || null,
+            current_digest: image.current_digest || null,
+            latest_version: image.latest_version || null,
+            latest_digest: image.latest_digest || null,
+            has_update: image.has_update === 1,
+            current_version_publish_date: image.current_version_publish_date || null,
+            last_checked: image.last_checked || null,
+            created_at: image.created_at,
+            updated_at: image.updated_at,
+          })),
+          generalSettings: {
+            colorScheme: colorScheme || "system",
+            logLevel: logLevel || "info",
+            refreshingTogglesEnabled:
+              refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
+            batchConfig,
+          },
+        };
+      })
+    );
+
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      users: usersExport,
+    };
+
+    return res.json({
+      success: true,
+      data: exportData,
+    });
+  } catch (error) {
+    logger.error("Error exporting users:", error);
     next(error);
   }
 }
