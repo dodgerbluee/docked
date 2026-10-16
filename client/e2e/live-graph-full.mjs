@@ -729,28 +729,32 @@ async function phase4() {
   ok("containers empty after clear", await gql(`query { containers { totalCount } }`), (d) =>
     d.containers.totalCount === 0 ? null : `totalCount=${d.containers.totalCount}`
   );
-  // Go rejects container sync, so trigger Node's own persistence path
-  // (POST /api/containers/pull = the UI "Pull" button, which re-fetches and
-  // re-writes the container cache) and poll until GraphQL rows are back.
+  // Go rejects container sync, so trigger Node's own persistence path. The
+  // DOCKER_HUB_PULL batch job (UI "Batch Process") is the only Node path that
+  // re-writes runner-backed container rows (DockerHubPullHandler upserts them);
+  // GET /api/containers and POST /api/containers/pull only serve Portainer.
   const trig = await page.evaluate(async () => {
     const token = localStorage.getItem("authToken");
-    const r = await fetch("/api/containers/pull", {
+    const r = await fetch("/api/batch/trigger", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ jobType: "docker-hub-pull" }),
     });
     const j = await r.json().catch(() => ({}));
     return { status: r.status, message: j.message || j.error || "" };
   });
-  record("Node REST POST /api/containers/pull triggered restore", trig.status === 200, `status=${trig.status} ${trig.message}`.slice(0, 120));
+  record("Node REST POST /api/batch/trigger(docker-hub-pull)", trig.status === 200, `status=${trig.status} ${trig.message}`.slice(0, 120));
+  // The job runs in the background and upserts rows one container at a time;
+  // a full inventory scan takes minutes, so poll patiently for the bulk back.
+  const want = Math.max(1, Math.floor(before * 0.9));
   let restored = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 72; i++) {
     const d = await gql(`query { summaryStats { totalContainers } }`);
     restored = d.data?.summaryStats?.totalContainers ?? 0;
-    if (restored > 0) break;
-    await sleep(3000);
+    if (restored >= want) break;
+    await sleep(5000);
   }
-  record("containers restored after re-pull", restored > 0, `before=${before} restored=${restored}`);
+  record("containers restored after re-pull", restored >= want, `before=${before} restored=${restored}`);
   if (restored > 0) {
     const c = await gql(`query { containers(first:50) { items { ${CONT} } } }`);
     if (!hasErr(c)) S.containers = c.data.containers.items;
