@@ -410,7 +410,6 @@ router.get("/health", (req, res) => {
  *                   example: "production"
  */
 router.get("/version", publicLimiter, versionController.getVersion);
-router.get("/version/latest-release", publicLimiter, versionController.getLatestRelease);
 
 /**
  * @swagger

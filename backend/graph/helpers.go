@@ -22,8 +22,7 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 )
 
-func requireUser(ctx context.Context) (int64, error) {
-	uid := auth.UserIDFromContext(ctx)
+func requireUser(ctx context.Context) (int64, error) {	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {
 		return 0, fmt.Errorf("authentication required")
 	}
@@ -971,4 +970,36 @@ func repoTokenToModel(t *db.RepositoryTokenRow) *model.RepositoryAccessToken {
 		CreatedAt:   parseTime(t.CreatedAt),
 		UpdatedAt:   parseTime(t.UpdatedAt),
 	}
+}
+
+// appVersionInfo mirrors the Node version controller: read version from the
+// root/server package.json (same candidates, same isDevBuild rules), with an
+// APP_VERSION env override for builds that inject it via ldflags.
+func appVersionInfo() *model.AppVersion {
+	version := os.Getenv("APP_VERSION")
+	if version == "" {
+		for _, p := range []string{"package.json", "../package.json", "/app/package.json"} {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			var pkg struct {
+				Version string `json:"version"`
+			}
+			if json.Unmarshal(data, &pkg) == nil && pkg.Version != "" {
+				version = pkg.Version
+				break
+			}
+		}
+	}
+	if version == "" {
+		version = "0.0.0-dev"
+	}
+	environment := os.Getenv("NODE_ENV")
+	if environment == "" {
+		environment = "development"
+	}
+	isProd := environment == "production"
+	isDevBuild := version == "1.0.0" || (!strings.Contains(version, "-dev") && !isProd)
+	return &model.AppVersion{Version: version, Environment: environment, IsDevBuild: isDevBuild}
 }

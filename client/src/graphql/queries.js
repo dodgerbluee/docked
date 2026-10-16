@@ -773,3 +773,23 @@ export const DELETE_REPOSITORY_TOKEN_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const VERSION_QUERY = /* GraphQL */ `
+  query AppVersion {
+    version {
+      version
+      environment
+      isDevBuild
+    }
+  }
+`;
+
+export const LATEST_RELEASE_QUERY = /* GraphQL */ `
+  query LatestRelease {
+    latestRelease {
+      tagName
+      publishedAt
+      htmlUrl
+    }
+  }
+`;

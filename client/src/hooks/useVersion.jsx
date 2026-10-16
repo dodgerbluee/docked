@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { VERSION_QUERY } from "../graphql/queries";
 
 /**
  * Custom hook to fetch application version from the API
@@ -34,10 +34,12 @@ export const useVersion = () => {
      */
     const fetchVersion = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/version`);
-        setVersion(response.data.version ?? null);
-        setEnvironment(response.data.environment ?? null);
-        setIsDevBuild(response.data.isDevBuild ?? false);
+        const result = await graphqlClient.query(VERSION_QUERY).toPromise();
+        const v = result.data?.version;
+        if (result.error || !v) throw result.error || new Error("no version data");
+        setVersion(v.version ?? null);
+        setEnvironment(v.environment ?? null);
+        setIsDevBuild(v.isDevBuild ?? false);
       } catch (error) {
         // Silently fail - version is optional and should not break the app
         console.debug("Could not fetch version:", error);

@@ -1595,7 +1595,7 @@ func (r *queryResolver) Health(ctx context.Context) (*model.HealthCheck, error) 
 
 // Version is the resolver for the version field.
 func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) {
-	return &model.AppVersion{Version: "0.0.0-dev", Environment: "development", IsDevBuild: true}, nil
+	return appVersionInfo(), nil
 }
 
 // LatestRelease is the resolver for the latestRelease field.

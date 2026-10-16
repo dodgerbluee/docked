@@ -3,8 +3,8 @@ import { ExternalLink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
-import axios from "axios";
-import { API_BASE_URL } from "../../utils/api";
+import { graphqlClient } from "../../graphql/client";
+import { LATEST_RELEASE_QUERY } from "../../graphql/queries";
 import styles from "./AboutSection.module.css";
 
 /**
@@ -31,16 +31,14 @@ const AboutSection = () => {
       setUpdateInfo((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Use backend endpoint to check for updates (allows logging and better error handling)
-        const response = await axios.get(`${API_BASE_URL}/api/version/latest-release`, {
-          timeout: 10000,
-        });
+        // Use the GraphQL graph to check for updates (same data, no REST hop)
+        const result = await graphqlClient.query(LATEST_RELEASE_QUERY).toPromise();
 
-        if (!response.data || !response.data.success) {
-          throw new Error(response.data?.error || "Failed to fetch latest release");
+        if (result.error) {
+          throw new Error(result.error.message || "Failed to fetch latest release");
         }
 
-        const latestVersion = response.data?.latestVersion?.tag_name || response.data?.tag_name;
+        const latestVersion = result.data?.latestRelease?.tagName;
         if (latestVersion) {
           // Normalize versions for comparison (remove "v" prefix and "-dev" suffix)
           // This allows comparing "2.0.0-dev" with "2.0.0" correctly
