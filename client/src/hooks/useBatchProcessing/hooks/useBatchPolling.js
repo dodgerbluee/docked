@@ -7,7 +7,12 @@ import { parseUTCTimestamp } from "../../../utils/formatters";
 import { fetchLatestRunsByJobType } from "../../batchRunsCache";
 import { isBackendUp } from "../../../utils/backendStatus";
 import { graphqlClient } from "../../../graphql/client";
-import { INTENT_EXECUTIONS_QUERY } from "../../../graphql/queries";
+import {
+  INTENT_EXECUTIONS_QUERY,
+  BATCH_JOB_PROGRESS_SUBSCRIPTION,
+  INTENT_EXECUTION_PROGRESS_SUBSCRIPTION,
+  CONTAINERS_UPDATED_SUBSCRIPTION,
+} from "../../../graphql/queries";
 
 /**
  * Hook for batch run polling
@@ -190,4 +195,52 @@ export const useBatchPolling = ({
 
     return () => clearInterval(interval);
   }, [isAuthenticated, authToken, setLastPullTime, batchConfig, fetchContainers, fetchTrackedApps]);
+
+  // GraphQL subscriptions: react to batch/intent/container events the moment
+  // they happen instead of waiting for the next poll tick. The 30s poll above
+  // stays as a safety net for events missed while the socket was down.
+  useEffect(() => {
+    if (!isAuthenticated || !authToken) return undefined;
+
+    const subs = [];
+
+    subs.push(
+      graphqlClient.subscription(BATCH_JOB_PROGRESS_SUBSCRIPTION).subscribe(({ data }) => {
+        const run = data?.batchJobProgress;
+        if (!run) return;
+        const status = (run.status || "").toLowerCase();
+        if (status !== "completed" && status !== "failed") return;
+
+        if (run.jobType === "DOCKER_HUB_PULL") {
+          if (run.completedAt) {
+            const completedAt = new Date(run.completedAt);
+            setLastPullTime(completedAt);
+            localStorage.setItem("lastPullTime", completedAt.toISOString());
+          }
+          if (fetchContainers) fetchContainers(false);
+        } else if (run.jobType === "TRACKED_APPS_CHECK" && fetchTrackedApps) {
+          fetchTrackedApps();
+        }
+      })
+    );
+
+    subs.push(
+      graphqlClient.subscription(INTENT_EXECUTION_PROGRESS_SUBSCRIPTION).subscribe(({ data }) => {
+        const exec = data?.intentExecutionProgress;
+        if (!exec || !fetchContainers) return;
+        const status = (exec.status || "").toLowerCase();
+        if (status === "completed" || status === "partial") {
+          fetchContainers(false);
+        }
+      })
+    );
+
+    subs.push(
+      graphqlClient.subscription(CONTAINERS_UPDATED_SUBSCRIPTION).subscribe(() => {
+        if (fetchContainers) fetchContainers(false);
+      })
+    );
+
+    return () => subs.forEach((s) => s.unsubscribe());
+  }, [isAuthenticated, authToken, setLastPullTime, fetchContainers, fetchTrackedApps]);
 };

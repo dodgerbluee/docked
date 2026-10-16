@@ -1083,3 +1083,32 @@ export const CHECK_SOURCE_INSTANCE_HEALTH_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const BATCH_JOB_PROGRESS_SUBSCRIPTION = /* GraphQL */ `
+  subscription BatchJobProgress {
+    batchJobProgress {
+      id
+      status
+      jobType
+      completedAt
+    }
+  }
+`;
+
+export const INTENT_EXECUTION_PROGRESS_SUBSCRIPTION = /* GraphQL */ `
+  subscription IntentExecutionProgress {
+    intentExecutionProgress {
+      id
+      status
+    }
+  }
+`;
+
+export const CONTAINERS_UPDATED_SUBSCRIPTION = /* GraphQL */ `
+  subscription ContainersUpdated {
+    containersUpdated {
+      sourceIds
+      containerCount
+    }
+  }
+`;

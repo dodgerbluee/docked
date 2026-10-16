@@ -14,13 +14,6 @@ export default defineConfig({
         // graphql-ws subscriptions ride WebSocket upgrades on this path
         ws: true,
       },
-      // Route GET /api/containers (with or without query string) to the Go backend.
-      // The (\?.*)? allows query params like ?useNewCache=true to still match.
-      // Sub-paths like /api/containers/data fall through to the Node.js catch-all below.
-      "^/api/containers(\\?.*)?$": {
-        target: "http://localhost:4000",
-        changeOrigin: true,
-      },
       "/api": {
         target: "http://localhost:3001",
         changeOrigin: true,
