@@ -793,3 +793,33 @@ export const LATEST_RELEASE_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+export const CHECK_TRACKED_APP_UPDATE_MUTATION = /* GraphQL */ `
+  mutation CheckTrackedAppUpdate($id: ID!) {
+    checkTrackedAppUpdate(id: $id) {
+      success
+      hasUpdate
+      currentVersion
+      latestVersion
+    }
+  }
+`;
+
+export const CHECK_TRACKED_APP_UPDATES_MUTATION = /* GraphQL */ `
+  mutation CheckTrackedAppUpdates {
+    checkTrackedAppUpdates {
+      success
+      checked
+      updated
+    }
+  }
+`;
+
+export const CLEAR_TRACKED_APP_CACHE_MUTATION = /* GraphQL */ `
+  mutation ClearTrackedAppCache {
+    clearTrackedAppCache {
+      success
+      message
+    }
+  }
+`;

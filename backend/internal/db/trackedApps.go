@@ -73,20 +73,35 @@ func GetTrackedAppByID(ctx context.Context, database *sql.DB, id, userID int64) 
 }
 
 func CreateTrackedApp(ctx context.Context, database *sql.DB, userID int64, name string,
-	imageName, githubRepo *string, sourceType string) (int64, error) {
+	imageName, githubRepo *string, sourceType string, gitlabToken, currentVersion *string) (int64, error) {
 
 	result, err := database.ExecContext(ctx,
-		`INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type)
-		 VALUES (?, ?, ?, ?, ?)`,
-		userID, name, imageName, githubRepo, sourceType)
+		`INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token, current_version)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		userID, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
 	if err != nil {
 		return 0, fmt.Errorf("create tracked app: %w", err)
 	}
 	return result.LastInsertId()
 }
 
+// GetTrackedAppByImageName returns a tracked app matching the exact image name (conflict checks).
+func GetTrackedAppByImageName(ctx context.Context, database *sql.DB, userID int64, imageName string) (*TrackedAppRow, error) {
+	row := database.QueryRowContext(ctx,
+		"SELECT "+trackedAppCols+" FROM tracked_apps WHERE user_id = ? AND image_name = ?", userID, imageName)
+
+	r, err := scanTrackedApp(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get tracked app by image name: %w", err)
+	}
+	return &r, nil
+}
+
 func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
-	name, imageName, githubRepo, sourceType *string) error {
+	name, imageName, githubRepo, sourceType, gitlabToken *string) error {
 
 	setClauses := []string{}
 	args := []any{}
@@ -106,6 +121,15 @@ func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
 	if sourceType != nil {
 		setClauses = append(setClauses, "source_type = ?")
 		args = append(args, *sourceType)
+	}
+	if gitlabToken != nil {
+		// Empty string clears the token (mirrors Node semantics).
+		if *gitlabToken == "" {
+			setClauses = append(setClauses, "gitlab_token = NULL")
+		} else {
+			setClauses = append(setClauses, "gitlab_token = ?")
+			args = append(args, *gitlabToken)
+		}
 	}
 
 	if len(setClauses) == 0 {
@@ -137,6 +161,60 @@ func UpdateTrackedAppVersion(ctx context.Context, database *sql.DB, id int64, la
 		`UPDATE tracked_apps SET latest_version=?, latest_digest=?, has_update=?, last_checked=CURRENT_TIMESTAMP WHERE id=?`,
 		latestVersion, latestDigest, hasUpdate, id)
 	return err
+}
+
+// SetTrackedAppCurrentVersion applies an explicit user upgrade: sets current_version,
+// syncs latest_version, clears has_update, and optionally carries the publish date over.
+// Mirrors the Node PUT /tracked-apps/:id current_version semantics.
+func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, userID int64,
+	currentVersion, latestVersion string, publishDate *string) error {
+
+	_, err := database.ExecContext(ctx,
+		`UPDATE tracked_apps
+		 SET current_version = ?, latest_version = ?, has_update = 0,
+		     current_version_publish_date = ?, latest_version_publish_date = NULL,
+		     updated_at = datetime('now')
+		 WHERE id = ? AND user_id = ?`,
+		currentVersion, latestVersion, publishDate, id, userID)
+	return err
+}
+
+// TrackedAppUpgradeHistoryInput carries the fields for a tracked_app_upgrade_history insert.
+type TrackedAppUpgradeHistoryInput struct {
+	UserID       int64
+	TrackedAppID int64
+	AppName      string
+	Provider     string
+	Repository   string
+	OldVersion   string
+	NewVersion   string
+	OldTag       *string
+	NewTag       *string
+	OldCommitSHA *string
+	NewCommitSHA *string
+	Status       string
+}
+
+// InsertTrackedAppUpgradeHistory writes a tracked app upgrade record (parity with Node's
+// createTrackedAppUpgradeHistory used by the explicit-upgrade flow).
+func InsertTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, h TrackedAppUpgradeHistoryInput) error {
+	status := h.Status
+	if status == "" {
+		status = "success"
+	}
+	_, err := database.ExecContext(ctx,
+		`INSERT INTO tracked_app_upgrade_history (
+			user_id, tracked_app_id, app_name, provider, repository,
+			old_version, new_version, old_tag, new_tag,
+			old_commit_sha, new_commit_sha, status
+		 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		h.UserID, h.TrackedAppID, h.AppName, h.Provider, h.Repository,
+		h.OldVersion, h.NewVersion, h.OldTag, h.NewTag,
+		h.OldCommitSHA, h.NewCommitSHA, status)
+	if err != nil {
+		return fmt.Errorf("insert tracked app upgrade history: %w", err)
+	}
+	return nil
 }
 
 // TrackedAppUpgradeRow is a row from the tracked_app_upgrade_history table.

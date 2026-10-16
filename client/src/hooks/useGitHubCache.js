@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { CLEAR_TRACKED_APP_CACHE_MUTATION } from "../graphql/queries";
 
 /**
  * useGitHubCache Hook
@@ -13,9 +13,9 @@ export function useGitHubCache(fetchTrackedApps) {
     try {
       setClearingGitHubCache(true);
 
-      const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/cache`);
+      const result = await graphqlClient.mutation(CLEAR_TRACKED_APP_CACHE_MUTATION).toPromise();
 
-      if (response.data && response.data.success) {
+      if (!result.error && result.data?.clearTrackedAppCache?.success) {
         // Refresh tracked images to show updated data
         await fetchTrackedApps();
       }

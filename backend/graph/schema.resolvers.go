@@ -848,8 +848,47 @@ func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.Cre
 		return nil, err
 	}
 
-	id, err := db.CreateTrackedApp(ctx, r.DB, uid, input.Name, input.ImageName,
-		input.GithubRepo, dbEnumValue(string(input.SourceType)))
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	var imageName, githubRepo *string
+	if input.ImageName != nil {
+		if v := strings.TrimSpace(*input.ImageName); v != "" {
+			imageName = &v
+		}
+	}
+	if input.GithubRepo != nil {
+		if v := strings.TrimSpace(*input.GithubRepo); v != "" {
+			githubRepo = &v
+		}
+	}
+	sourceType := dbEnumValue(string(input.SourceType))
+	if sourceType == "github" && githubRepo == nil {
+		return nil, fmt.Errorf("GitHub repository is required for GitHub source type")
+	}
+
+	if imageName != nil {
+		existing, _ := db.GetTrackedAppByImageName(ctx, r.DB, uid, *imageName)
+		if existing != nil {
+			return nil, fmt.Errorf("an app with this image name is already being tracked")
+		}
+	}
+
+	var gitlabToken, currentVersion *string
+	if input.GitlabToken != nil {
+		if v := strings.TrimSpace(*input.GitlabToken); v != "" {
+			gitlabToken = &v
+		}
+	}
+	if input.CurrentVersion != nil {
+		if v := strings.TrimSpace(*input.CurrentVersion); v != "" {
+			currentVersion = &v
+		}
+	}
+
+	id, err := db.CreateTrackedApp(ctx, r.DB, uid, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -869,15 +908,105 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 	}
 	tid, _ := strconv.ParseInt(id, 10, 64)
 
-	var sourceType *string
+	existing, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("not found")
+	}
+
+	var name, imageName, githubRepo, sourceType, gitlabToken *string
+	if input.Name != nil {
+		v := strings.TrimSpace(*input.Name)
+		name = &v
+	}
+	if input.ImageName != nil {
+		v := strings.TrimSpace(*input.ImageName)
+		if v != "" && v != nullStrDefault(existing.ImageName) {
+			conflict, _ := db.GetTrackedAppByImageName(ctx, r.DB, uid, v)
+			if conflict != nil && conflict.ID != tid {
+				return nil, fmt.Errorf("an app with this image name is already being tracked")
+			}
+		}
+		imageName = &v
+	}
+	if input.GithubRepo != nil {
+		v := strings.TrimSpace(*input.GithubRepo)
+		githubRepo = &v
+	}
 	if input.SourceType != nil {
 		s := dbEnumValue(string(*input.SourceType))
 		sourceType = &s
 	}
+	if input.GitlabToken != nil {
+		v := strings.TrimSpace(*input.GitlabToken) // empty string clears the token
+		gitlabToken = &v
+	}
 
-	if err := db.UpdateTrackedApp(ctx, r.DB, tid, uid, input.Name, input.ImageName,
-		input.GithubRepo, sourceType); err != nil {
+	if name == nil && imageName == nil && githubRepo == nil && sourceType == nil &&
+		gitlabToken == nil && input.CurrentVersion == nil {
+		return nil, fmt.Errorf("at least one field (name, imageName, or currentVersion) must be provided")
+	}
+
+	if err := db.UpdateTrackedApp(ctx, r.DB, tid, uid, name, imageName, githubRepo, sourceType, gitlabToken); err != nil {
 		return nil, err
+	}
+
+	// Explicit version upgrade: sync current/latest and clear has_update (Node semantics).
+	if input.CurrentVersion != nil {
+		trimmed := strings.TrimSpace(*input.CurrentVersion)
+		normalize := func(v string) string {
+			return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "v")
+		}
+		latest := nullStrDefault(existing.LatestVersion)
+		newLatest := trimmed
+		var publishDate *string
+		if latest != "" {
+			if normalize(trimmed) == normalize(latest) && normalize(trimmed) != "" {
+				if existing.LatestVersionPublishDate.Valid && existing.LatestVersionPublishDate.String != "" {
+					pd := existing.LatestVersionPublishDate.String
+					publishDate = &pd
+				}
+			}
+		}
+		if err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, publishDate); err != nil {
+			return nil, err
+		}
+
+		if input.IsUpgrade != nil && *input.IsUpgrade {
+			h := db.TrackedAppUpgradeHistoryInput{
+				UserID:       uid,
+				TrackedAppID: tid,
+				AppName:      existing.Name,
+				Provider:     existing.SourceType,
+				Repository:   nullStrDefault(existing.GithubRepo),
+				OldVersion:   nullStrDefault(existing.CurrentVersion),
+				NewVersion:   trimmed,
+				Status:       "success",
+			}
+			if h.Repository == "" {
+				h.Repository = nullStrDefault(existing.ImageName)
+			}
+			if h.OldVersion == "" {
+				h.OldVersion = "Not set"
+			}
+			if existing.SourceType == "github" || existing.SourceType == "gitlab" {
+				if existing.CurrentDigest.Valid {
+					h.OldCommitSHA = &existing.CurrentDigest.String
+				}
+				if existing.LatestDigest.Valid {
+					h.NewCommitSHA = &existing.LatestDigest.String
+				}
+			} else {
+				oldTag := nullStrDefault(existing.CurrentVersion)
+				newTag := trimmed
+				h.OldTag = &oldTag
+				h.NewTag = &newTag
+			}
+			// Best-effort: never fail the upgrade because history logging failed (matches Node).
+			_ = db.InsertTrackedAppUpgradeHistory(ctx, r.DB, h)
+		}
 	}
 
 	row, _ := db.GetTrackedAppByID(ctx, r.DB, tid, uid)

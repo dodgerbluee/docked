@@ -193,11 +193,13 @@ type CreateSourceInstanceInput struct {
 }
 
 type CreateTrackedAppInput struct {
-	Name       string               `json:"name"`
-	ImageName  *string              `json:"imageName,omitempty"`
-	GithubRepo *string              `json:"githubRepo,omitempty"`
-	GitlabRepo *string              `json:"gitlabRepo,omitempty"`
-	SourceType TrackedAppSourceType `json:"sourceType"`
+	Name           string               `json:"name"`
+	ImageName      *string              `json:"imageName,omitempty"`
+	GithubRepo     *string              `json:"githubRepo,omitempty"`
+	GitlabRepo     *string              `json:"gitlabRepo,omitempty"`
+	SourceType     TrackedAppSourceType `json:"sourceType"`
+	GitlabToken    *string              `json:"gitlabToken,omitempty"`
+	CurrentVersion *string              `json:"currentVersion,omitempty"`
 }
 
 type DeleteImageInput struct {
@@ -643,11 +645,14 @@ type UpdateSourceInstanceInput struct {
 }
 
 type UpdateTrackedAppInput struct {
-	Name       *string               `json:"name,omitempty"`
-	ImageName  *string               `json:"imageName,omitempty"`
-	GithubRepo *string               `json:"githubRepo,omitempty"`
-	GitlabRepo *string               `json:"gitlabRepo,omitempty"`
-	SourceType *TrackedAppSourceType `json:"sourceType,omitempty"`
+	Name           *string               `json:"name,omitempty"`
+	ImageName      *string               `json:"imageName,omitempty"`
+	GithubRepo     *string               `json:"githubRepo,omitempty"`
+	GitlabRepo     *string               `json:"gitlabRepo,omitempty"`
+	SourceType     *TrackedAppSourceType `json:"sourceType,omitempty"`
+	GitlabToken    *string               `json:"gitlabToken,omitempty"`
+	CurrentVersion *string               `json:"currentVersion,omitempty"`
+	IsUpgrade      *bool                 `json:"isUpgrade,omitempty"`
 }
 
 type UpdateUserPreferencesInput struct {

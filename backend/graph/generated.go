@@ -4826,6 +4826,8 @@ input CreateTrackedAppInput {
   githubRepo: String
   gitlabRepo: String
   sourceType: TrackedAppSourceType!
+  gitlabToken: String
+  currentVersion: String
 }
 
 input UpdateTrackedAppInput {
@@ -4834,6 +4836,9 @@ input UpdateTrackedAppInput {
   githubRepo: String
   gitlabRepo: String
   sourceType: TrackedAppSourceType
+  gitlabToken: String
+  currentVersion: String
+  isUpgrade: Boolean
 }
 
 input CreateIntentInput {
@@ -21861,7 +21866,7 @@ func (ec *executionContext) unmarshalInputCreateTrackedAppInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType"}
+	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -21903,6 +21908,20 @@ func (ec *executionContext) unmarshalInputCreateTrackedAppInput(ctx context.Cont
 				return it, err
 			}
 			it.SourceType = data
+		case "gitlabToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("gitlabToken"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GitlabToken = data
+		case "currentVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("currentVersion"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CurrentVersion = data
 		}
 	}
 	return it, nil
@@ -22573,7 +22592,7 @@ func (ec *executionContext) unmarshalInputUpdateTrackedAppInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType"}
+	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion", "isUpgrade"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22615,6 +22634,27 @@ func (ec *executionContext) unmarshalInputUpdateTrackedAppInput(ctx context.Cont
 				return it, err
 			}
 			it.SourceType = data
+		case "gitlabToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("gitlabToken"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GitlabToken = data
+		case "currentVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("currentVersion"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CurrentVersion = data
+		case "isUpgrade":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isUpgrade"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsUpgrade = data
 		}
 	}
 	return it, nil

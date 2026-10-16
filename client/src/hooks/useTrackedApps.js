@@ -8,7 +8,14 @@ import axios from "axios";
 import { parseUTCTimestamp } from "../utils/formatters";
 import { API_BASE_URL } from "../utils/api";
 import { graphqlClient } from "../graphql/client";
-import { TRACKED_APPS_QUERY } from "../graphql/queries";
+import {
+  TRACKED_APPS_QUERY,
+  CHECK_TRACKED_APP_UPDATE_MUTATION,
+  CHECK_TRACKED_APP_UPDATES_MUTATION,
+  CLEAR_TRACKED_APP_CACHE_MUTATION,
+  DELETE_TRACKED_APP_MUTATION,
+  UPDATE_TRACKED_APP_MUTATION,
+} from "../graphql/queries";
 import {
   // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
   SHORT_SUCCESS_MESSAGE_DURATION,
@@ -157,7 +164,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // If we have an app ID, check the version first, then refresh once
       if (appId) {
         try {
-          await axios.post(`${API_BASE_URL}/api/tracked-apps/${appId}/check-update`);
+          await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATE_MUTATION, { id: appId }).toPromise();
         } catch (err) {
           // Silently fail - version check is not critical, just a nice-to-have
           console.error("Error checking version for tracked app:", err);
@@ -180,8 +187,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
           isResolved = true;
 
           try {
-            const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/${id}`);
-            if (response.data.success) {
+            const result = await graphqlClient.mutation(DELETE_TRACKED_APP_MUTATION, { id }).toPromise();
+            if (!result.error && result.data?.deleteTrackedApp?.success) {
               await fetchTrackedApps(false); // Silent refresh after delete
               setConfirmDialog({
                 isOpen: false,
@@ -193,7 +200,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
               });
               resolve();
             } else {
-              const error = response.data.error || "Failed to delete tracked app";
+              const error =
+                result.error?.message || result.data?.deleteTrackedApp?.message || "Failed to delete tracked app";
               setTrackedAppError(error);
               setConfirmDialog({
                 isOpen: false,
@@ -254,11 +262,13 @@ export function useTrackedApps(isAuthenticated, authToken) {
           isResolved = true;
 
           try {
-            const response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${id}`, {
-              current_version: latestVersion,
-              isUpgrade: true, // Flag to indicate this is an explicit upgrade
-            });
-            if (response.data.success) {
+            const result = await graphqlClient
+              .mutation(UPDATE_TRACKED_APP_MUTATION, {
+                id,
+                input: { currentVersion: latestVersion, isUpgrade: true }, // explicit upgrade
+              })
+              .toPromise();
+            if (!result.error && result.data?.updateTrackedApp) {
               await fetchTrackedApps(false); // Silent refresh after upgrade
               setConfirmDialog({
                 isOpen: false,
@@ -270,7 +280,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
               });
               resolve();
             } else {
-              const error = response.data.error || "Failed to update current version";
+              const error = result.error?.message || "Failed to update current version";
               setTrackedAppError(error);
               setConfirmDialog({
                 isOpen: false,
@@ -283,7 +293,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
               reject(new Error(error));
             }
           } catch (err) {
-            const error = err.response?.data?.error || "Failed to update current version";
+            const error = err.message || "Failed to update current version";
             setTrackedAppError(error);
             setConfirmDialog({
               isOpen: false,
@@ -332,8 +342,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
     setCheckingUpdates(true);
     setTrackedAppError("");
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/tracked-apps/check-updates`);
-      if (response.data.success) {
+      const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
+      if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         await fetchTrackedApps({ showRefreshing: true });
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately
@@ -341,7 +351,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
         setTimeout(() => setTrackedAppSuccess(""), 100);
       }
     } catch (err) {
-      setTrackedAppError(err.response?.data?.error || "Failed to check for updates");
+      setTrackedAppError(err.message || "Failed to check for updates");
     } finally {
       setCheckingUpdates(false);
     }
@@ -374,22 +384,16 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
       // Start the check operation
       log("Initiating tracked apps update check...");
-      const response = await axios.post(
-        `${API_BASE_URL}/api/tracked-apps/check-updates`,
-        {},
-        {
-          timeout: 300000, // 5 minute timeout
-        }
-      );
+      const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
 
-      if (response.data.success) {
+      if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         log("Tracked apps check completed successfully");
 
         // Fetch updated tracked apps to get accurate counts and update UI in one call
         await fetchTrackedApps(false);
         const updatedApps = cachedTrackedApps || [];
         const appsChecked = updatedApps.length;
-        const appsWithUpdates = updatedApps.filter((app) => Boolean(app.has_update)).length;
+        const appsWithUpdates = updatedApps.filter((app) => Boolean(app.hasUpdate)).length;
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         setLastScanTime(new Date());
@@ -405,7 +409,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
           log(`Batch run ${runId} marked as completed`);
         }
       } else {
-        throw new Error(response.data.error || "Failed to check tracked apps");
+        throw new Error(result.error?.message || "Failed to check tracked apps");
       }
     } catch (err) {
       let errorMessage =
@@ -446,10 +450,11 @@ export function useTrackedApps(isAuthenticated, authToken) {
           setClearingGitHubCache(true);
           setTrackedAppError(null);
 
-          const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/cache`);
+          const result = await graphqlClient.mutation(CLEAR_TRACKED_APP_CACHE_MUTATION).toPromise();
 
-          if (response.data && response.data.success) {
-            const message = response.data.message || "Latest version data cleared successfully";
+          if (!result.error && result.data?.clearTrackedAppCache?.success) {
+            const message =
+              result.data.clearTrackedAppCache.message || "Latest version data cleared successfully";
             setTrackedAppSuccess(message);
             setTimeout(() => setTrackedAppSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);
 
@@ -459,11 +464,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
             setTrackedAppError("Failed to clear latest version data");
           }
         } catch (err) {
-          const errorMessage =
-            err.response?.data?.error ||
-            err.response?.data?.message ||
-            err.message ||
-            "Failed to clear latest version data";
+          const errorMessage = err.message || "Failed to clear latest version data";
           setTrackedAppError(errorMessage);
           console.error("Error clearing latest version data:", err);
         } finally {

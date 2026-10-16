@@ -5,6 +5,11 @@
 import { useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
+import { graphqlClient } from "../../../graphql/client";
+import {
+  TRACKED_APPS_QUERY,
+  CHECK_TRACKED_APP_UPDATES_MUTATION,
+} from "../../../graphql/queries";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
 import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
 
@@ -190,24 +195,18 @@ export const useBatchTriggers = ({
 
       log("🔄 Checking for tracked app updates...");
       log("Initiating tracked apps update check...");
-      const response = await axios.post(
-        `${API_BASE_URL}/api/tracked-apps/check-updates`,
-        {},
-        {
-          timeout: 300000,
-        }
-      );
+      const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
 
-      if (response.data.success) {
+      if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         log("Tracked apps check completed successfully");
 
-        const updatedResponse = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
-        if (!updatedResponse.data.success) {
+        const updatedResponse = await graphqlClient.query(TRACKED_APPS_QUERY).toPromise();
+        if (updatedResponse.error || !updatedResponse.data?.trackedApps) {
           throw new Error("Failed to fetch updated tracked images");
         }
-        const updatedImages = updatedResponse.data.images || [];
+        const updatedImages = updatedResponse.data.trackedApps;
         const appsChecked = updatedImages.length;
-        const appsWithUpdates = updatedImages.filter((img) => Boolean(img.has_update)).length;
+        const appsWithUpdates = updatedImages.filter((img) => Boolean(img.hasUpdate)).length;
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         await fetchTrackedApps();
@@ -222,7 +221,7 @@ export const useBatchTriggers = ({
           log(`Batch run ${runId} marked as completed`);
         }
       } else {
-        throw new Error(response.data.error || "Failed to check tracked apps");
+        throw new Error(result.error?.message || "Failed to check tracked apps");
       }
     } catch (err) {
       let errorMessage =

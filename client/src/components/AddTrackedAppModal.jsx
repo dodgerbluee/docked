@@ -5,13 +5,13 @@
 
 import React, { useState, useRef } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import { Trash2, Github } from "lucide-react";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { CREATE_TRACKED_APP_MUTATION, UPDATE_TRACKED_APP_MUTATION } from "../graphql/queries";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedAppModal.module.css";
 import { useTrackedAppForm } from "./AddTrackedAppModal/hooks/useTrackedAppForm";
@@ -118,51 +118,47 @@ function AddTrackedAppModal({
         return;
       }
 
-      const payload = {
+      const input = {
         name: (formData.name || "").trim(),
         sourceType: sourceType,
       };
 
       if (sourceType === "github" || sourceType === "gitlab") {
         if (sourceType === "github" && usePredefined && selectedPredefinedRepo) {
-          payload.githubRepo = (selectedPredefinedRepo.value || "").trim();
+          input.githubRepo = (selectedPredefinedRepo.value || "").trim();
         } else {
-          payload.githubRepo = (formData.githubRepo || "").trim();
+          input.githubRepo = (formData.githubRepo || "").trim();
         }
       } else {
         if (usePredefinedDocker && selectedPredefinedImage) {
-          payload.imageName = (selectedPredefinedImage.value || "").trim();
+          input.imageName = (selectedPredefinedImage.value || "").trim();
         } else {
-          payload.imageName = (formData.imageName || "").trim();
+          input.imageName = (formData.imageName || "").trim();
         }
       }
 
       if (formData.currentVersion && formData.currentVersion.trim()) {
-        payload.current_version = formData.currentVersion.trim();
+        input.currentVersion = formData.currentVersion.trim();
       }
 
-      // Add repository token ID if source type is GitLab or GitHub
-      if (sourceType === "gitlab" || sourceType === "github") {
-        if (formData.repositoryTokenId) {
-          payload.repositoryTokenId = formData.repositoryTokenId;
-        }
-        // Keep gitlabToken for backward compatibility if no token ID is selected
-        if (sourceType === "gitlab" && !formData.repositoryTokenId) {
-          payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
-        }
+      // GitLab token kept for backward compatibility when no token row is used
+      if (sourceType === "gitlab") {
+        input.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
       }
 
-      let response;
+      let result;
       if (initialData) {
-        response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${initialData.id}`, payload);
+        result = await graphqlClient
+          .mutation(UPDATE_TRACKED_APP_MUTATION, { id: initialData.id, input })
+          .toPromise();
       } else {
-        response = await axios.post(`${API_BASE_URL}/api/tracked-apps`, payload);
+        result = await graphqlClient.mutation(CREATE_TRACKED_APP_MUTATION, { input }).toPromise();
       }
 
-      if (response.data.success) {
-        // Pass the image ID to onSuccess so it can check the version
-        // For create: response.data.id, for update: response.data.image.id
-        const imageId = response.data.image?.id || response.data.id || initialData?.id;
+      const savedApp = result.data?.updateTrackedApp || result.data?.createTrackedApp;
+      if (!result.error && savedApp) {
+        // Pass the app ID to onSuccess so it can check the version
+        const imageId = savedApp.id || initialData?.id;
 
         // Wait for onSuccess to complete (including recheck) before closing modal
         // This ensures the UI shows the correct state immediately and prevents
@@ -185,14 +181,14 @@ function AddTrackedAppModal({
         }
       } else {
         setError(
-          response.data.error ||
+          result.error?.message ||
             (initialData ? "Failed to update tracked item" : "Failed to add tracked item")
         );
         setLoading(false);
       }
     } catch (err) {
       setError(
-        err.response?.data?.error ||
+        err.message ||
           (initialData
             ? "Failed to update tracked item. Please try again."
             : "Failed to add tracked item. Please try again.")
