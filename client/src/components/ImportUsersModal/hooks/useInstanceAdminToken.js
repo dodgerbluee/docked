@@ -30,8 +30,12 @@ export function useInstanceAdminToken({
           .toPromise();
 
         const result = data?.generateInstanceAdminToken;
-        if (result?.success && result?.token) {
-          setVerificationTokens((prev) => ({ ...prev, [username]: result.token }));
+        if (result?.success) {
+          // The token is deliberately NOT returned by the API (it is only
+          // written to the container logs, so possessing it proves host
+          // access). Store a sentinel so the step knows a pending token
+          // exists and does not re-generate on every render.
+          setVerificationTokens((prev) => ({ ...prev, [username]: "generated" }));
           setError("");
         } else {
           setError(
@@ -63,8 +67,9 @@ export function useInstanceAdminToken({
         const result = userExists
           ? data?.regenerateInstanceAdminToken
           : data?.generateInstanceAdminToken;
-        if (result?.success && result?.token) {
-          setVerificationTokens((prev) => ({ ...prev, [username]: result.token }));
+        if (result?.success) {
+          // Sentinel only - the token itself is logged, never returned.
+          setVerificationTokens((prev) => ({ ...prev, [username]: "generated" }));
           setError("");
         } else {
           setError(

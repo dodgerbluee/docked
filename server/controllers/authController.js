@@ -29,11 +29,7 @@ const {
   setSetting,
   setSystemSetting,
 } = require("../db/index");
-const {
-  generateVerificationToken,
-  logVerificationToken,
-  clearPendingToken,
-} = require("../utils/verificationToken");
+const { consumePendingToken, clearPendingToken } = require("../utils/verificationToken");
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
 const fs = require("fs");
 const path = require("path");
@@ -678,11 +674,23 @@ async function createUserWithConfig(req, res, next) {
       });
     }
 
-    // Generate verification token if instance admin (unless one was provided)
-    let finalVerificationToken = verificationToken;
-    const tokenWasProvided = Boolean(verificationToken);
-    if (instanceAdmin && !finalVerificationToken) {
-      finalVerificationToken = generateVerificationToken();
+    // Privilege-grant gate: this endpoint is public (bootstrap/import flow),
+    // so instance-admin creation is only honored when the caller presents the
+    // pending verification token the graph minted via generateInstanceAdminToken
+    // and the operator echoed back through the import wizard. The token is
+    // consumed atomically here, in the same statement that authorizes the
+    // grant, so replays and concurrent attempts lose. Without a consumed
+    // token there is no instance admin, period.
+    if (instanceAdmin) {
+      const consumed = verificationToken
+        ? await consumePendingToken(username, verificationToken)
+        : false;
+      if (!consumed) {
+        return res.status(403).json({
+          success: false,
+          error: "A valid verification token is required to create an instance admin",
+        });
+      }
     }
 
     // Create user
@@ -694,10 +702,11 @@ async function createUserWithConfig(req, res, next) {
       instanceAdmin || false
     );
 
-    // Set verification token if provided (for instance admins)
+    // Keep the verified token on the user row (it was already logged when
+    // the graph generated it upfront)
 
-    if (finalVerificationToken) {
-      await updateVerificationToken(username, finalVerificationToken);
+    if (instanceAdmin) {
+      await updateVerificationToken(username, verificationToken);
     }
 
     // Get the created user for importing webhooks
@@ -709,14 +718,9 @@ async function createUserWithConfig(req, res, next) {
       });
     }
 
-    // Clear pending token if it exists (user now exists in database)
+    // Clear any leftover pending token for this username (the grant path
+    // already consumed it; this covers non-admin imports)
     await clearPendingToken(username);
-
-    // If verification token was generated (not provided), log it
-    // If token was provided, it was already logged when generated upfront
-    if (instanceAdmin && finalVerificationToken && !tokenWasProvided) {
-      logVerificationToken(username, finalVerificationToken);
-    }
 
     // Import configuration if provided
     const results = {

@@ -11,7 +11,7 @@ import { Shield } from "lucide-react";
  */
 function InstanceAdminVerificationStep({
   user,
-  token,
+  generated,
   onRegenerate,
   onGenerate,
   onTokenChange,
@@ -23,21 +23,23 @@ function InstanceAdminVerificationStep({
 }) {
   const username = typeof user === "string" ? user : user?.username || "";
 
-  // Generate token when component loads (if not already generated)
+  // Generate token when component loads (if not already generated). The
+  // token itself is never returned to the client - it is only written to
+  // the container logs - so `generated` is the marker that a pending token
+  // exists for this username.
   useEffect(() => {
-    if (username && onGenerate && !token && !generating) {
+    if (username && onGenerate && !generated && !generating) {
       onGenerate(username);
     }
-  }, [username, onGenerate, token, generating]);
+  }, [username, onGenerate, generated, generating]);
 
   return (
     <TokenVerificationStep
       title="Instance Admin Verification"
       icon={Shield}
       user={user}
-      token={token}
       tokenLabel="Verification Token"
-      instruction="This user is marked as an instance admin. A verification token has been generated and logged to the container logs. Please check the server logs for the token and enter it below to verify, or skip to import without verification."
+      instruction="This user is marked as an instance admin. A verification token has been generated and logged to the container logs. Check the server logs for the token and enter it below to verify. Skipping imports this user WITHOUT instance-admin privileges."
       onRegenerate={onRegenerate}
       onTokenChange={onTokenChange}
       verifying={verifying}
@@ -55,7 +57,7 @@ InstanceAdminVerificationStep.propTypes = {
   user: PropTypes.shape({
     username: PropTypes.string.isRequired,
   }).isRequired,
-  token: PropTypes.string,
+  generated: PropTypes.bool,
   onRegenerate: PropTypes.func,
   onGenerate: PropTypes.func,
   onTokenChange: PropTypes.func,

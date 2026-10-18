@@ -1465,7 +1465,6 @@ export const GENERATE_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
   mutation GenerateInstanceAdminToken($username: String!) {
     generateInstanceAdminToken(username: $username) {
       success
-      token
       message
       error
     }
@@ -1476,7 +1475,6 @@ export const REGENERATE_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
   mutation RegenerateInstanceAdminToken($username: String!) {
     regenerateInstanceAdminToken(username: $username) {
       success
-      token
       message
       error
     }

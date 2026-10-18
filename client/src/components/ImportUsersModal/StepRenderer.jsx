@@ -62,7 +62,7 @@ function StepRenderer({
     return (
       <InstanceAdminVerificationStep
         user={{ username }}
-        token={token}
+        generated={Boolean(token)}
         onRegenerate={() => onRegenerateToken(username)}
         onGenerate={() => onGenerateToken(username)}
         onTokenChange={(inputToken) => {

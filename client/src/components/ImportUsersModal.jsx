@@ -133,7 +133,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     userCredentials,
     userSkippedSteps,
     verificationStatus,
-    verificationTokens,
+    verificationInputTokens,
     setImporting,
     setError,
     setImportedUsers,

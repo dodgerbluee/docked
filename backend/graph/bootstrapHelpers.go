@@ -95,12 +95,13 @@ func bootstrapFail(errMsg string) *model.BootstrapResult {
 	return &model.BootstrapResult{Success: false, Error: strPtr(errMsg)}
 }
 
-func tokenOK(message, token string) *model.InstanceAdminTokenResult {
-	return &model.InstanceAdminTokenResult{
-		Success: true,
-		Token:   &token,
-		Message: strPtr(message),
-	}
+// tokenGranted is the response for generate/regenerate: the token is written
+// ONLY to the container logs (operator must have host access to read it, the
+// same trust model as the first-user registration code). Returning it in the
+// GraphQL response would let any anonymous caller mint their own instance-admin
+// grant credential.
+func tokenGranted(message string) *model.InstanceAdminTokenResult {
+	return &model.InstanceAdminTokenResult{Success: true, Message: strPtr(message)}
 }
 
 func tokenFail(errMsg string) *model.InstanceAdminTokenResult {
@@ -172,7 +173,7 @@ func generateInstanceAdminTokenImpl(ctx context.Context, database *sql.DB, usern
 		fmt.Sprintf("This code is required to create %s as an instance admin.", username),
 		"The code will be invalidated after verification.",
 	)
-	return tokenOK("Verification token generated and logged to server logs", token)
+	return tokenGranted("Verification token generated and logged to server logs")
 }
 
 // regenerateInstanceAdminTokenImpl re-issues a token for an existing instance
@@ -208,20 +209,24 @@ func regenerateInstanceAdminTokenImpl(ctx context.Context, database *sql.DB, use
 		fmt.Sprintf("This code is required to create %s as an instance admin.", username),
 		"The code will be invalidated after verification.",
 	)
-	return tokenOK("Verification token regenerated and logged to server logs", token)
+	return tokenGranted("Verification token regenerated and logged to server logs")
 }
 
-// verifyInstanceAdminTokenImpl consumes a one-time token: pending store first
-// (user may not exist yet during import), then users.verification_token.
+// verifyInstanceAdminTokenImpl checks a candidate token WITHOUT consuming it:
+// the pending token must survive verification so Node's
+// create-user-with-config can consume it atomically at the moment it grants
+// the instance-admin privilege (see server/controllers/authController.js).
+// For users that already exist, the token lives on the users row and IS
+// consumed here, since no grant call follows for existing users.
 func verifyInstanceAdminTokenImpl(ctx context.Context, database *sql.DB, username, token string) *model.BootstrapResult {
 	if username == "" || token == "" {
 		return bootstrapFail("Username and token are required")
 	}
-	consumed, err := db.ConsumePendingToken(ctx, database, pendingTokenKind, username, token)
+	stored, err := db.GetPendingToken(ctx, database, pendingTokenKind, username)
 	if err != nil {
 		return bootstrapFail("Failed to verify token")
 	}
-	if consumed {
+	if stored != nil && registrationCodesEqual(token, *stored) {
 		return bootstrapOK("Token verified successfully")
 	}
 	ok, err := db.VerifyAndClearToken(ctx, database, username, token)

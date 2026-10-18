@@ -568,6 +568,68 @@ func TestInstanceAdminTokenInputGuards(t *testing.T) {
 	}
 }
 
+// TestInstanceAdminTokenGrantFlow locks the security contract of the import
+// token lifecycle: generate must NOT return the token (it is only written to
+// container logs, so obtaining it proves host access), and verify must NOT
+// consume the pending token — Node's create-user-with-config consumes it
+// atomically at the moment it grants instance-admin. If verify consumed it,
+// the grant could never re-check it; if generate returned it, any anonymous
+// caller could mint their own grant credential.
+func TestInstanceAdminTokenGrantFlow(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+
+	const username = "ghost-admin"
+	genDoc := `mutation($username: String!){ generateInstanceAdminToken(username: $username){ success error token } }`
+	r := env.gqlAs(t, "10.0.1.5", "", genDoc, map[string]any{"username": username})
+	var gen struct {
+		Success bool    `json:"success"`
+		Error   *string `json:"error"`
+		Token   *string `json:"token"`
+	}
+	if err := json.Unmarshal(r.Data["generateInstanceAdminToken"], &gen); err != nil {
+		t.Fatalf("decode generate envelope: %v", err)
+	}
+	if !gen.Success {
+		t.Fatalf("generate failed: %+v", gen)
+	}
+	if gen.Token != nil {
+		t.Fatalf("generate leaked token in GraphQL response: %q", *gen.Token)
+	}
+
+	var stored string
+	if err := env.database.QueryRowContext(ctx,
+		"SELECT token FROM pending_auth_tokens WHERE kind = 'instance_admin' AND username = ?", username,
+	).Scan(&stored); err != nil {
+		t.Fatalf("pending token was not stored: %v", err)
+	}
+
+	verifyDoc := `mutation($username: String!, $token: String!){ verifyInstanceAdminToken(username: $username, token: $token){ success error } }`
+	r = env.gqlAs(t, "10.0.1.5", "", verifyDoc, map[string]any{"username": username, "token": "WRONG-TOKN"})
+	if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Invalid token")) {
+		t.Fatalf("wrong token accepted: %s", r.Data["verifyInstanceAdminToken"])
+	}
+	for i := 0; i < 2; i++ {
+		r = env.gqlAs(t, "10.0.1.5", "", verifyDoc, map[string]any{"username": username, "token": stored})
+		if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte(`"success":true`)) {
+			t.Fatalf("verify #%d of pending token failed: %s", i+1, r.Data["verifyInstanceAdminToken"])
+		}
+	}
+
+	// Simulate Node's grant-time consumption: exactly one caller wins.
+	ok, err := db.ConsumePendingToken(ctx, env.database, "instance_admin", username, stored)
+	if err != nil || !ok {
+		t.Fatalf("consume pending token = (%v, %v), want (true, nil)", ok, err)
+	}
+	if ok, err = db.ConsumePendingToken(ctx, env.database, "instance_admin", username, stored); ok || err != nil {
+		t.Fatalf("replay consume = (%v, %v), want (false, nil)", ok, err)
+	}
+	r = env.gqlAs(t, "10.0.1.5", "", verifyDoc, map[string]any{"username": username, "token": stored})
+	if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Invalid token")) {
+		t.Fatalf("consumed token still verifies: %s", r.Data["verifyInstanceAdminToken"])
+	}
+}
+
 func TestUnauthenticatedGraphqlIsRateLimited(t *testing.T) {
 	// Public abuse protection replacing Node's authLimiter on the pruned REST
 	// auth routes: unauthenticated /graphql gets a per-IP budget.

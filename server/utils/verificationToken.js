@@ -72,8 +72,42 @@ function clearPendingToken(username) {
   });
 }
 
+/**
+ * Atomically consume a pending (graph-generated) verification token.
+ * Returns true only when a matching (kind='instance_admin', username, token)
+ * row existed and was deleted. This is the only legitimate way to grant the
+ * instance-admin privilege through create-user-with-config: the graph
+ * (generateInstanceAdminToken) mints the token, the operator echoes it back
+ * through the import wizard, and this call burns it in the same statement
+ * that authorizes the grant, so replays and races lose.
+ * @param {string} username
+ * @param {string} token
+ * @returns {Promise<boolean>} true if the token was consumed by this call
+ */
+function consumePendingToken(username, token) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        "DELETE FROM pending_auth_tokens WHERE kind = 'instance_admin' AND username = ? AND token = ?",
+        [username, token],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes > 0);
+          }
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   generateVerificationToken,
   logVerificationToken,
   clearPendingToken,
+  consumePendingToken,
 };

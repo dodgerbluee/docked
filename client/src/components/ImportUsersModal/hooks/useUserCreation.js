@@ -21,7 +21,7 @@ export function useUserCreation({
   userCredentials,
   userSkippedSteps,
   verificationStatus,
-  verificationTokens,
+  verificationInputTokens,
   setImporting,
   setError,
   setImportedUsers,
@@ -107,8 +107,10 @@ export function useUserCreation({
         credentials.discordWebhooks = userCredentials[username].discordWebhooks;
       }
 
-      // Use pre-generated token if available
-      const preGeneratedToken = verificationTokens[username];
+      // The server only grants instance-admin when it can atomically consume
+      // the pending verification token, so send the exact token the operator
+      // read from the container logs and typed into the verification step.
+      const enteredToken = (verificationInputTokens[username] || "").trim() || null;
 
       // Call endpoint to create user with config
       const response = await createAxios.post("/api/auth/create-user-with-config", {
@@ -116,7 +118,7 @@ export function useUserCreation({
         configData: Object.keys(configData).length > 0 ? configData : null,
         credentials: Object.keys(credentials).length > 0 ? credentials : null,
         skippedSteps: Array.from(skippedSteps),
-        verificationToken: preGeneratedToken || null,
+        verificationToken: enteredToken,
       });
 
       if (response.data.success) {
@@ -166,7 +168,7 @@ export function useUserCreation({
     userCredentials,
     userSkippedSteps,
     verificationStatus,
-    verificationTokens,
+    verificationInputTokens,
     setImporting,
     setError,
     setImportedUsers,

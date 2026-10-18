@@ -28,7 +28,7 @@ export function useUserImportState(isOpen) {
   const [verifying, setVerifying] = useState({}); // { username: boolean }
   const [regenerating, setRegenerating] = useState({}); // { username: boolean }
   const [generating, setGenerating] = useState({}); // { username: boolean }
-  const [verificationTokens, setVerificationTokens] = useState({}); // { username: token }
+  const [verificationTokens, setVerificationTokens] = useState({}); // { username: "generated" } sentinel
   const [verificationInputTokens, setVerificationInputTokens] = useState({}); // { username: inputToken }
 
   // Results tracking
