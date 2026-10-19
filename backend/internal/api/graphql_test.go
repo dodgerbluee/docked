@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1171,18 +1172,63 @@ func TestUpdateUsernameRequiresCorrectPassword(t *testing.T) {
 // TestUpgradeContainerWritesHistoryAndBlocksConcurrent guards the Node-parity
 // contract: every upgrade attempt writes an upgrade_history row, and while an
 // upgrade is in flight a second upgrade for the same container is rejected by
-// the shared upgrade lock.
+// the shared upgrade lock. The mock runner serves the fine-grained Docker API
+// the Go pipeline orchestrates against (inspect/list/stop/pull/remove/create/
+// start), and the create payload is captured for config-prep parity checks.
 func TestUpgradeContainerWritesHistoryAndBlocksConcurrent(t *testing.T) {
 	env := newTestEnv(t, true)
 	ctx := context.Background()
 	admin := env.token(t, env.adminID, "admin")
 
-	release := make(chan struct{})
+	var mu sync.Mutex
+	var createBody map[string]any
+	var createName string
+	stopped := false
+
 	runnerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "event: start\ndata: {}\n\n")
-		<-release // hold the SSE open so the lock stays held during the probe
-		fmt.Fprint(w, "event: done\ndata: {\"exitCode\":0}\n\n")
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/containers":
+			fmt.Fprint(w, `{"containers":[{"id":"histdocker1","name":"hist-container","image":"nginx:1.24","status":"running","state":"running"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/containers/histdocker1/json":
+			mu.Lock()
+			st := stopped
+			mu.Unlock()
+			state := `"Status":"running","Running":true`
+			if st {
+				state = `"Status":"exited","Running":false`
+			}
+			fmt.Fprintf(w, `{
+				"Id":"histdocker1","Name":"/hist-container","Image":"nginx:1.24",
+				"State":{%s},
+				"Config":{"Image":"nginx:1.24","Env":["A=1"],"Labels":{"app":"hist"},"WorkingDir":"/data","ExposedPorts":{"80/tcp":{}}},
+				"HostConfig":{"NetworkMode":"bridge","RestartPolicy":{"Name":"unless-stopped","MaximumRetryCount":0},"Runtime":"runc","AutoRemove":false,"RestartCount":0,"ResolvConfPath":"/var/lib/docker/xxx/resolv.conf","PortBindings":{"80/tcp":[{"HostPort":"8080"}]}},
+				"NetworkSettings":{"Networks":{"bridge":{"Aliases":["alias1"]}}}
+			}`, state)
+		case r.Method == http.MethodGet && r.URL.Path == "/containers/histnew1/json":
+			fmt.Fprint(w, `{"Id":"histnew1","Name":"/hist-container","State":{"Status":"running","Running":true}}`)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/stop"):
+			mu.Lock()
+			stopped = true
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/images/pull":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodDelete && r.URL.Path == "/containers/histdocker1":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/containers/create":
+			body, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			_ = json.Unmarshal(body, &createBody)
+			createName = r.URL.Query().Get("name")
+			mu.Unlock()
+			fmt.Fprint(w, `{"Id":"histnew1"}`)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start"):
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected runner request: %s %s", r.Method, r.URL)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}))
 	defer runnerSrv.Close()
 
@@ -1208,14 +1254,15 @@ func TestUpgradeContainerWritesHistoryAndBlocksConcurrent(t *testing.T) {
 	if r := env.gql(t, admin, mut, vars); len(r.Errors) != 0 {
 		t.Fatalf("upgrade failed: %+v", r.Errors)
 	}
+	// The lock is acquired synchronously in the resolver, so the in-flight
+	// pipeline (which takes several seconds of readiness polling) must block
+	// a second attempt.
 	if r := env.gql(t, admin, mut, vars); !r.hasErrorContaining("in progress") {
-		close(release)
 		t.Fatalf("concurrent upgrade must be rejected by the lock: %+v", r)
 	}
-	close(release)
 
 	var status, oldImg, newImg string
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		err = env.database.QueryRowContext(ctx,
 			`SELECT status, old_image, new_image FROM upgrade_history WHERE container_id = 'histdocker1'`).
@@ -1226,10 +1273,61 @@ func TestUpgradeContainerWritesHistoryAndBlocksConcurrent(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("no upgrade_history row written: %v", err)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	if status != "success" || oldImg != "nginx:1.24" || newImg != "nginx:1.25" {
 		t.Fatalf("history row wrong: status=%q %q -> %q", status, oldImg, newImg)
+	}
+
+	// Config-prep parity with Node's containerConfigService: the create
+	// payload keeps the container identity, swaps the image, and strips
+	// Docker-managed HostConfig fields.
+	mu.Lock()
+	defer mu.Unlock()
+	if createName != "/hist-container" {
+		t.Errorf("create name = %q, want /hist-container (leading slash preserved)", createName)
+	}
+	if createBody == nil {
+		t.Fatalf("no create request captured")
+	}
+	if createBody["Image"] != "nginx:1.25" {
+		t.Errorf("create Image = %v, want nginx:1.25", createBody["Image"])
+	}
+	if envVal, ok := createBody["Env"].([]any); !ok || len(envVal) != 1 || envVal[0] != "A=1" {
+		t.Errorf("create Env = %v, want [A=1]", createBody["Env"])
+	}
+	if wd, _ := createBody["WorkingDir"].(string); wd != "/data" {
+		t.Errorf("create WorkingDir = %v, want /data", createBody["WorkingDir"])
+	}
+	if ep, ok := createBody["ExposedPorts"].(map[string]any); !ok || len(ep) != 1 {
+		t.Errorf("create ExposedPorts = %v, want {80/tcp:{}}", createBody["ExposedPorts"])
+	}
+	if nc, ok := createBody["NetworkingConfig"].(map[string]any); !ok {
+		t.Errorf("create NetworkingConfig missing: %v", createBody)
+	} else if epc, ok := nc["EndpointsConfig"].(map[string]any); !ok {
+		t.Errorf("NetworkingConfig.EndpointsConfig missing: %v", nc)
+	} else if br, ok := epc["bridge"].(map[string]any); !ok {
+		t.Errorf("EndpointsConfig.bridge missing: %v", epc)
+	} else if al, ok := br["Aliases"].([]any); !ok || len(al) != 1 {
+		t.Errorf("EndpointsConfig.bridge.Aliases = %v, want [alias1]", br["Aliases"])
+	}
+	hc, ok := createBody["HostConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("create HostConfig missing: %v", createBody)
+	}
+	for _, banned := range []string{"Runtime", "AutoRemove", "RestartCount", "ResolvConfPath", "HostnamePath", "HostsPath", "ContainerIDFile"} {
+		if _, present := hc[banned]; present {
+			t.Errorf("HostConfig must strip %s", banned)
+		}
+	}
+	if hc["NetworkMode"] != "bridge" {
+		t.Errorf("HostConfig.NetworkMode = %v, want bridge", hc["NetworkMode"])
+	}
+	if pb, ok := hc["PortBindings"].(map[string]any); !ok || len(pb) != 1 {
+		t.Errorf("HostConfig.PortBindings = %v, want preserved on bridge network", hc["PortBindings"])
+	}
+	if rp, ok := hc["RestartPolicy"].(map[string]any); !ok || rp["Name"] != "unless-stopped" {
+		t.Errorf("HostConfig.RestartPolicy = %v, want Name=unless-stopped", hc["RestartPolicy"])
 	}
 }
 
@@ -1414,21 +1512,41 @@ func TestContainersLiveRunnerMerge(t *testing.T) {
 
 // TestUpgradeContainerLiveFallback: runner containers are only persisted to
 // the containers table on upgrade, so a never-upgraded container has no DB
-// row; the resolver must resolve it live from the runner.
+// row; the resolver must resolve it live from the runner and the full
+// orchestration pipeline must run against it.
 func TestUpgradeContainerLiveFallback(t *testing.T) {
 	env := newTestEnv(t, true)
 	ctx := context.Background()
 	admin := env.token(t, env.adminID, "admin")
 
 	runnerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/upgrade") {
-			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprint(w, "event: start\ndata: {}\n\n")
-			fmt.Fprint(w, "event: done\ndata: {\"exitCode\":0}\n\n")
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"containers":[{"id":"livedocker1","name":"live-c","image":"nginx:1.24","status":"running","state":"running"}]}`)
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/containers":
+			fmt.Fprint(w, `{"containers":[{"id":"livedocker1","name":"live-c","image":"nginx:1.24","status":"running","state":"running"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/containers/livedocker1/json":
+			fmt.Fprint(w, `{
+				"Id":"livedocker1","Name":"/live-c","Image":"nginx:1.24",
+				"State":{"Status":"exited","Running":false},
+				"Config":{"Image":"nginx:1.24","Env":["A=1"]},
+				"HostConfig":{"NetworkMode":"bridge","RestartPolicy":{"Name":"unless-stopped"}}
+			}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/containers/livenew1/json":
+			fmt.Fprint(w, `{"Id":"livenew1","Name":"/live-c","State":{"Status":"running","Running":true}}`)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/stop"):
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/images/pull":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodDelete && r.URL.Path == "/containers/livedocker1":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/containers/create":
+			fmt.Fprint(w, `{"Id":"livenew1"}`)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start"):
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected runner request: %s %s", r.Method, r.URL)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}))
 	defer runnerSrv.Close()
 
@@ -1451,7 +1569,7 @@ func TestUpgradeContainerLiveFallback(t *testing.T) {
 	}
 
 	var status, oldImg, newImg string
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		err = env.database.QueryRowContext(ctx,
 			`SELECT status, old_image, new_image FROM upgrade_history WHERE container_id = 'livedocker1'`).
@@ -1462,7 +1580,7 @@ func TestUpgradeContainerLiveFallback(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("no upgrade_history row written: %v", err)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	if status != "success" || oldImg != "nginx:1.24" || newImg != "nginx:1.25" {
 		t.Fatalf("history row wrong: status=%q %q -> %q", status, oldImg, newImg)

@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -11,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -942,11 +940,6 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 // upstream cannot wedge a fire-and-forget goroutine forever.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
-// Upgrade responses are long-lived SSE streams. A client-level timeout would
-// override the request's five-minute context, so upgrades use a separate client
-// with no global timeout and rely on that context as the sole deadline.
-var upgradeHTTPClient = &http.Client{}
-
 func runnerPost(baseURL, apiKey, path string, payload any) error {
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", baseURL+path, bytes.NewReader(body))
@@ -968,11 +961,6 @@ func runnerPost(baseURL, apiKey, path string, payload any) error {
 	return nil
 }
 
-// runnerUpgrade triggers a single container upgrade on a runner, matching the
-// contract the Node backend uses: POST /containers/{id}/upgrade (container id
-// in the path, no JSON body) returning a text/event-stream. The response body
-// MUST be drained to EOF rather than closed immediately, otherwise the runner
-// aborts the upgrade mid-flight; a per-request context bounds the wait.
 // recordUpgradeHistory writes the upgrade_history row that Node's
 // upgradeSingleContainer records for every upgrade attempt, so the
 // upgradeHistory query shows Go-initiated upgrades too.
@@ -1012,86 +1000,6 @@ func (r *Resolver) recordUpgradeHistory(ctx context.Context, uid int64, c *db.Co
 	}
 }
 
-func runnerUpgrade(baseURL, apiKey, containerID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	u := baseURL + "/containers/" + url.PathEscape(containerID) + "/upgrade"
-	req, err := http.NewRequestWithContext(ctx, "POST", u, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-	resp, err := upgradeHTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("runner returned %d", resp.StatusCode)
-	}
-	// The runner's authoritative terminal signal is event: done with a JSON
-	// exitCode. HTTP 200 only means the stream was established; an error event
-	// or an EOF without done must not be counted as a successful upgrade.
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	event := ""
-	data := ""
-	lastError := ""
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch {
-		case strings.HasPrefix(line, "event:"):
-			event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-		case strings.HasPrefix(line, "data:"):
-			part := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-			if data != "" {
-				data += "\n"
-			}
-			data += part
-		case line == "":
-			if event == "error" {
-				var payload struct {
-					Message string `json:"message"`
-				}
-				if json.Unmarshal([]byte(data), &payload) == nil && payload.Message != "" {
-					lastError = payload.Message
-				} else if data != "" {
-					lastError = data
-				}
-			}
-			if event == "done" {
-				var payload struct {
-					ExitCode *int `json:"exitCode"`
-				}
-				if err := json.Unmarshal([]byte(data), &payload); err != nil {
-					return fmt.Errorf("invalid runner done event: %w", err)
-				}
-				if payload.ExitCode == nil {
-					return fmt.Errorf("runner done event missing exitCode")
-				}
-				if *payload.ExitCode != 0 {
-					if lastError != "" {
-						return fmt.Errorf("runner upgrade failed (exit %d): %s", *payload.ExitCode, lastError)
-					}
-					return fmt.Errorf("runner upgrade failed with exit code %d", *payload.ExitCode)
-				}
-				return nil
-			}
-			event, data = "", ""
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("upgrade stream: %w", err)
-	}
-	if lastError != "" {
-		return fmt.Errorf("runner upgrade stream ended after error: %s", lastError)
-	}
-	return fmt.Errorf("runner upgrade stream ended without a done event")
-}
 func pruneRecentAvatars(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

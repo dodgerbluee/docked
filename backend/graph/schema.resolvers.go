@@ -561,14 +561,14 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 	}
 
 	// Determine backend (runner or source instance)
-	var runnerURL, runnerKey string
+	var runnerURL string
 	var runner *db.RunnerRow
 	if container.RunnerID.Valid {
 		runner, _ = db.GetRunnerByID(ctx, r.DB, container.RunnerID.Int64, uid)
 		if runner == nil {
 			return nil, fmt.Errorf("runner not found for container")
 		}
-		runnerURL, runnerKey = runner.URL, runner.APIKey
+		runnerURL = runner.URL
 	} else if container.SourceInstanceID.Valid {
 		return nil, fmt.Errorf("Portainer-backed upgrades are not supported by the Go API; use the primary server")
 	}
@@ -586,16 +586,20 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		return nil, err
 	}
 
-	// Fire-and-forget upgrade via runner. Matches the Node runner contract:
-	// POST /containers/{id}/upgrade (SSE), not a JSON-body endpoint. Node also
-	// writes an upgrade_history row for every attempt; mirror that so the
-	// upgradeHistory query sees Go-initiated upgrades.
+	// Fire-and-forget upgrade via runner. The Go pipeline orchestrates the
+	// full recreate through the runner's fine-grained Docker API (mirrors
+	// Node's upgradeSingleContainer). Node also writes an upgrade_history row
+	// for every attempt; mirror that so the upgradeHistory query sees
+	// Go-initiated upgrades.
 	go func() {
 		defer db.ReleaseUpgradeLock(context.Background(), r.DB, targetKey, opID)
 		start := time.Now()
 		status, errMsg := "success", ""
 		if runnerURL != "" {
-			if err := runnerUpgrade(runnerURL, runnerKey, container.ContainerID); err != nil {
+			pipelineCtx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+			phaseFn := func(p model.UpgradePhase) { r.publishUpgradePhase(uid, opID, container, p, "") }
+			if err := r.runnerUpgradePipeline(pipelineCtx, uid, container, runner, input.ImageName, phaseFn); err != nil {
 				status, errMsg = "failed", err.Error()
 			}
 		}
@@ -696,12 +700,12 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			if len(targetIDs) > 0 && !targetIDs[containerTargetKey(c.ContainerID, rowRunnerID, rowSourceID)] {
 				continue
 			}
-			var runnerURL, runnerKey string
+			var runnerURL string
 			var runner *db.RunnerRow
 			if c.RunnerID.Valid {
 				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
 				if runner != nil {
-					runnerURL, runnerKey = runner.URL, runner.APIKey
+					runnerURL = runner.URL
 				}
 			}
 			// A container with no reachable runner is skipped, not counted as
@@ -724,7 +728,9 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				continue
 			}
 			upStart := time.Now()
-			upgradeErr := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
+			pipelineCtx, pipelineCancel := context.WithTimeout(ctx, 15*time.Minute)
+			upgradeErr := r.runnerUpgradePipeline(pipelineCtx, uid, &c, runner, nullStrDefault(c.ImageName), nil)
+			pipelineCancel()
 			_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
 			upStatus, upErr := "success", ""
 			if upgradeErr != nil {
@@ -1688,12 +1694,12 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		skipped := 0
 		for i := range matched {
 			c := &matched[i]
-			var runnerURL, runnerKey string
+			var runnerURL string
 			var runner *db.RunnerRow
 			if c.RunnerID.Valid {
 				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
 				if runner != nil {
-					runnerURL, runnerKey = runner.URL, runner.APIKey
+					runnerURL = runner.URL
 				}
 			}
 			if runnerURL != "" {
@@ -1707,7 +1713,9 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 					continue
 				}
 				upStart := time.Now()
-				err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
+				pipelineCtx, pipelineCancel := context.WithTimeout(ctx, 15*time.Minute)
+				err := r.runnerUpgradePipeline(pipelineCtx, uid, c, runner, nullStrDefault(c.ImageName), nil)
+				pipelineCancel()
 				_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
 				upStatus, upErr := "success", ""
 				duration := time.Since(upStart).Milliseconds()
