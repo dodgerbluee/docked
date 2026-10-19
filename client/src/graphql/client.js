@@ -47,3 +47,26 @@ export const graphqlClient = createClient({
     };
   },
 });
+
+// Fire-and-forget logout revocation. Reads the token synchronously (before the
+// caller clears localStorage) and posts the logout mutation with it captured in
+// the request body, so the Go backend records it in revoked_tokens and rejects
+// replays until the token would have expired on its own. A plain fetch (rather
+// than the urql client) is deliberate: the client re-reads localStorage at
+// fetch time, which would race with the local token clear that follows.
+// Best-effort — failures are ignored; the local session is cleared regardless.
+export function revokeCurrentSession() {
+  const token = localStorage.getItem("authToken");
+  if (!token) {
+    return;
+  }
+  fetch("/graphql", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query: "mutation { logout { success } }" }),
+    keepalive: true,
+  }).catch(() => {});
+}

@@ -1227,6 +1227,37 @@ async function initializeDatabase() {
       );
     });
 
+    // Shared revocation store: logout records a token's SHA-256 hash so both
+    // processes reject it before its exp claim. Rows self-expire with the token.
+    await new Promise((resolve) => {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS revoked_tokens (
+        token_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+        (err) => {
+          if (err) {
+            logger.error("Error creating revoked_tokens table:", { error: err });
+            resolve();
+            return;
+          }
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)",
+            (idxErr) => {
+              if (idxErr) {
+                logger.error("Error creating revoked_tokens index:", { error: idxErr });
+              } else {
+                logger.info("Revoked tokens table ready");
+              }
+              resolve();
+            }
+          );
+        }
+      );
+    });
+
     // Run migrations after schema is created
     try {
       const { runMigrations } = require("./migrations");

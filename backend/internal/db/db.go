@@ -57,6 +57,17 @@ func Open(path string) (*sql.DB, error) {
 	)`); err != nil {
 		return nil, fmt.Errorf("ensure pending auth tokens: %w", err)
 	}
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS revoked_tokens (
+		token_hash TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		expires_at INTEGER NOT NULL,
+		revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return nil, fmt.Errorf("ensure revoked tokens: %w", err)
+	}
+	if _, err := database.Exec(`CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)`); err != nil {
+		return nil, fmt.Errorf("ensure revoked tokens index: %w", err)
+	}
 
 	return database, nil
 }

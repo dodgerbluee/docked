@@ -489,6 +489,11 @@ router.use(authenticate);
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 
+// Logout: revokes the presented token in the shared revoked_tokens table so it
+// cannot be replayed before its exp. The graph exposes the same behavior as the
+// logout mutation; both share the table.
+router.post("/auth/logout", asyncHandler(authController.logout));
+
 // Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
 // Users should run 'docker login' on the server if authentication is needed
 

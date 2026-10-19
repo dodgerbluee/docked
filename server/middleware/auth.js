@@ -4,6 +4,7 @@
  */
 
 const { getUserById } = require("../db/index");
+const { isTokenRevoked } = require("../db/revokedTokens");
 const { verifyToken } = require("../utils/jwt");
 
 /**
@@ -32,6 +33,14 @@ async function authenticate(req, res, next) {
         return res.status(401).json({
           success: false,
           error: "User not found",
+        });
+      }
+
+      // Revocation: reject a token that was logged out before its exp claim.
+      if (await isTokenRevoked(token)) {
+        return res.status(401).json({
+          success: false,
+          error: "Invalid token",
         });
       }
 

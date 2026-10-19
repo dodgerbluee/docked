@@ -693,6 +693,40 @@ func TestUserStatsAndDeleteCascade(t *testing.T) {
 	}
 }
 
+// TestLogoutRevokesToken guards the logout revocation path: after the logout
+// mutation the same bearer token must be rejected as unauthenticated, closing
+// the replay window a stateless JWT would otherwise leave open until its exp
+// claim. Revocation is per-token: another user's token is unaffected.
+func TestLogoutRevokesToken(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	// Pre-logout: the token authenticates.
+	r := env.gql(t, admin, `{ me { id username } }`, nil)
+	if len(r.Errors) != 0 || r.Data["me"] == nil {
+		t.Fatalf("me before logout failed: errors=%+v", r.Errors)
+	}
+
+	// Logout revokes exactly the presented token.
+	r = env.gql(t, admin, `mutation { logout { success } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("logout errored: %+v", r.Errors)
+	}
+
+	// Post-logout: the same token is now rejected as unauthenticated.
+	r = env.gql(t, admin, `{ me { id username } }`, nil)
+	if len(r.Errors) == 0 {
+		t.Fatalf("revoked token still authenticates: data=%s", r.Data["me"])
+	}
+
+	// A different user's token is unaffected (revocation is per-token).
+	member := env.token(t, env.memberID, "member")
+	r = env.gql(t, member, `{ me { id username } }`, nil)
+	if len(r.Errors) != 0 || r.Data["me"] == nil {
+		t.Fatalf("member token wrongly rejected after admin logout: %+v", r.Errors)
+	}
+}
+
 func TestUnauthenticatedGraphqlIsRateLimited(t *testing.T) {
 	// Public abuse protection replacing Node's authLimiter on the pruned REST
 	// auth routes: unauthenticated /graphql gets a per-IP budget.

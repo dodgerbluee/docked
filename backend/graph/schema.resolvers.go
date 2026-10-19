@@ -261,6 +261,9 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 	if err != nil {
 		return nil, fmt.Errorf("invalid refresh token")
 	}
+	if revoked, err := db.IsTokenRevoked(ctx, r.DB, input.RefreshToken); err != nil || revoked {
+		return nil, fmt.Errorf("invalid refresh token")
+	}
 
 	user, err := db.GetUserByID(ctx, r.DB, claims.UserID)
 	if err != nil || user == nil {
@@ -281,6 +284,7 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 
 // Logout is the resolver for the logout field.
 func (r *mutationResolver) Logout(ctx context.Context) (*model.SuccessResult, error) {
+	r.revokeCurrentToken(ctx)
 	return &model.SuccessResult{Success: true, Message: strPtr("Logged out")}, nil
 }
 

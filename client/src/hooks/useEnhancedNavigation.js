@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { TAB_NAMES, SETTINGS_TABS } from "../constants/apiConstants";
+import { revokeCurrentSession } from "../graphql/client";
 
 /**
  * useEnhancedNavigation Hook
@@ -32,6 +33,9 @@ export function useEnhancedNavigation({
   }, [handlePasswordUpdateSuccess, setActiveTab]);
 
   const handleLogoutWithCleanup = useCallback(() => {
+    // Revoke the presented token server-side (best-effort) before the local
+    // clear wipes it, so a leaked token can't be replayed until its exp.
+    revokeCurrentSession();
     // Clear all error states on logout to prevent them from showing for the next user
     setError(null);
     setPullError(null);

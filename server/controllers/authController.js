@@ -29,9 +29,15 @@ const {
   setSetting,
   setSystemSetting,
   instanceAdminExists,
+  revokeToken,
 } = require("../db/index");
 const { consumePendingToken, clearPendingToken } = require("../utils/verificationToken");
-const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
+const {
+  generateToken,
+  generateRefreshToken,
+  verifyToken: verifyJWT,
+  verifyRefreshToken,
+} = require("../utils/jwt");
 const fs = require("fs");
 const path = require("path");
 
@@ -960,9 +966,45 @@ async function exportUsersEndpoint(req, res, next) {
   }
 }
 
+/**
+ * Logout: invalidate the presented access token (and refresh token, if given)
+ * by recording their hashes in the shared revocation table, so a leaked token
+ * cannot be replayed until its natural exp. Shares state with the Go graph's
+ * logout mutation via the revoked_tokens table.
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function logout(req, res, next) {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (token) {
+      try {
+        const decoded = verifyJWT(token);
+        await revokeToken(token, decoded.userId, decoded.exp);
+      } catch {
+        // Already-invalid token: nothing to revoke.
+      }
+    }
+    if (req.body && req.body.refreshToken) {
+      try {
+        const rdec = verifyRefreshToken(req.body.refreshToken);
+        await revokeToken(req.body.refreshToken, rdec.userId, rdec.exp);
+      } catch {
+        // Invalid refresh token: nothing to revoke.
+      }
+    }
+    return res.json({ success: true, message: "Logged out" });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   login,
   verifyToken,
+  logout,
+  logout,
   exportUserConfig,
   createUserWithConfig,
   exportUsersEndpoint,

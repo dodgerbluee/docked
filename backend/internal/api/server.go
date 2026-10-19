@@ -83,6 +83,9 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			if err != nil || user == nil {
 				return reject("invalid token")
 			}
+			if revoked, err := db.IsTokenRevoked(ctx, database, token); err != nil || revoked {
+				return reject("invalid token")
+			}
 			return auth.ContextWithUserID(ctx, userID), nil, nil
 		},
 	})
@@ -158,9 +161,26 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 				next.ServeHTTP(w, req)
 				return
 			}
+			// Revocation: a cryptographically valid token is rejected once its
+			// hash is in revoked_tokens (logout). Fail closed on DB error, the
+			// same way the user lookup above does.
+			revoked, err := db.IsTokenRevoked(req.Context(), database, raw)
+			if err != nil {
+				slog.Warn("graphql auth: revocation check failed", "error", err.Error())
+			}
+			if err != nil || revoked {
+				slog.Debug("graphql auth: token revoked", "userID", userID)
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
+				next.ServeHTTP(w, req)
+				return
+			}
 			slog.Debug("graphql auth: token validated", "userID", userID)
 
 			ctx = auth.ContextWithUserID(ctx, userID)
+			ctx = auth.ContextWithRawToken(ctx, raw)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	}

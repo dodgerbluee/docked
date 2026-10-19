@@ -31,6 +31,7 @@ const intentExecutions = require("./intentExecutions");
 const oauth = require("./oauth");
 const oauthProviders = require("./oauthProviders");
 const runners = require("./runners");
+const revokedTokens = require("./revokedTokens");
 const logger = require("../utils/logger");
 
 /**
@@ -136,6 +137,7 @@ module.exports = {
   ...oauth,
   ...oauthProviders,
   ...runners,
+  ...revokedTokens,
 
   // Utility functions
   getRawDatabaseRecords,
