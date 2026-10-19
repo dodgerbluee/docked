@@ -97,6 +97,12 @@ func (r *Resolver) runnerContainerToRow(ctx context.Context, uid int64, rr db.Ru
 			row.RepoDigests = sql.NullString{String: string(encoded), Valid: true}
 		}
 	}
+	if c.ImageCreated > 0 {
+		row.ImageCreatedDate = sql.NullString{
+			String: time.Unix(c.ImageCreated, 0).UTC().Format("2006-01-02 15:04:05"),
+			Valid:  true,
+		}
+	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	row.LastSeen = sql.NullString{String: now, Valid: true}
 	row.CreatedAt = row.LastSeen

@@ -226,6 +226,8 @@ type ComplexityRoot struct {
 		LatestTag                 func(childComplexity int) int
 		LatestVersion             func(childComplexity int) int
 		Namespace                 func(childComplexity int) int
+		NoDigest                  func(childComplexity int) int
+		Provider                  func(childComplexity int) int
 		Registry                  func(childComplexity int) int
 		Repository                func(childComplexity int) int
 	}
@@ -1764,6 +1766,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ImageVersionInfo.Namespace(childComplexity), true
+	case "ImageVersionInfo.noDigest":
+		if e.ComplexityRoot.ImageVersionInfo.NoDigest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImageVersionInfo.NoDigest(childComplexity), true
+	case "ImageVersionInfo.provider":
+		if e.ComplexityRoot.ImageVersionInfo.Provider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImageVersionInfo.Provider(childComplexity), true
 	case "ImageVersionInfo.registry":
 		if e.ComplexityRoot.ImageVersionInfo.Registry == nil {
 			break
@@ -5543,6 +5557,9 @@ type Container {
 
 type ImageVersionInfo {
   registry: Registry!
+  # Raw provider string from registry_image_versions (dockerhub, ghcr, gitlab,
+  # gcr, quay, github-releases, ...) — finer grained than the registry enum.
+  provider: String
   namespace: String
   repository: String!
   currentTag: String
@@ -5552,6 +5569,8 @@ type ImageVersionInfo {
   latestVersion: String
   latestDigest: String
   hasUpdate: Boolean!
+  # Container was checked but the registry returned no digest.
+  noDigest: Boolean!
   latestPublishDate: DateTime
   currentVersionPublishDate: DateTime
   lastChecked: DateTime!
@@ -7076,6 +7095,8 @@ func (ec *executionContext) childFields_ImageVersionInfo(ctx context.Context, fi
 	switch field.Name {
 	case "registry":
 		return ec.fieldContext_ImageVersionInfo_registry(ctx, field)
+	case "provider":
+		return ec.fieldContext_ImageVersionInfo_provider(ctx, field)
 	case "namespace":
 		return ec.fieldContext_ImageVersionInfo_namespace(ctx, field)
 	case "repository":
@@ -7094,6 +7115,8 @@ func (ec *executionContext) childFields_ImageVersionInfo(ctx context.Context, fi
 		return ec.fieldContext_ImageVersionInfo_latestDigest(ctx, field)
 	case "hasUpdate":
 		return ec.fieldContext_ImageVersionInfo_hasUpdate(ctx, field)
+	case "noDigest":
+		return ec.fieldContext_ImageVersionInfo_noDigest(ctx, field)
 	case "latestPublishDate":
 		return ec.fieldContext_ImageVersionInfo_latestPublishDate(ctx, field)
 	case "currentVersionPublishDate":
@@ -12621,6 +12644,29 @@ func (ec *executionContext) fieldContext_ImageVersionInfo_registry(_ context.Con
 	return graphql.NewScalarFieldContext("ImageVersionInfo", field, false, false, errors.New("field of type Registry does not have child fields"))
 }
 
+func (ec *executionContext) _ImageVersionInfo_provider(ctx context.Context, field graphql.CollectedField, obj *model.ImageVersionInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImageVersionInfo_provider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ImageVersionInfo_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImageVersionInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _ImageVersionInfo_namespace(ctx context.Context, field graphql.CollectedField, obj *model.ImageVersionInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12825,6 +12871,29 @@ func (ec *executionContext) _ImageVersionInfo_hasUpdate(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_ImageVersionInfo_hasUpdate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImageVersionInfo", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ImageVersionInfo_noDigest(ctx context.Context, field graphql.CollectedField, obj *model.ImageVersionInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImageVersionInfo_noDigest(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NoDigest, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImageVersionInfo_noDigest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ImageVersionInfo", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -30634,6 +30703,11 @@ func (ec *executionContext) _ImageVersionInfo(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "provider":
+			out.Values[i] = ec._ImageVersionInfo_provider(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "namespace":
 			out.Values[i] = ec._ImageVersionInfo_namespace(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -30676,6 +30750,11 @@ func (ec *executionContext) _ImageVersionInfo(ctx context.Context, sel ast.Selec
 			}
 		case "hasUpdate":
 			out.Values[i] = ec._ImageVersionInfo_hasUpdate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "noDigest":
+			out.Values[i] = ec._ImageVersionInfo_noDigest(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

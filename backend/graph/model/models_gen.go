@@ -295,6 +295,7 @@ type HealthCheck struct {
 
 type ImageVersionInfo struct {
 	Registry                  Registry   `json:"registry"`
+	Provider                  *string    `json:"provider,omitempty"`
 	Namespace                 *string    `json:"namespace,omitempty"`
 	Repository                string     `json:"repository"`
 	CurrentTag                *string    `json:"currentTag,omitempty"`
@@ -304,6 +305,7 @@ type ImageVersionInfo struct {
 	LatestVersion             *string    `json:"latestVersion,omitempty"`
 	LatestDigest              *string    `json:"latestDigest,omitempty"`
 	HasUpdate                 bool       `json:"hasUpdate"`
+	NoDigest                  bool       `json:"noDigest"`
 	LatestPublishDate         *time.Time `json:"latestPublishDate,omitempty"`
 	CurrentVersionPublishDate *time.Time `json:"currentVersionPublishDate,omitempty"`
 	LastChecked               time.Time  `json:"lastChecked"`

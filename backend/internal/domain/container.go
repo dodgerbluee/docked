@@ -13,6 +13,7 @@ type Container struct {
 
 	// Digest & update info
 	CurrentDigest     *string  `json:"currentDigest"`
+	ImageCreated      int64    `json:"imageCreated,omitempty"`
 	RepoDigests       []string `json:"repoDigests"`
 	LatestDigest      *string  `json:"latestDigest"`
 	LatestVersion     *string  `json:"latestVersion"`

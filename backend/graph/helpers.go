@@ -609,7 +609,7 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 		}
 	}
 
-	return &model.Container{
+	out := &model.Container{
 		ID:                strconv.FormatInt(c.ID, 10),
 		DockerContainerID: c.ContainerID,
 		Name:              c.ContainerName,
@@ -628,6 +628,13 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 		Source:            containerSourceFromRow(c),
 		ImageInfo:         imageInfoFromRow(c),
 	}
+	if c.ImageCreatedDate.Valid {
+		t := parseTime(c.ImageCreatedDate.String)
+		if !t.IsZero() {
+			out.ImageCreatedDate = &t
+		}
+	}
+	return out
 }
 func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 	// Only return imageInfo if we have registry_image_versions data
@@ -654,6 +661,10 @@ func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 		Namespace:  namespace,
 		Repository: repository,
 		HasUpdate:  db.ContainerHasUpdate(*c),
+		NoDigest:   c.NoDigest,
+	}
+	if c.Provider.Valid {
+		info.Provider = &c.Provider.String
 	}
 	if c.ImageTag.Valid {
 		info.CurrentTag = &c.ImageTag.String

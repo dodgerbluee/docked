@@ -164,7 +164,8 @@ CREATE TABLE deployed_images (
   image_tag TEXT,
   image_digest TEXT,
   repo_digests TEXT,
-  registry TEXT
+  registry TEXT,
+  image_created_date TEXT
 );
 CREATE TABLE registry_image_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

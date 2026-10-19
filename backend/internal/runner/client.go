@@ -123,6 +123,7 @@ func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Con
 		RunnerURL:   &runnerURL,
 
 		CurrentDigest: currentDigest,
+		ImageCreated:  dockhandCtr.ImageCreated,
 
 		NetworkMode: dockhandCtr.NetworkMode,
 		UsesNetworkMode: dockhandCtr.NetworkMode != "" &&

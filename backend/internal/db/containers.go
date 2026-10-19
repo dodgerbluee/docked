@@ -31,6 +31,8 @@ type ContainerRow struct {
 	RepoDigests   sql.NullString // JSON array stored as TEXT
 	Registry      sql.NullString
 
+	ImageCreatedDate sql.NullString
+
 	// From registry_image_versions
 	LatestDigest      sql.NullString
 	LatestVersion     sql.NullString
@@ -72,6 +74,7 @@ SELECT
 	    di.image_tag,
 	    di.repo_digests,
 	    di.registry,
+	    di.image_created_date,
 
     riv.latest_digest,
     riv.latest_version,
@@ -179,6 +182,7 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 		&row.ImageTag,
 		&row.RepoDigests,
 		&row.Registry,
+		&row.ImageCreatedDate,
 		&row.LatestDigest,
 		&row.LatestVersion,
 		&row.LatestTag,
@@ -243,7 +247,7 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
 		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
 		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
-		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry,
+		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry, &r.ImageCreatedDate,
 		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
 		&r.Provider, &r.LastChecked, &noDigest,
 		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
@@ -285,7 +289,7 @@ func GetContainerByDockerID(ctx context.Context, database *sql.DB, userID int64,
 		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
 		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
 		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
-		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry,
+		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry, &r.ImageCreatedDate,
 		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
 		&r.Provider, &r.LastChecked, &noDigest,
 		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,

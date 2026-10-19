@@ -293,6 +293,9 @@ type Container {
 
 type ImageVersionInfo {
   registry: Registry!
+  # Raw provider string from registry_image_versions (dockerhub, ghcr, gitlab,
+  # gcr, quay, github-releases, ...) — finer grained than the registry enum.
+  provider: String
   namespace: String
   repository: String!
   currentTag: String
@@ -302,6 +305,8 @@ type ImageVersionInfo {
   latestVersion: String
   latestDigest: String
   hasUpdate: Boolean!
+  # Container was checked but the registry returned no digest.
+  noDigest: Boolean!
   latestPublishDate: DateTime
   currentVersionPublishDate: DateTime
   lastChecked: DateTime!
