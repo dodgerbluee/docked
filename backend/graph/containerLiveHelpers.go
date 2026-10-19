@@ -144,16 +144,18 @@ func (r *Resolver) liveRunnerContainer(ctx context.Context, uid int64, runnerID 
 	return nil
 }
 
-// dockerIDMatches accepts an exact id or a 12-char short-id match in either
+// dockerIDMatches accepts an exact id or a short-id match in either
 // direction, mirroring the lenient matching Node's container routes use.
+// The shorter side must be at least 12 chars: a bare "0" or other trivial
+// prefix must never resolve to an arbitrary container.
 func dockerIDMatches(liveID, requestedID string) bool {
 	if liveID == requestedID {
 		return true
 	}
-	if len(liveID) >= 12 && strings.HasPrefix(liveID, requestedID) {
+	if len(requestedID) >= 12 && len(liveID) >= len(requestedID) && strings.HasPrefix(liveID, requestedID) {
 		return true
 	}
-	if len(requestedID) >= 12 && strings.HasPrefix(requestedID, liveID) {
+	if len(liveID) >= 12 && len(requestedID) >= len(liveID) && strings.HasPrefix(requestedID, liveID) {
 		return true
 	}
 	return false
