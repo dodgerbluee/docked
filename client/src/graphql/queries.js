@@ -146,6 +146,7 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
           stackName
           endpointId
           currentDigest
+          imageCreatedDate
           usesNetworkMode
           providesNetwork
           lastSeen
@@ -166,6 +167,7 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
           }
           imageInfo {
             registry
+            provider
             namespace
             repository
             currentTag
@@ -175,6 +177,7 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
             latestVersion
             latestDigest
             hasUpdate
+            noDigest
             latestPublishDate
             lastChecked
           }
@@ -209,12 +212,28 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
             stackName
             endpointId
             currentDigest
+            imageCreatedDate
             usesNetworkMode
             providesNetwork
             lastSeen
             createdAt
+            source {
+              ... on SourceInstance {
+                id
+                name
+                url
+                type
+              }
+              ... on Runner {
+                id
+                name
+                url
+                type
+              }
+            }
             imageInfo {
               registry
+              provider
               namespace
               repository
               currentTag
@@ -224,6 +243,7 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
               latestVersion
               latestDigest
               hasUpdate
+              noDigest
               latestPublishDate
               lastChecked
             }
