@@ -10,7 +10,7 @@ process.env.DATA_DIR = `${require("os").tmpdir()}/docked-test-data-logout`;
 
 const request = require("supertest");
 const app = require("../../server");
-const { getDatabase } = require("../../db/connection");
+const { getDatabase, waitForDatabaseInit } = require("../../db/connection");
 const { createUser, getUserByUsername } = require("../../db/index");
 const { generateToken } = require("../../utils/jwt");
 
@@ -28,6 +28,9 @@ describe("POST /api/auth/logout revocation", () => {
   let token;
 
   beforeAll(async () => {
+    // On a fresh CI tmpdir the DB file has no tables yet; server.js defers
+    // initializeDatabase via setImmediate, so wait for it before touching the DB.
+    await waitForDatabaseInit();
     // The dedicated DATA_DIR's DB file persists across jest runs; clear the row
     // so re-runs start clean (createUser does a bare INSERT, unlike the import
     // endpoint which tolerates an existing user).
