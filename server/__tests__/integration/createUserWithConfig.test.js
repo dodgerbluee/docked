@@ -1,19 +1,28 @@
 /**
- * Regression tests for the privilege-grant gate on
+ * Regression tests for the access gates on
  * POST /api/auth/create-user-with-config.
  *
- * The route is public (bootstrap/import flow runs before anyone is logged
- * in), so instance-admin creation is only honored when the caller presents
- * the pending verification token that the graph minted via
- * generateInstanceAdminToken and the operator read out of the container
- * logs. The token is consumed atomically at grant time; before this gate
- * existed, an anonymous caller could self-grant instance admin with a bare
- * POST.
+ * Two gates protect this public (bootstrap/import) route:
+ *  1. Privilege-grant gate: instance-admin creation is only honored when the
+ *     caller presents the pending verification token minted by
+ *     generateInstanceAdminToken and read out of the container logs; it is
+ *     consumed atomically at grant time. Before this gate an anonymous caller
+ *     could self-grant instance admin with a bare POST.
+ *  2. Account-creation gate: once the instance has an owner, creating plain
+ *     accounts requires an authenticated instance admin. While no instance
+ *     admin exists (the bootstrap window) member imports may be anonymous, so
+ *     the import order (members before the admin) still works.
+ *
+ * Uses a dedicated DATA_DIR so the bootstrap state is deterministic and
+ * isolated from other suites that seed an instance admin.
  */
+process.env.DATA_DIR = `${require("os").tmpdir()}/docked-test-data-cuw`;
+
 const request = require("supertest");
 const app = require("../../server");
 const { getDatabase } = require("../../db/connection");
 const { getUserByUsername } = require("../../db/index");
+const { generateToken } = require("../../utils/jwt");
 
 function setPendingToken(username, token) {
   return new Promise((resolve, reject) => {
@@ -25,7 +34,7 @@ function setPendingToken(username, token) {
   });
 }
 
-describe("POST /api/auth/create-user-with-config privilege gate", () => {
+describe("POST /api/auth/create-user-with-config gates", () => {
   const password = "testpass-1234";
 
   beforeAll(async () => {
@@ -45,6 +54,20 @@ describe("POST /api/auth/create-user-with-config privilege gate", () => {
     });
   });
 
+  // --- Account-creation gate: bootstrap window (no owner yet) ---
+  it("allows anonymous member import while no instance admin exists", async () => {
+    const res = await request(app)
+      .post("/api/auth/create-user-with-config")
+      .send({ userData: { username: "bootstrap-member", password } })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    const user = await getUserByUsername("bootstrap-member");
+    expect(user).not.toBeNull();
+    expect(user.instance_admin).toBe(0);
+  });
+
+  // --- Privilege-grant gate ---
   it("rejects instance-admin creation with no verification token", async () => {
     const res = await request(app)
       .post("/api/auth/create-user-with-config")
@@ -100,14 +123,29 @@ describe("POST /api/auth/create-user-with-config privilege gate", () => {
     expect(await getUserByUsername("replay-intruder")).toBeNull();
   });
 
-  it("still allows non-instance-admin imports without any token", async () => {
+  // --- Account-creation gate: window closed (owner now exists) ---
+  it("rejects anonymous member import once an instance admin exists", async () => {
     const res = await request(app)
       .post("/api/auth/create-user-with-config")
-      .send({ userData: { username: "regular-import-joe", password } })
+      .send({ userData: { username: "post-bootstrap-member", password } })
+      .expect(403);
+
+    expect(res.body.success).toBe(false);
+    expect(await getUserByUsername("post-bootstrap-member")).toBeNull();
+  });
+
+  it("allows member import when an authenticated instance admin calls it", async () => {
+    const admin = await getUserByUsername("legit-import-admin");
+    const token = generateToken({ userId: admin.id, username: admin.username, role: admin.role });
+
+    const res = await request(app)
+      .post("/api/auth/create-user-with-config")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ userData: { username: "authed-member", password } })
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    const user = await getUserByUsername("regular-import-joe");
+    const user = await getUserByUsername("authed-member");
     expect(user).not.toBeNull();
     expect(user.instance_admin).toBe(0);
   });

@@ -271,6 +271,32 @@ function hasAnyUsers() {
 }
 
 /**
+ * True once at least one instance admin exists. Marks the end of the
+ * bootstrap window for the public create-user-with-config endpoint.
+ * @returns {Promise<boolean>}
+ */
+function instanceAdminExists() {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.get("SELECT 1 FROM users WHERE instance_admin = 1 LIMIT 1", (err, row) => {
+        if (err) {
+          if (err.message.includes("no such table")) {
+            resolve(false);
+          } else {
+            reject(err);
+          }
+        } else {
+          resolve(Boolean(row));
+        }
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
  * Create a new user
  * @param {string} username - Username
  * @param {string} password - Plain text password
@@ -344,6 +370,7 @@ module.exports = {
   updateUsername,
   updateLastLogin,
   hasAnyUsers,
+  instanceAdminExists,
   createUser,
   updateVerificationToken,
   getAllUsers,

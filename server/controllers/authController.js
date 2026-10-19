@@ -28,6 +28,7 @@ const {
   updateBatchConfig,
   setSetting,
   setSystemSetting,
+  instanceAdminExists,
 } = require("../db/index");
 const { consumePendingToken, clearPendingToken } = require("../utils/verificationToken");
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
@@ -617,6 +618,28 @@ async function importGeneralSettings(generalSettings, user, results) {
  */
 
 /**
+ * Resolve the request's Bearer token (if any) to an instance-admin user.
+ * Returns null for missing, invalid, expired, or non-admin callers. Used by
+ * the public create-user-with-config endpoint's account-creation gate.
+ * @param {Object} req - Express request object
+ * @returns {Promise<Object|null>}
+ */
+async function resolveInstanceAdminCaller(req) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    return null;
+  }
+  try {
+    const decoded = verifyJWT(token);
+    const user = await getUserById(decoded.userId);
+    return user && user.instance_admin === 1 ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Create user with configuration in one operation
  * Used for importing users one at a time with their full configuration
  * @param {Object} req - Express request object
@@ -672,6 +695,23 @@ async function createUserWithConfig(req, res, next) {
         skipped: true,
         message: `User "${username}" already exists`,
       });
+    }
+
+    // Account-creation gate: once the instance has an owner, creating plain
+    // accounts through this public endpoint requires an authenticated
+    // instance admin (the admin-UI import wizard carries the session token;
+    // the login-page wizard logs in with the credentials it just set). While
+    // no instance admin exists yet the bootstrap window is open and member
+    // imports may arrive unauthenticated — there is no privilege to escalate
+    // toward, and the import order (members before the admin) must work.
+    if (!instanceAdmin) {
+      const caller = await resolveInstanceAdminCaller(req);
+      if (!caller && (await instanceAdminExists())) {
+        return res.status(403).json({
+          success: false,
+          error: "Creating users requires an authenticated instance admin",
+        });
+      }
     }
 
     // Privilege-grant gate: this endpoint is public (bootstrap/import flow),

@@ -11,6 +11,31 @@ const STEP_TYPES = {
   DISCORD: "discord",
 };
 
+// Best-effort login with the credentials just set for a newly imported
+// instance admin, so the rest of the wizard carries an authenticated token.
+// The server closes the public bootstrap window the moment an owner exists,
+// so later member imports need a session. Non-fatal: if this fails, the next
+// create call simply surfaces the server's 403 rather than undoing the admin
+// import that already succeeded.
+async function bootstrapSessionToken(username, password) {
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}/api/auth/login`,
+      { username, password },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    if (res.data?.success && res.data.token) {
+      localStorage.setItem("authToken", res.data.token);
+      if (res.data.role) localStorage.setItem("userRole", res.data.role);
+      if (res.data.instanceAdmin !== undefined) {
+        localStorage.setItem("instanceAdmin", res.data.instanceAdmin ? "true" : "false");
+      }
+    }
+  } catch {
+    // ignore — the server gate reports the failure on the next create call
+  }
+}
+
 /**
  * useUserCreation Hook
  * Handles user creation logic for the import process
@@ -39,7 +64,14 @@ export function useUserCreation({
         baseURL: API_BASE_URL,
         headers: { "Content-Type": "application/json" },
       });
-      delete createAxios.defaults.headers.common["Authorization"];
+      // Carry the session token when one exists (admin-UI import wizard, or a
+      // login-page wizard that already bootstrapped an instance admin). The
+      // server requires an authenticated instance admin to create plain
+      // accounts once the instance has an owner.
+      const sessionToken = localStorage.getItem("authToken");
+      if (sessionToken) {
+        createAxios.defaults.headers.common["Authorization"] = `Bearer ${sessionToken}`;
+      }
 
       const username = currentUser.username;
       const password = userPasswords[username];
@@ -145,6 +177,12 @@ export function useUserCreation({
           delete updated[username];
           return updated;
         });
+        // If we just created the instance that now has an owner and we have no
+        // session yet, log in with the credentials just set so subsequent
+        // member imports in this wizard carry an authenticated token.
+        if (isInstanceAdmin && !localStorage.getItem("authToken")) {
+          await bootstrapSessionToken(username, password);
+        }
         setImportedUsers((prev) => [...prev, username]);
         return { success: true, imported: true, username };
       } else {
