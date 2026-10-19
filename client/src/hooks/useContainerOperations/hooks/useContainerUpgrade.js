@@ -5,6 +5,7 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
+import { upgradeRunnerContainer } from "../../../graphql/upgrades";
 import {
   showUpgradeSuccess,
   showContainerError,
@@ -35,34 +36,40 @@ export const useContainerUpgrade = ({
     async (container) => {
       try {
         setUpgrading((prev) => ({ ...prev, [container.id]: true }));
-        const response = await axios.post(
-          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-          {
-            endpointId: container.endpointId,
-            imageName: container.image,
-            portainerUrl: container.portainerUrl,
+        // Runner containers go through the Go GraphQL API; Portainer-backed
+        // upgrades are still served by the Node backend.
+        const isRunner = container.source === "runner" || container.runnerId;
+        if (isRunner) {
+          await upgradeRunnerContainer(container);
+        } else {
+          const response = await axios.post(
+            `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
+            {
+              endpointId: container.endpointId,
+              imageName: container.image,
+              portainerUrl: container.portainerUrl,
+            }
+          );
+          if (!response.data.success) {
+            throw new Error(response.data.error || "Upgrade failed");
           }
+        }
+
+        successfullyUpdatedContainersRef.current.add(container.id);
+
+        setContainers((prevContainers) =>
+          prevContainers.map((c) => (c.id === container.id ? { ...c, hasUpdate: false } : c))
         );
 
-        if (response.data.success) {
-          successfullyUpdatedContainersRef.current.add(container.id);
+        setSelectedContainers((prev) => {
+          const next = new Set(prev);
+          next.delete(container.id);
+          return next;
+        });
 
-          setContainers((prevContainers) =>
-            prevContainers.map((c) => (c.id === container.id ? { ...c, hasUpdate: false } : c))
-          );
+        showUpgradeSuccess(container.name, container.image, container.image);
 
-          setSelectedContainers((prev) => {
-            const next = new Set(prev);
-            next.delete(container.id);
-            return next;
-          });
-
-          const oldImage = response.data.oldImage || container.image;
-          const newImage = response.data.newImage || container.image;
-          showUpgradeSuccess(container.name, oldImage, newImage);
-
-          fetchContainers();
-        }
+        fetchContainers();
       } catch (err) {
         showContainerError("upgrade", container.name, err);
       } finally {
@@ -94,17 +101,41 @@ export const useContainerUpgrade = ({
       try {
         setBatchUpgrading(true);
 
-        const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
-          containers: containersToUpgrade.map((c) => ({
-            containerId: c.id,
-            endpointId: c.endpointId,
-            imageName: c.image,
-            containerName: c.name,
-            portainerUrl: c.portainerUrl,
-          })),
-        });
+        const runnerTargets = containersToUpgrade.filter(
+          (c) => c.source === "runner" || c.runnerId
+        );
+        const portainerTargets = containersToUpgrade.filter(
+          (c) => !(c.source === "runner" || c.runnerId)
+        );
 
-        const successfulIds = new Set(response.data.results?.map((r) => r.containerId) || []);
+        const successfulIds = new Set();
+        const errors = [];
+
+        // Runner containers: Go GraphQL, one at a time (matches the
+        // ContainersPage banner flow).
+        for (const c of runnerTargets) {
+          try {
+            await upgradeRunnerContainer(c);
+            successfulIds.add(c.id);
+          } catch (err) {
+            errors.push({ containerId: c.id, containerName: c.name, error: err.message });
+          }
+        }
+
+        // Portainer-backed containers still use the Node batch endpoint.
+        if (portainerTargets.length > 0) {
+          const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
+            containers: portainerTargets.map((c) => ({
+              containerId: c.id,
+              endpointId: c.endpointId,
+              imageName: c.image,
+              containerName: c.name,
+              portainerUrl: c.portainerUrl,
+            })),
+          });
+          (response.data.results || []).forEach((r) => successfulIds.add(r.containerId));
+          errors.push(...(response.data.errors || []));
+        }
 
         successfulIds.forEach((containerId) => {
           successfullyUpdatedContainersRef.current.add(containerId);
@@ -120,14 +151,7 @@ export const useContainerUpgrade = ({
           return next;
         });
 
-        const successCount = response.data.results?.length || 0;
-        const errorCount = response.data.errors?.length || 0;
-
-        const message = formatBatchUpgradeMessage(
-          successCount,
-          errorCount,
-          response.data.errors || []
-        );
+        const message = formatBatchUpgradeMessage(successfulIds.size, errors.length, errors);
         alert(message);
         setSelectedContainers(new Set());
         fetchContainers();

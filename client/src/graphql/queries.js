@@ -1120,6 +1120,19 @@ export const CONTAINERS_UPDATED_SUBSCRIPTION = /* GraphQL */ `
   }
 `;
 
+export const CONTAINER_UPGRADE_PROGRESS_SUBSCRIPTION = /* GraphQL */ `
+  subscription ContainerUpgradeProgress {
+    containerUpgradeProgress {
+      operationId
+      dockerContainerId
+      containerName
+      phase
+      message
+      progress
+    }
+  }
+`;
+
 export const DISALLOWED_CONTAINERS_QUERY = /* GraphQL */ `
   query DisallowedContainers {
     disallowedContainers {

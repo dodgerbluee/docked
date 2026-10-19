@@ -8,6 +8,7 @@ import { API_BASE_URL } from "../../../utils/api";
 import { toast } from "../../../utils/toast";
 import { getUpgradeSteps } from "../../../utils/upgradeSteps";
 import { TIMING } from "../../../constants/timing";
+import { upgradeRunnerContainer } from "../../../graphql/upgrades";
 
 /** Auto-dismiss completed (success/error) items after this many ms (10 min) */
 const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
@@ -86,43 +87,47 @@ export const useContainerUpgrade = ({
     async (container) => {
       setUpgrading((prev) => ({ ...prev, [container.id]: true }));
       try {
-        // Runner containers supply runnerId; source containers supply portainerUrl + endpointId.
-        const upgradeBody =
-          container.source === "runner" || container.runnerId
-            ? { imageName: container.image, runnerId: container.runnerId }
-            : {
-                endpointId: container.endpointId,
-                imageName: container.image,
-                portainerUrl: container.portainerUrl,
-              };
-
-        const response = await axios.post(
-          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-          upgradeBody
-        );
-        if (response.data.success) {
-          successfullyUpdatedContainersRef.current.add(container.id);
-          if (response.data.newContainerId) {
-            successfullyUpdatedContainersRef.current.add(response.data.newContainerId);
+        // Runner containers go through the Go GraphQL API (mutation + wait for
+        // terminal outcome); Portainer-backed upgrades are still served by the
+        // Node backend until its upgrade pipeline is ported.
+        const isRunner = container.source === "runner" || container.runnerId;
+        let newContainerId = null;
+        if (isRunner) {
+          await upgradeRunnerContainer(container);
+        } else {
+          const response = await axios.post(
+            `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
+            {
+              endpointId: container.endpointId,
+              imageName: container.image,
+              portainerUrl: container.portainerUrl,
+            }
+          );
+          if (!response.data.success) {
+            throw new Error(response.data.error || "Upgrade failed");
           }
-          if (onContainersUpdate) {
-            onContainersUpdate((prevContainers) =>
-              prevContainers.map((c) => {
-                const matchesId =
-                  c.id === container.id ||
-                  c.id === response.data.newContainerId ||
-                  c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
-                  (response.data.newContainerId &&
-                    c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
-                const matchesName = c.name === container.name;
-                if (matchesId || matchesName) return { ...c, hasUpdate: false };
-                return c;
-              })
-            );
-          }
-          if (fetchContainers) fetchContainers();
+          newContainerId = response.data.newContainerId || null;
         }
-        return response;
+
+        successfullyUpdatedContainersRef.current.add(container.id);
+        if (newContainerId) {
+          successfullyUpdatedContainersRef.current.add(newContainerId);
+        }
+        if (onContainersUpdate) {
+          onContainersUpdate((prevContainers) =>
+            prevContainers.map((c) => {
+              const matchesId =
+                c.id === container.id ||
+                c.id === newContainerId ||
+                c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
+                (newContainerId && c.id?.substring(0, 12) === newContainerId?.substring(0, 12));
+              const matchesName = c.name === container.name;
+              if (matchesId || matchesName) return { ...c, hasUpdate: false };
+              return c;
+            })
+          );
+        }
+        if (fetchContainers) fetchContainers();
       } finally {
         setUpgrading((prev) => ({ ...prev, [container.id]: false }));
       }
