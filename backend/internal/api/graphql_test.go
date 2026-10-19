@@ -1329,6 +1329,145 @@ func TestContainersFilterAndPagination(t *testing.T) {
 	}
 }
 
+// TestContainersLiveRunnerMerge guards the appendRunnerContainers parity: live
+// runner data replaces DB runner rows for reachable runners (with registry
+// data joined from the shared DB and the providesNetwork two-pass applied),
+// while rows for unreachable runners are kept.
+func TestContainersLiveRunnerMerge(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	runnerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"containers":[
+			{"id":"livedocker1","name":"live-web","image":"nginx:1.24","status":"running","state":"running","repoDigests":["nginx@sha256:aaa"],"networkMode":"container:livedocker2"},
+			{"id":"livedocker2","name":"live-provider","image":"redis:7","status":"running","state":"running"}
+		]}`)
+	}))
+	defer runnerSrv.Close()
+
+	ctx := context.Background()
+	res, err := env.database.ExecContext(ctx,
+		"INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (?, 'live-runner', ?, 'k', 1)",
+		env.adminID, runnerSrv.URL)
+	if err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
+	runnerID, _ := res.LastInsertId()
+	if _, err := env.database.ExecContext(ctx,
+		`INSERT INTO registry_image_versions (user_id, image_repo, tag, latest_digest, provider)
+		 VALUES (?, 'nginx', '1.24', 'sha256:bbb', 'docker-hub')`, env.adminID); err != nil {
+		t.Fatalf("seed registry version: %v", err)
+	}
+	// Stale DB row for the reachable runner: must be replaced by live data.
+	seedContainer(t, env, "stale-c", "nginx:1.20", "running", "", nil, &runnerID, nil)
+
+	const q = `{ containers { totalCount items { dockerContainerId name providesNetwork imageInfo { hasUpdate } } } }`
+	r := env.gql(t, admin, q, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("containers errored: %+v", r.Errors)
+	}
+	var conn struct {
+		TotalCount int `json:"totalCount"`
+		Items      []struct {
+			DockerContainerID string `json:"dockerContainerId"`
+			Name              string `json:"name"`
+			ProvidesNetwork   bool   `json:"providesNetwork"`
+			ImageInfo         *struct {
+				HasUpdate bool `json:"hasUpdate"`
+			} `json:"imageInfo"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(r.Data["containers"], &conn); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if conn.TotalCount != 2 {
+		t.Fatalf("stale runner row must be replaced: %+v", conn)
+	}
+	byName := map[string]bool{}
+	for _, item := range conn.Items {
+		byName[item.Name] = true
+		switch item.Name {
+		case "live-web":
+			if item.ImageInfo == nil || !item.ImageInfo.HasUpdate {
+				t.Errorf("live-web registry enrichment missing: %+v", item)
+			}
+		case "live-provider":
+			if !item.ProvidesNetwork {
+				t.Errorf("live-provider must provide network: %+v", item)
+			}
+		}
+	}
+	if !byName["live-web"] || !byName["live-provider"] || byName["stale-c"] {
+		t.Fatalf("merge wrong: %+v", conn.Items)
+	}
+
+	// Unreachable runner: DB rows are kept (stale beats missing). The stale
+	// row seeded above is still in the table — the merge only affects reads.
+	runnerSrv.Close()
+	r = env.gql(t, admin, q, nil)
+	if got := totalOf(t, r, "containers"); got != 1 {
+		t.Fatalf("unreachable runner must keep DB rows: got %d", got)
+	}
+}
+
+// TestUpgradeContainerLiveFallback: runner containers are only persisted to
+// the containers table on upgrade, so a never-upgraded container has no DB
+// row; the resolver must resolve it live from the runner.
+func TestUpgradeContainerLiveFallback(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+	admin := env.token(t, env.adminID, "admin")
+
+	runnerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/upgrade") {
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "event: start\ndata: {}\n\n")
+			fmt.Fprint(w, "event: done\ndata: {\"exitCode\":0}\n\n")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"containers":[{"id":"livedocker1","name":"live-c","image":"nginx:1.24","status":"running","state":"running"}]}`)
+	}))
+	defer runnerSrv.Close()
+
+	res, err := env.database.ExecContext(ctx,
+		"INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (?, 'fb-runner', ?, 'k', 1)",
+		env.adminID, runnerSrv.URL)
+	if err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
+	runnerID, _ := res.LastInsertId()
+
+	mut := `mutation($i:UpgradeContainerInput!){ upgradeContainer(input:$i){ id status } }`
+	vars := map[string]any{"i": map[string]any{
+		"dockerContainerId": "livedocker1",
+		"runnerId":          strconv.FormatInt(runnerID, 10),
+		"imageName":         "nginx:1.25",
+	}}
+	if r := env.gql(t, admin, mut, vars); len(r.Errors) != 0 {
+		t.Fatalf("live-fallback upgrade failed: %+v", r.Errors)
+	}
+
+	var status, oldImg, newImg string
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err = env.database.QueryRowContext(ctx,
+			`SELECT status, old_image, new_image FROM upgrade_history WHERE container_id = 'livedocker1'`).
+			Scan(&status, &oldImg, &newImg)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no upgrade_history row written: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if status != "success" || oldImg != "nginx:1.24" || newImg != "nginx:1.25" {
+		t.Fatalf("history row wrong: status=%q %q -> %q", status, oldImg, newImg)
+	}
+}
+
 func TestUpgradeHistoryFilter(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")

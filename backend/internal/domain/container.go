@@ -33,8 +33,9 @@ type Container struct {
 	RunnerURL  *string `json:"runnerUrl"`
 
 	// Network mode flags
-	UsesNetworkMode bool `json:"usesNetworkMode"`
-	ProvidesNetwork bool `json:"providesNetwork"`
+	UsesNetworkMode bool   `json:"usesNetworkMode"`
+	ProvidesNetwork bool   `json:"providesNetwork"`
+	NetworkMode     string `json:"networkMode,omitempty"`
 
 	// Timestamps
 	LastSeen  string `json:"lastSeen"`

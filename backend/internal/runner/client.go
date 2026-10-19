@@ -66,6 +66,26 @@ func FetchContainers(ctx context.Context, runner db.RunnerRow) ([]domain.Contain
 	for _, dockhandCtr := range payload.Containers {
 		out = append(out, normalize(dockhandCtr, runner))
 	}
+
+	// Two-pass: a container "provides network" when another container in the
+	// same group has networkMode "container:<id|name>" or "service:<name>"
+	// pointing at it. Mirrors Node's appendRunnerContainers middleware.
+	providerIDs := map[string]bool{}
+	providerNames := map[string]bool{}
+	for i := range out {
+		nm := out[i].NetworkMode
+		if rest, ok := strings.CutPrefix(nm, "container:"); ok {
+			providerIDs[rest] = true
+			providerNames[rest] = true
+		} else if rest, ok := strings.CutPrefix(nm, "service:"); ok {
+			providerNames[rest] = true
+		}
+	}
+	for i := range out {
+		if providerIDs[out[i].ID] || providerNames[out[i].Name] {
+			out[i].ProvidesNetwork = true
+		}
+	}
 	return out, nil
 }
 
@@ -104,6 +124,7 @@ func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Con
 
 		CurrentDigest: currentDigest,
 
+		NetworkMode: dockhandCtr.NetworkMode,
 		UsesNetworkMode: dockhandCtr.NetworkMode != "" &&
 			(strings.HasPrefix(dockhandCtr.NetworkMode, "service:") ||
 				strings.HasPrefix(dockhandCtr.NetworkMode, "container:")),

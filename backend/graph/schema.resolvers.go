@@ -545,8 +545,19 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		sourceID = &parsed
 	}
 	container, err := db.GetContainerByDockerID(ctx, r.DB, uid, input.DockerContainerID, runnerID, sourceID)
-	if err != nil || container == nil {
-		return nil, fmt.Errorf("container not found")
+	if err != nil {
+		return nil, err
+	}
+	if container == nil {
+		// Runner containers are only persisted to the containers table when
+		// upgraded, so a never-upgraded runner container has no DB row. Fall
+		// back to resolving it live from the runner (also validates existence).
+		if runnerID != nil {
+			container = r.liveRunnerContainer(ctx, uid, *runnerID, input.DockerContainerID)
+		}
+		if container == nil {
+			return nil, fmt.Errorf("container not found")
+		}
 	}
 
 	// Determine backend (runner or source instance)
@@ -2586,6 +2597,7 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 	if err != nil {
 		return nil, err
 	}
+	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
 	rows = filterContainerRows(rows, filter)
 	total := len(rows)
 	if offset > total {
@@ -2620,6 +2632,7 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 	if err != nil {
 		return nil, err
 	}
+	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
 
 	// Partition into stacks and standalone
 	stackMap := map[string][]*model.Container{}
