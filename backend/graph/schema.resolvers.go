@@ -83,10 +83,7 @@ func (r *intentResolver) Executions(ctx context.Context, obj *model.Intent, firs
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	offset := 0
-	if after != nil && *after != "" {
-		offset, _ = strconv.Atoi(*after)
-	}
+	offset := parseIntCursor(after)
 
 	rows, total, err := db.GetIntentExecutions(ctx, r.DB, uid, &iid, limit, offset)
 	if err != nil {
@@ -2579,10 +2576,7 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	offset := 0
-	if after != nil && *after != "" {
-		offset, _ = strconv.Atoi(*after)
-	}
+	offset := parseIntCursor(after)
 
 	rows, err := db.GetContainers(ctx, r.DB, uid)
 	if err != nil {
@@ -2997,10 +2991,7 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	offset := 0
-	if after != nil && *after != "" {
-		offset, _ = strconv.Atoi(*after)
-	}
+	offset := parseIntCursor(after)
 
 	var iid *int64
 	if intentID != nil && *intentID != "" {
@@ -3146,10 +3137,7 @@ func (r *queryResolver) BatchRuns(ctx context.Context, jobType *model.BatchJobTy
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	offset := 0
-	if after != nil && *after != "" {
-		offset, _ = strconv.Atoi(*after)
-	}
+	offset := parseIntCursor(after)
 
 	var jt *string
 	if jobType != nil {
@@ -3203,10 +3191,7 @@ func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.Upgrad
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	offset := 0
-	if after != nil && *after != "" {
-		offset, _ = strconv.Atoi(*after)
-	}
+	offset := parseIntCursor(after)
 
 	var f *db.UpgradeHistoryFilter
 	if filter != nil {
@@ -3940,7 +3925,7 @@ func (r *userResolver) SourceInstanceCount(ctx context.Context, obj *model.User)
 	if err != nil {
 		return 0, err
 	}
-	return stats.PortainerInstances, nil
+	return stats.SourceInstances, nil
 }
 
 // TrackedAppCount is the resolver for the trackedAppCount field.

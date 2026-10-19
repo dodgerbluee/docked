@@ -236,6 +236,12 @@ CREATE TABLE discord_webhooks (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE batch_config (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  setting_key TEXT,
+  setting_value TEXT
+);
 CREATE TABLE repository_access_tokens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -627,6 +633,63 @@ func TestInstanceAdminTokenGrantFlow(t *testing.T) {
 	r = env.gqlAs(t, "10.0.1.5", "", verifyDoc, map[string]any{"username": username, "token": stored})
 	if !bytes.Contains(r.Data["verifyInstanceAdminToken"], []byte("Invalid token")) {
 		t.Fatalf("consumed token still verifies: %s", r.Data["verifyInstanceAdminToken"])
+	}
+}
+
+// TestUserStatsAndDeleteCascade guards the migration-13 rename
+// (portainer_instances -> source_instances): the per-user stats resolver and
+// the delete cascade must target the live table name, otherwise every
+// sourceInstanceCount query errors and deleteUser fails outright.
+func TestUserStatsAndDeleteCascade(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+	admin := env.token(t, env.adminID, "admin")
+
+	if _, err := env.database.ExecContext(ctx,
+		"INSERT INTO source_instances (user_id, name, url) VALUES (?, 'src', 'http://src.local')", env.memberID); err != nil {
+		t.Fatalf("seed source_instances: %v", err)
+	}
+	if _, err := env.database.ExecContext(ctx,
+		"INSERT INTO tracked_apps (user_id, name, image_name) VALUES (?, 'app', 'img')", env.memberID); err != nil {
+		t.Fatalf("seed tracked_apps: %v", err)
+	}
+	if _, err := env.database.ExecContext(ctx,
+		"INSERT INTO containers (user_id, container_id, container_name) VALUES (?, 'c1', 'c1')", env.memberID); err != nil {
+		t.Fatalf("seed containers: %v", err)
+	}
+
+	r := env.gql(t, admin,
+		`query($id: ID!){ user(id: $id){ id containerCount sourceInstanceCount trackedAppCount } }`,
+		map[string]any{"id": strconv.FormatInt(env.memberID, 10)})
+	if len(r.Errors) != 0 {
+		t.Fatalf("stats query errored: %+v", r.Errors)
+	}
+	var u struct {
+		ContainerCount      int `json:"containerCount"`
+		SourceInstanceCount int `json:"sourceInstanceCount"`
+		TrackedAppCount     int `json:"trackedAppCount"`
+	}
+	if err := json.Unmarshal(r.Data["user"], &u); err != nil {
+		t.Fatalf("decode user: %v", err)
+	}
+	if u.ContainerCount != 1 || u.SourceInstanceCount != 1 || u.TrackedAppCount != 1 {
+		t.Fatalf("stats = %+v, want 1/1/1", u)
+	}
+
+	r = env.gql(t, admin, `mutation($id: ID!){ deleteUser(userId: $id){ success } }`,
+		map[string]any{"id": strconv.FormatInt(env.memberID, 10)})
+	if len(r.Errors) != 0 {
+		t.Fatalf("deleteUser errored: %+v", r.Errors)
+	}
+	for _, tbl := range []string{"source_instances", "tracked_apps", "containers"} {
+		var n int
+		if err := env.database.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM "+tbl+" WHERE user_id = ?", env.memberID).Scan(&n); err != nil {
+			t.Fatalf("count %s after cascade: %v", tbl, err)
+		}
+		if n != 0 {
+			t.Fatalf("%s rows left after cascade: %d", tbl, n)
+		}
 	}
 }
 

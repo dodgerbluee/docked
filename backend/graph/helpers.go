@@ -180,6 +180,20 @@ func registrationCodesEqual(input, stored string) bool {
 	return normalize(input) == normalize(stored)
 }
 
+// parseIntCursor decodes a relay-style numeric cursor. Anything unparseable
+// (garbage, negative, empty) collapses to 0: a negative offset would panic
+// the slice expression rows[offset:end] in the paginated resolvers.
+func parseIntCursor(after *string) int {
+	if after == nil {
+		return 0
+	}
+	n, err := strconv.Atoi(*after)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
 func containerTargetKey(containerID string, runnerID, sourceInstanceID *int64) string {
 	if runnerID != nil {
 		return "runner:" + strconv.FormatInt(*runnerID, 10) + ":" + containerID

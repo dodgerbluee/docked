@@ -280,16 +280,16 @@ func VerifyAndClearToken(ctx context.Context, database *sql.DB, username, token 
 
 // UserStats carries per-user counts shown in the admin user detail modal.
 type UserStats struct {
-	PortainerInstances int
-	TrackedApps        int
-	Containers         int
+	SourceInstances int
+	TrackedApps     int
+	Containers      int
 }
 
 func CountUserStats(ctx context.Context, database *sql.DB, userID int64) (*UserStats, error) {
 	var s UserStats
 	if err := database.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM portainer_instances WHERE user_id = ?", userID).Scan(&s.PortainerInstances); err != nil {
-		return nil, fmt.Errorf("count portainer instances: %w", err)
+		"SELECT COUNT(*) FROM source_instances WHERE user_id = ?", userID).Scan(&s.SourceInstances); err != nil {
+		return nil, fmt.Errorf("count source instances: %w", err)
 	}
 	if err := database.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", userID).Scan(&s.TrackedApps); err != nil {
@@ -306,7 +306,7 @@ func CountUserStats(ctx context.Context, database *sql.DB, userID int64) (*UserS
 // Node's deleteUser table list. Returns rows deleted from users (0 or 1).
 func DeleteUser(ctx context.Context, database *sql.DB, userID int64) (int, error) {
 	tables := []string{
-		"portainer_instances", "tracked_apps", "discord_webhooks", "containers",
+		"source_instances", "tracked_apps", "discord_webhooks", "containers",
 		"deployed_images", "settings", "batch_config",
 	}
 	for _, t := range tables {
