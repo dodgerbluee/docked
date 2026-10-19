@@ -12,10 +12,10 @@ on:
         required: false
         type: string
       skip_security_scans:
-        description: "Skip the test-and-security job (temporary workaround)"
+        description: "Skip the test-and-security job (emergency only)"
         required: false
         type: boolean
-        default: true
+        default: false
 
 env:
   REGISTRY: ghcr.io
