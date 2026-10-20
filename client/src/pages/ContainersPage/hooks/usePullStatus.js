@@ -51,8 +51,8 @@ export const usePullStatus = ({ pullingDockerHub, pullSuccess, pullError, fetchC
       setPullingSourcesOnly(true);
       setLocalPullError("");
 
-      // Use fetchContainers with portainerOnly=true to update all state properly
-      await fetchContainers(false, null, true);
+      // Refresh container state only (no registry pull)
+      await fetchContainers(false, null);
     } catch (err) {
       console.error("Error pulling source data:", err);
       setLocalPullError(err.response?.data?.error || err.message || "Failed to pull source data");

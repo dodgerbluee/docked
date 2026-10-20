@@ -71,17 +71,6 @@
   color: var(--text-primary);
 }
 
-.externalLink {
-  color: var(--text-tertiary);
-  transition: color 0.2s ease;
-  display: flex;
-  align-items: center;
-}
-
-.externalLink:hover {
-  color: var(--color-primary);
-}
-
 .instanceStats {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

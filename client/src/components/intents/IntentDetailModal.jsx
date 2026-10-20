@@ -151,17 +151,10 @@ function getContainerStatusIcon(status) {
    Configuration Tab
    ========================================== */
 
-function ConfigTab({ intent, sourceInstances, runners }) {
+function ConfigTab({ intent, runners }) {
   // Build unified typed-ID-to-name map for all sources
   const idToName = useMemo(() => {
     const map = new Map();
-    if (sourceInstances?.length > 0) {
-      for (const inst of sourceInstances) {
-        if (inst.name && inst.id != null) {
-          map.set(`portainer:${inst.id}`, inst.name);
-        }
-      }
-    }
     if (runners?.length > 0) {
       for (const r of runners) {
         if (r.name && r.id != null) {
@@ -170,7 +163,7 @@ function ConfigTab({ intent, sourceInstances, runners }) {
       }
     }
     return map;
-  }, [sourceInstances, runners]);
+  }, [runners]);
 
   // Compute human-readable cron description
   const cronDescription = useMemo(() => {
@@ -335,7 +328,6 @@ function ConfigTab({ intent, sourceInstances, runners }) {
 
 ConfigTab.propTypes = {
   intent: PropTypes.object,
-  sourceInstances: PropTypes.array,
   runners: PropTypes.array,
 };
 
@@ -857,7 +849,7 @@ function IntentDetailModal({
   const renderTabContent = () => {
     switch (activeTab) {
       case TAB_CONFIG:
-        return <ConfigTab intent={intent} sourceInstances={sourceInstances} runners={runners} />;
+        return <ConfigTab intent={intent} runners={runners} />;
       case TAB_MATCHES:
         return <MatchesTab intent={intent} previewData={previewData} loading={loadingPreview} />;
       case TAB_PREVIEW:

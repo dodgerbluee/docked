@@ -8,7 +8,7 @@ import {
 
 /**
  * ContainersTabNavigation Component
- * Renders the tab navigation buttons for the Portainer page content tabs
+ * Renders the tab navigation buttons for the containers page content tabs
  */
 const ContainersTabNavigation = React.memo(function ContainersTabNavigation({
   activeTab,

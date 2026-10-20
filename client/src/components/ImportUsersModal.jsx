@@ -29,7 +29,6 @@ import styles from "./ImportUsersModal.module.css";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  SOURCES: "sources",
   DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
@@ -175,8 +174,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
 
     // Check if current step should be skipped (no data) - this is a safety check
     const shouldSkipStep =
-      (currentStepType === STEP_TYPES.SOURCES &&
-        (!currentUser.sourceInstances || currentUser.sourceInstances.length === 0)) ||
       (currentStepType === STEP_TYPES.DOCKERHUB &&
         (!currentUser.dockerHubCredentials ||
           (!currentUser.dockerHubCredentials.username &&
@@ -375,38 +372,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     [currentUser, currentStepType, setUserCredentials, setUserStepErrors]
   );
 
-  // Update credential for current user (wrapper for Sources step)
-  const handleSourceCredentialUpdate = useCallback(
-    (index, field, value) => {
-      if (!currentUser) return;
-      const instances = currentUser.sourceInstances || [];
-      handleCredentialUpdate((prev) => {
-        const source = prev.sourceInstances || [];
-        const updated = [...source];
-        if (!updated[index]) {
-          const instance = instances[index];
-          updated[index] = {
-            url: instance?.url || "",
-            name: instance?.name || "",
-            auth_type: "apikey",
-            username: "",
-            password: "",
-            apiKey: "",
-          };
-        }
-        const instance = instances[index];
-        updated[index] = {
-          ...updated[index],
-          url: instance?.url || updated[index].url || "",
-          name: instance?.name || updated[index].name || "",
-          [field]: value,
-        };
-        return { ...prev, sourceInstances: updated };
-      });
-    },
-    [currentUser, handleCredentialUpdate]
-  );
-
   // Update credential for current user (wrapper for Discord step)
   const handleDiscordCredentialUpdate = useCallback(
     (index, field, value) => {
@@ -429,105 +394,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       setVerificationInputTokens((prev) => ({ ...prev, [username]: token }));
     },
     [setVerificationInputTokens]
-  );
-
-  // Handle remove instance (for Sources step)
-  const handleRemoveInstance = useCallback(
-    (index) => {
-      if (!currentUser) return;
-      const username = currentUser.username;
-      const instances = currentUser.sourceInstances || [];
-      const updatedInstances = instances.filter((_, i) => i !== index);
-
-      // Update usersData to reflect the removal
-      setUsersData((prev) => {
-        if (!prev) return prev;
-        const updatedUsers = [...prev.users];
-        updatedUsers[currentUserIndex] = {
-          ...updatedUsers[currentUserIndex],
-          sourceInstances: updatedInstances,
-        };
-        return { ...prev, users: updatedUsers };
-      });
-
-      // Remove corresponding credentials
-      handleCredentialUpdate((prev) => {
-        const source = prev.sourceInstances || [];
-        const updated = source.filter((_, i) => i !== index);
-        return { ...prev, sourceInstances: updated };
-      });
-
-      // Clear Sources step errors when instance is deleted
-      if (updatedInstances.length === 0) {
-        setUserStepErrors((prev) => {
-          const updated = { ...prev };
-          if (updated[username]) {
-            delete updated[username][STEP_TYPES.SOURCES];
-          }
-          return updated;
-        });
-        setError("");
-      } else {
-        // Clear all source-related field errors
-        setUserStepErrors((prev) => {
-          const updated = { ...prev };
-          if (updated[username]) {
-            Object.keys(updated[username]).forEach((key) => {
-              if (key.startsWith("source_")) {
-                delete updated[username][key];
-              }
-            });
-            delete updated[username][STEP_TYPES.SOURCES];
-          }
-          return updated;
-        });
-        setError("");
-      }
-
-      // Re-index credentials to match remaining instances
-      if (updatedInstances.length > 0) {
-        handleCredentialUpdate((prev) => {
-          const source = prev.sourceInstances || [];
-          const reindexed = updatedInstances.map((instance) => {
-            const matchingCred = source.find((cred) => cred.url === instance.url);
-            if (matchingCred) {
-              return {
-                ...matchingCred,
-                url: instance.url,
-                name: instance.name,
-              };
-            }
-            return {
-              url: instance.url,
-              name: instance.name,
-              auth_type: instance.auth_type || "apikey",
-              username: "",
-              password: "",
-              apiKey: "",
-            };
-          });
-          return { ...prev, sourceInstances: reindexed };
-        });
-      }
-
-      // If no instances left, skip the step
-      if (updatedInstances.length === 0) {
-        setUserSkippedSteps((prev) => {
-          const skipped = new Set(prev[username] || []);
-          skipped.add(STEP_TYPES.SOURCES);
-          return { ...prev, [username]: skipped };
-        });
-      }
-    },
-    [
-      currentUser,
-      currentUserIndex,
-      setUsersData,
-      handleCredentialUpdate,
-      setUserSkippedSteps,
-      setUserStepErrors,
-      setError,
-    ]
   );
 
   const handleClose = useCallback(() => {
@@ -566,7 +432,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     const stepNames = {
       [STEP_TYPES.INSTANCE_ADMIN_VERIFICATION]: "Instance Admin Verification",
       [STEP_TYPES.PASSWORD]: "Set Password",
-      [STEP_TYPES.SOURCES]: "Source Credentials",
       [STEP_TYPES.DOCKERHUB]: "Docker Hub Credentials",
       [STEP_TYPES.DISCORD]: "Discord Webhooks",
     };
@@ -617,9 +482,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             onVerifyToken={handleVerifyToken}
             onTokenChange={handleTokenChange}
             onPasswordChange={handlePasswordChange}
-            onSourceCredentialUpdate={handleSourceCredentialUpdate}
             onDiscordCredentialUpdate={handleDiscordCredentialUpdate}
-            onRemoveInstance={handleRemoveInstance}
             setUsersData={setUsersData}
             currentUserIndex={currentUserIndex}
             setUserSkippedSteps={setUserSkippedSteps}
@@ -660,7 +523,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
 
           <div className={styles.actionsRight}>
             {[
-              STEP_TYPES.SOURCES,
               STEP_TYPES.DOCKERHUB,
               STEP_TYPES.DISCORD,
               STEP_TYPES.INSTANCE_ADMIN_VERIFICATION,

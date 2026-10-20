@@ -173,7 +173,6 @@ export const useAuth = () => {
           !error.config?.url?.includes("/api/auth/login") &&
           !error.config?.url?.includes("/api/auth/verify") &&
           !error.config?.url?.includes("/api/version") &&
-          !error.config?.url?.includes("/api/portainer/instances/validate") &&
           !error.config?.url?.includes("/api/discord/test") &&
           !logoutInProgressRef.current &&
           handleLogoutRef.current

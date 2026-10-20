@@ -30,11 +30,7 @@ const UnusedTab = React.memo(function UnusedTab({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   if (isLoading && !hasData) {
     return (
-      <LoadingSpinner
-        size="md"
-        message="Loading image data from Portainer..."
-        className={styles.loadingState}
-      />
+      <LoadingSpinner size="md" message="Loading image data..." className={styles.loadingState} />
     );
   }
 
@@ -44,7 +40,7 @@ const UnusedTab = React.memo(function UnusedTab({
         message={
           hasData
             ? "All clean! No unused images found!"
-            : "No unused images found yet! Data will appear once fetched from Portainer."
+            : "No unused images found yet! Data will appear once fetched."
         }
         icon={Sparkles}
         className={styles.emptyState}

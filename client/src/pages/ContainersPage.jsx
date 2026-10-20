@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 import ErrorModal from "../components/ErrorModal";
@@ -44,7 +44,6 @@ function ContainersPage({
   onUnusedImagesCountUpdate,
   fetchContainers,
   fetchUnusedImages,
-  onAddInstance,
   onPullDockerHub,
   pullingDockerHub = false,
   pullError = null,
@@ -62,18 +61,6 @@ function ContainersPage({
 }) {
   // Use extracted hooks
   const { developerModeEnabled } = useDeveloperMode();
-
-  // Check if modal should open after navigation from welcome page
-  useEffect(() => {
-    const shouldOpenModal = sessionStorage.getItem("openSourceModal") === "true";
-    if (shouldOpenModal && onAddInstance) {
-      sessionStorage.removeItem("openSourceModal");
-      // Small delay to ensure page is fully rendered
-      setTimeout(() => {
-        onAddInstance();
-      }, 100);
-    }
-  }, [onAddInstance]);
 
   const { localPullError, showCheckmark, pullingSourcesOnly, handleDismissError } = usePullStatus({
     pullingDockerHub,
@@ -177,7 +164,6 @@ function ContainersPage({
       selectedContainers={containersPage.selectedContainers}
       selectedImages={containersPage.selectedImages}
       sourceUnusedImages={containersPage.sourceUnusedImages}
-      batchUpgrading={containersPage.batchUpgrading}
       deletingImages={containersPage.deletingImages}
       onToggleSelect={containersPage.handleToggleSelect}
       onToggleImageSelect={containersPage.handleToggleImageSelect}
@@ -461,7 +447,6 @@ ContainersPage.propTypes = {
   onUnusedImagesCountUpdate: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
-  onAddInstance: PropTypes.func.isRequired,
   onPullDockerHub: PropTypes.func.isRequired,
   pullingDockerHub: PropTypes.bool,
   pullError: PropTypes.string,

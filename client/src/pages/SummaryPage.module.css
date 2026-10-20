@@ -138,7 +138,7 @@
   gap: 20px;
 }
 
-/* Dashboard Grid Layout - right column height matches left (Portainer + Health + Images) */
+/* Dashboard Grid Layout - right column height matches left (Sources + Health + Images) */
 .dashboardGrid {
   display: grid;
   grid-template-columns: 1fr 400px;

@@ -2,14 +2,12 @@ import React from "react";
 import PropTypes from "prop-types";
 import InstanceAdminVerificationStep from "./InstanceAdminVerificationStep";
 import PasswordStep from "./PasswordStep";
-import SourceCredentialsStep from "../settings/ImportCredentialsModal/SourceCredentialsStep";
 import DiscordCredentialsStep from "../settings/ImportCredentialsModal/DiscordCredentialsStep";
 
 // Step types
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -34,9 +32,7 @@ function StepRenderer({
   onVerifyToken,
   onTokenChange,
   onPasswordChange,
-  onSourceCredentialUpdate,
   onDiscordCredentialUpdate,
-  onRemoveInstance,
   setUsersData,
   currentUserIndex,
   setUserSkippedSteps,
@@ -102,25 +98,6 @@ function StepRenderer({
     );
   }
 
-  if (stepType === STEP_TYPES.SOURCES) {
-    const instances = currentUser?.sourceInstances || [];
-    // This step should only appear if instances exist (auto-skipped if not)
-    // But keep check as safety fallback
-    if (instances.length === 0) {
-      return null; // Step should have been auto-skipped
-    }
-
-    return (
-      <SourceCredentialsStep
-        instances={instances}
-        credentials={creds}
-        errors={errors}
-        onUpdateCredential={onSourceCredentialUpdate}
-        onRemoveInstance={onRemoveInstance}
-      />
-    );
-  }
-
   if (stepType === STEP_TYPES.DISCORD) {
     const webhooks = currentUser?.discordWebhooks || [];
     // This step should only appear if webhooks exist (auto-skipped if not)
@@ -159,9 +136,7 @@ StepRenderer.propTypes = {
   onVerifyToken: PropTypes.func.isRequired,
   onTokenChange: PropTypes.func.isRequired,
   onPasswordChange: PropTypes.func.isRequired,
-  onSourceCredentialUpdate: PropTypes.func.isRequired,
   onDiscordCredentialUpdate: PropTypes.func.isRequired,
-  onRemoveInstance: PropTypes.func.isRequired,
   setUsersData: PropTypes.func.isRequired,
   currentUserIndex: PropTypes.number.isRequired,
   setUserSkippedSteps: PropTypes.func.isRequired,

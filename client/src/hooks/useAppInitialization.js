@@ -10,13 +10,11 @@ export function useAppInitialization({
   authToken,
   fetchColorScheme,
   fetchContainers,
-  fetchSourceInstances,
   fetchAvatar,
   fetchRecentAvatars,
   fetchTrackedApps,
   setDataFetched,
   setDockerHubDataPulled,
-  setSourceInstancesFromAPI,
   setContainers,
   setStacks,
   setUnusedImages,
@@ -60,7 +58,6 @@ export function useAppInitialization({
       setDataFetched(false);
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
-      setSourceInstancesFromAPI([]);
       // Clear all container and tracked image data to prevent showing previous user's data
       setContainers([]);
       setStacks([]);
@@ -72,7 +69,6 @@ export function useAppInitialization({
     isAuthenticated,
     setDataFetched,
     setDockerHubDataPulled,
-    setSourceInstancesFromAPI,
     setContainers,
     setStacks,
     setUnusedImages,
@@ -80,12 +76,11 @@ export function useAppInitialization({
     setTrackedApps,
   ]);
 
-  // Fetch source instances and avatar on app load (once only)
+  // Fetch avatar on app load (once only)
   const secondaryFetchDoneRef = useRef(false);
   useEffect(() => {
     if (isAuthenticated && authToken && !secondaryFetchDoneRef.current) {
       secondaryFetchDoneRef.current = true;
-      fetchSourceInstances();
       fetchAvatar();
       fetchRecentAvatars();
       // Note: fetchTrackedApps is NOT called here because useTrackedApps

@@ -1,12 +1,10 @@
-import React, { lazy, Suspense, useMemo } from "react";
+import React, { useMemo } from "react";
 import PropTypes from "prop-types";
 import Header from "./Header/Header";
 import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import HomePageContent from "./HomePage/components/HomePageContent";
 import { computeHasUpdate } from "../utils/containerUpdateHelpers";
-
-const HomePageModals = lazy(() => import("./HomePage/components/HomePageModals"));
 
 /**
  * HomePage Component
@@ -48,7 +46,6 @@ function HomePage({
   dataFetched,
   lastPullTime,
   successfullyUpdatedContainersRef,
-  sourceInstancesFromAPI,
   // Notifications
   notificationCount,
   activeContainersWithUpdates,
@@ -61,10 +58,6 @@ function HomePage({
   showNotificationMenu,
   toggleAvatarMenu,
   toggleNotificationMenu,
-  // Modal State
-  showAddSourceModal,
-  editingSourceInstance,
-  closeModal,
   // Handlers
   setActiveTab,
   setContentTab,
@@ -85,7 +78,6 @@ function HomePage({
   handleLogoutWithCleanup,
   handleUsernameUpdate,
   handlePasswordUpdateSuccessWithNavigation,
-  handleSourceInstancesChange,
   handleAvatarChange,
   handleRecentAvatarsChange,
   handleAvatarUploaded,
@@ -93,18 +85,12 @@ function HomePage({
   handleClear,
   handleClearGitHubCache,
   handlePull,
-  handleUpgrade,
-  handleBatchUpgrade,
-  handleDeleteImage,
-  handleDeleteImages,
   handleToggleSelect,
   handleSelectAll,
   handleToggleImageSelect,
   handleSelectAllImages,
   handleBatchPull,
   handleBatchTrackedAppsCheck,
-  handleNewInstanceDataFetch,
-  fetchSourceInstances,
   fetchContainers,
   fetchUnusedImages,
   fetchRecentAvatars,
@@ -114,8 +100,6 @@ function HomePage({
   setStacks,
   setUnusedImages,
   setUnusedImagesCount,
-  openModal,
-  handleModalSuccess,
   colorScheme,
   handleColorSchemeChange,
   batchConfig,
@@ -123,9 +107,6 @@ function HomePage({
   version,
   isDevBuild,
   API_BASE_URL,
-  draggedTabIndex,
-  setDraggedTabIndex,
-  handleReorderTabs,
   toggleStack,
   discordWebhooks = [],
   containerUpgrade,
@@ -211,13 +192,11 @@ function HomePage({
           fetchContainers={fetchContainers}
           fetchUnusedImages={fetchUnusedImages}
           fetchTrackedApps={fetchTrackedApps}
-          openModal={openModal}
           handlePull={handlePull}
           handleBatchPull={handleBatchPull}
           handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
           handleUsernameUpdate={handleUsernameUpdate}
           handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
-          handleSourceInstancesChange={handleSourceInstancesChange}
           handleAvatarChange={handleAvatarChange}
           handleRecentAvatarsChange={handleRecentAvatarsChange}
           handleAvatarUploaded={handleAvatarUploaded}
@@ -227,23 +206,12 @@ function HomePage({
           handleClear={handleClear}
           handleClearGitHubCache={handleClearGitHubCache}
           handleLogoutWithCleanup={handleLogoutWithCleanup}
-          editingSourceInstance={editingSourceInstance}
-          fetchSourceInstances={fetchSourceInstances}
           containerUpgrade={containerUpgrade}
         />
 
         <div className="version-footer-wrapper">
           <VersionFooter version={version} isDevBuild={isDevBuild} />
         </div>
-
-        <Suspense fallback={null}>
-          <HomePageModals
-            showAddSourceModal={showAddSourceModal}
-            editingSourceInstance={editingSourceInstance}
-            closeModal={closeModal}
-            handleModalSuccess={handleModalSuccess}
-          />
-        </Suspense>
       </div>
     </BatchConfigContext.Provider>
   );
@@ -281,7 +249,6 @@ HomePage.propTypes = {
   dockerHubDataPulled: PropTypes.bool.isRequired,
   lastPullTime: PropTypes.instanceOf(Date),
   successfullyUpdatedContainersRef: PropTypes.object.isRequired,
-  sourceInstancesFromAPI: PropTypes.array.isRequired,
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.array.isRequired,
   activeTrackedAppsBehind: PropTypes.array.isRequired,
@@ -297,9 +264,6 @@ HomePage.propTypes = {
   showNotificationMenu: PropTypes.bool.isRequired,
   toggleAvatarMenu: PropTypes.func.isRequired,
   toggleNotificationMenu: PropTypes.func.isRequired,
-  showAddSourceModal: PropTypes.bool.isRequired,
-  editingSourceInstance: PropTypes.object,
-  closeModal: PropTypes.func.isRequired,
   setActiveTab: PropTypes.func.isRequired,
   setContentTab: PropTypes.func.isRequired,
   setSettingsTab: PropTypes.func.isRequired,
@@ -319,7 +283,6 @@ HomePage.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
   handlePasswordUpdateSuccessWithNavigation: PropTypes.func.isRequired,
-  handleSourceInstancesChange: PropTypes.func.isRequired,
   handleAvatarChange: PropTypes.func.isRequired,
   handleRecentAvatarsChange: PropTypes.func.isRequired,
   handleAvatarUploaded: PropTypes.func.isRequired,
@@ -327,18 +290,12 @@ HomePage.propTypes = {
   handleClear: PropTypes.func.isRequired,
   handleClearGitHubCache: PropTypes.func.isRequired,
   handlePull: PropTypes.func.isRequired,
-  handleUpgrade: PropTypes.func.isRequired,
-  handleBatchUpgrade: PropTypes.func.isRequired,
-  handleDeleteImage: PropTypes.func.isRequired,
-  handleDeleteImages: PropTypes.func.isRequired,
   handleToggleSelect: PropTypes.func.isRequired,
   handleSelectAll: PropTypes.func.isRequired,
   handleToggleImageSelect: PropTypes.func.isRequired,
   handleSelectAllImages: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
-  handleNewInstanceDataFetch: PropTypes.func.isRequired,
-  fetchSourceInstances: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
   fetchRecentAvatars: PropTypes.func.isRequired,
@@ -347,8 +304,6 @@ HomePage.propTypes = {
   setStacks: PropTypes.func.isRequired,
   setUnusedImages: PropTypes.func.isRequired,
   setUnusedImagesCount: PropTypes.func.isRequired,
-  openModal: PropTypes.func.isRequired,
-  handleModalSuccess: PropTypes.func.isRequired,
   colorScheme: PropTypes.string.isRequired,
   handleColorSchemeChange: PropTypes.func.isRequired,
   batchConfig: PropTypes.object.isRequired,
@@ -356,9 +311,6 @@ HomePage.propTypes = {
   version: PropTypes.string.isRequired,
   isDevBuild: PropTypes.bool.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,
-  draggedTabIndex: PropTypes.number,
-  setDraggedTabIndex: PropTypes.func.isRequired,
-  handleReorderTabs: PropTypes.func.isRequired,
   toggleStack: PropTypes.func.isRequired,
   discordWebhooks: PropTypes.arrayOf(
     PropTypes.shape({

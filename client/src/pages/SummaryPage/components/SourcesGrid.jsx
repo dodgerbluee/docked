@@ -1,17 +1,12 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Server, ExternalLink } from "lucide-react";
-import styles from "./ModernPortainerInstances.module.css";
+import { Server } from "lucide-react";
+import styles from "./SourcesGrid.module.css";
 
 /**
  * Modern Sources component with integrated dashboard design
  */
-const ModernPortainerInstances = ({
-  portainerStats,
-  shouldShowEmptyState,
-  onInstanceClick,
-  onStatClick,
-}) => {
+const SourcesGrid = ({ sourceStats, shouldShowEmptyState, onInstanceClick, onStatClick }) => {
   return (
     <div className={styles.instancesContainer}>
       <div className={styles.header}>
@@ -22,14 +17,14 @@ const ModernPortainerInstances = ({
       </div>
 
       <div className={styles.content}>
-        {shouldShowEmptyState || portainerStats.length === 0 ? (
+        {shouldShowEmptyState || sourceStats.length === 0 ? (
           <div className={styles.emptyState}>
             <Server size={32} className={styles.emptyIcon} />
             <p className={styles.emptyText}>No sources configured</p>
           </div>
         ) : (
           <div className={styles.instancesGrid}>
-            {portainerStats.map((instance) => (
+            {sourceStats.map((instance) => (
               <div
                 key={instance.name}
                 className={styles.instanceCard}
@@ -37,18 +32,6 @@ const ModernPortainerInstances = ({
               >
                 <div className={styles.cardHeader}>
                   <h4 className={styles.instanceName}>{instance.name}</h4>
-                  {instance.url && (
-                    <a
-                      href={instance.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className={styles.externalLink}
-                      title="Open in Portainer"
-                    >
-                      <ExternalLink size={18} />
-                    </a>
-                  )}
                 </div>
 
                 <div className={styles.instanceStats}>
@@ -104,16 +87,16 @@ const ModernPortainerInstances = ({
   );
 };
 
-ModernPortainerInstances.propTypes = {
-  portainerStats: PropTypes.array,
+SourcesGrid.propTypes = {
+  sourceStats: PropTypes.array,
   shouldShowEmptyState: PropTypes.bool,
   onInstanceClick: PropTypes.func,
   onStatClick: PropTypes.func,
 };
 
-ModernPortainerInstances.defaultProps = {
-  portainerStats: [],
+SourcesGrid.defaultProps = {
+  sourceStats: [],
   shouldShowEmptyState: false,
 };
 
-export default ModernPortainerInstances;
+export default SourcesGrid;

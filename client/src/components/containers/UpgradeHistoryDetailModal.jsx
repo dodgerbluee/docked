@@ -91,16 +91,16 @@ function UpgradeHistoryDetailModal({ upgrade, isOpen, onClose }) {
                   <span className={styles.infoValue}>{upgrade.runner_name}</span>
                 </div>
               )}
-              {upgrade.portainer_instance_name && (
+              {upgrade.source_name && (
                 <div className={styles.infoItem}>
                   <span className={styles.infoLabel}>Source Instance:</span>
-                  <span className={styles.infoValue}>{upgrade.portainer_instance_name}</span>
+                  <span className={styles.infoValue}>{upgrade.source_name}</span>
                 </div>
               )}
-              {upgrade.portainer_url && (
+              {upgrade.source_url && (
                 <div className={styles.infoItem}>
                   <span className={styles.infoLabel}>Source URL:</span>
-                  <span className={styles.infoValue}>{upgrade.portainer_url}</span>
+                  <span className={styles.infoValue}>{upgrade.source_url}</span>
                 </div>
               )}
               {upgrade.endpoint_id && (

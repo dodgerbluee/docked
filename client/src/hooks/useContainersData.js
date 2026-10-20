@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
 import { registerCacheClear } from "../utils/cacheRegistry";
-import { graphqlClient } from "../graphql/client";
-import { SOURCE_INSTANCES_QUERY, UNUSED_IMAGES_QUERY } from "../graphql/queries";
 import { fetchContainersGraphql } from "../graphql/containers";
+import { graphqlClient } from "../graphql/client";
+import { UNUSED_IMAGES_QUERY } from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so container-dependent tabs
 // (Summary, Containers) render instantly on re-navigation instead of showing
@@ -12,7 +12,6 @@ let cachedContainers = null;
 let cachedStacks = null;
 let cachedUnusedImages = null;
 let cachedUnusedImagesCount = null;
-let cachedSourceInstances = null;
 let cachedDataFetched = false;
 
 /** Clear module-level cache (call on logout to prevent cross-user data leaks) */
@@ -21,7 +20,6 @@ export function clearContainersDataCache() {
   cachedStacks = null;
   cachedUnusedImages = null;
   cachedUnusedImagesCount = null;
-  cachedSourceInstances = null;
   cachedDataFetched = false;
 }
 registerCacheClear(clearContainersDataCache);
@@ -30,15 +28,13 @@ registerCacheClear(clearContainersDataCache);
  * Custom hook for managing container data fetching and state
  * Handles containers, stacks, unused images, and source instances
  */
-export const useContainersData = (isAuthenticated, authToken, successfullyUpdatedContainersRef) => {
+export const useContainersData = (successfullyUpdatedContainersRef) => {
   const [containers, setContainers] = useState(cachedContainers || []);
   const [stacks, setStacks] = useState(cachedStacks || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [unusedImages, setUnusedImages] = useState(cachedUnusedImages || []);
   const [unusedImagesCount, setUnusedImagesCount] = useState(cachedUnusedImagesCount || 0);
-  const [sourceInstancesFromAPI, setSourceInstancesFromAPI] = useState(cachedSourceInstances || []);
-  const [sourceInstancesLoading, setSourceInstancesLoading] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set());
   const [dataFetched, setDataFetched] = useState(cachedDataFetched);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
@@ -47,7 +43,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   });
   const lastImageDeleteTimeRef = useRef(0);
   const containersCountRef = useRef(0);
-  const sourceInstancesRef = useRef([]);
   const dataFetchedRef = useRef(false);
 
   // Keep module-level cache in sync with state so re-navigation is instant
@@ -55,11 +50,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     containersCountRef.current = containers.length;
     cachedContainers = containers;
   }, [containers]);
-
-  useEffect(() => {
-    sourceInstancesRef.current = sourceInstancesFromAPI;
-    cachedSourceInstances = sourceInstancesFromAPI;
-  }, [sourceInstancesFromAPI]);
 
   useEffect(() => {
     dataFetchedRef.current = dataFetched;
@@ -139,9 +129,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
         }
 
-        // Source instances are managed separately via SOURCE_INSTANCES_QUERY
-        // (fetchSourceInstances); per-instance container groupings are derived
-        // client-side from the flat list by useSourceInstances.
         setError(null);
         setDataFetched(true);
 
@@ -164,33 +151,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     [fetchUnusedImages, successfullyUpdatedContainersRef]
   );
 
-  const fetchSourceInstances = useCallback(async () => {
-    if (!isAuthenticated || !authToken) return [];
-
-    try {
-      setSourceInstancesLoading(true);
-      const result = await graphqlClient.query(SOURCE_INSTANCES_QUERY).toPromise();
-      if (!result.error && result.data?.sourceInstances) {
-        const formattedInstances = result.data.sourceInstances.map((inst) => ({
-          name: inst.name,
-          url: inst.url,
-          id: inst.id,
-          display_order: inst.displayOrder,
-          containers: [],
-          upToDate: [],
-        }));
-        setSourceInstancesFromAPI(formattedInstances);
-        return formattedInstances;
-      }
-      return [];
-    } catch (err) {
-      console.error("Error fetching source instances:", err);
-      return [];
-    } finally {
-      setSourceInstancesLoading(false);
-    }
-  }, [isAuthenticated, authToken]);
-
   const updateLastImageDeleteTime = useCallback(() => {
     lastImageDeleteTimeRef.current = Date.now();
   }, []);
@@ -203,8 +163,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     error,
     unusedImages,
     unusedImagesCount,
-    sourceInstancesFromAPI,
-    sourceInstancesLoading,
     loadingInstances,
     dataFetched,
     dockerHubDataPulled,
@@ -215,13 +173,11 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     setLoading,
     setUnusedImages,
     setUnusedImagesCount,
-    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     // Functions
     fetchContainers,
     fetchUnusedImages,
-    fetchSourceInstances,
     updateLastImageDeleteTime,
     // Refs (for external access)
     lastImageDeleteTimeRef,

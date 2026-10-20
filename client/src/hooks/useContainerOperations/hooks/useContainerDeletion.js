@@ -6,13 +6,10 @@ import { useState, useCallback } from "react";
 import { deleteImages } from "../../../graphql/imageOps";
 import { showContainerError } from "../utils/containerErrorHandling";
 
-/** Map an unused-image row to the /api/images/delete payload contract
+/** Map an unused-image row to the deleteImages mutation payload contract
  *  (same shape as useContainersPage/hooks/useImageDeletion). */
 const toDeletePayload = (image) => ({
   id: image.id,
-  portainerUrl: image.portainerUrl,
-  sourceUrl: image.sourceUrl,
-  endpointId: image.endpointId,
   runnerId: image.runnerId,
 });
 

@@ -35,7 +35,7 @@ export const MATCH_TYPE_PLACEHOLDERS = {
   [MATCH_TYPES.CONTAINERS]: "e.g., nginx-proxy",
   [MATCH_TYPES.IMAGES]: "e.g., nginx:* or library/redis:*",
   [MATCH_TYPES.STACKS]: "e.g., production-*",
-  [MATCH_TYPES.SOURCES]: "e.g., My Portainer Server, Production Runner",
+  [MATCH_TYPES.SOURCES]: "e.g., Production Runner",
   [MATCH_TYPES.REGISTRIES]: "e.g., docker.io, ghcr.io",
 };
 
@@ -43,8 +43,8 @@ export const MATCH_TYPE_HELPERS = {
   [MATCH_TYPES.CONTAINERS]:
     "Supports glob patterns with * (e.g., nginx-* matches nginx-proxy, nginx-web)",
   [MATCH_TYPES.IMAGES]: "Supports glob patterns with *",
-  [MATCH_TYPES.STACKS]: "Matches Portainer/Docker Compose stack names, supports *",
-  [MATCH_TYPES.SOURCES]: "Filter by source (Portainer instance or Runner)",
+  [MATCH_TYPES.STACKS]: "Matches Docker Compose stack names, supports *",
+  [MATCH_TYPES.SOURCES]: "Filter by source (Runner)",
   [MATCH_TYPES.REGISTRIES]: "Filter by container registry, supports *",
 };
 

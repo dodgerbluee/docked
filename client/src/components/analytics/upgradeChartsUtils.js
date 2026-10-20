@@ -173,7 +173,7 @@ export function processChartData(history) {
   // 10. Upgrades by instance
   const instanceCounts = {};
   history.forEach((upgrade) => {
-    const instance = upgrade.portainer_instance_name || "Unknown";
+    const instance = upgrade.source_name || "Unknown";
     instanceCounts[instance] = (instanceCounts[instance] || 0) + 1;
   });
   const upgradesByInstance = Object.entries(instanceCounts)

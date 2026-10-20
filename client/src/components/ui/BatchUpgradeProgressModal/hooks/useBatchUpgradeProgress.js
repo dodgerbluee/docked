@@ -3,8 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../../utils/api";
+import { upgradeRunnerContainer } from "../../../../graphql/upgrades";
 
 // Limit concurrent upgrade requests to avoid overwhelming the server
 const MAX_CONCURRENT_UPGRADES = 3;
@@ -81,13 +80,8 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
         const startTime = Date.now();
         let apiCompleted = false;
 
-        // Start the actual API call
-        const apiCall = axios
-          .post(`${API_BASE_URL}/api/containers/${container.id}/upgrade`, {
-            endpointId: container.endpointId,
-            imageName: container.image,
-            portainerUrl: container.portainerUrl,
-          })
+        // Start the actual upgrade (Go GraphQL mutation + wait for outcome)
+        const apiCall = upgradeRunnerContainer(container)
           .then((result) => {
             apiCompleted = true;
             return result;
@@ -165,15 +159,15 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
             containerId: container.id,
             success: false,
             result: null,
-            error: error.response?.data?.error || error.message || "Unknown error occurred",
+            error: error.message || "Unknown error occurred",
             duration: actualDuration,
           };
         }
 
         return {
           containerId: container.id,
-          success: apiResult.data?.success || false,
-          result: apiResult.data,
+          success: apiResult.success || false,
+          result: apiResult,
           error: null,
           duration: actualDuration,
         };

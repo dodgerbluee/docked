@@ -10,10 +10,9 @@
 export const categorizeContainerData = (containerData) => {
   if (!containerData) return null;
 
-  // Source Instance details
+  // Source instance details (runner-backed raw DB ids; names resolved in the UI)
   const sourceInstance = {
-    name: containerData.portainerName,
-    url: containerData.portainerUrl,
+    sourceInstanceId: containerData.sourceInstanceId,
     endpointId: containerData.endpointId,
   };
 

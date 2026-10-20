@@ -10,7 +10,7 @@ import styles from "./SourceContainerCard.module.css";
 
 /**
  * SourceContainerCard Component
- * Displays a container card with Portainer page specific styling
+ * Displays a container card with source-page specific styling
  */
 const SourceContainerCard = React.memo(function SourceContainerCard({
   container,
@@ -94,31 +94,11 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
     [isPortainer, upgrading, onUpgrade, container, showUpdates, developerModeEnabled]
   );
 
-  // Render instance badge — Portainer instance link or runner name tag
-  const portainerInstanceName = container.sourceName || container.portainerName;
-  const instanceBadge = portainerInstanceName ? (
-    container.portainerUrl ? (
-      <a
-        href={container.portainerUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={styles.portainerBadge}
-        title={`Open Portainer instance: ${portainerInstanceName}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {portainerInstanceName}
-      </a>
-    ) : (
-      <span
-        className={styles.portainerBadge}
-        title={`Portainer instance: ${portainerInstanceName}`}
-      >
-        {portainerInstanceName}
-      </span>
-    )
-  ) : container.source === "runner" && container.runnerName ? (
-    <span className={styles.portainerBadge} title={`Runner: ${container.runnerName}`}>
-      {container.runnerName}
+  // Render instance badge — runner name tag
+  const instanceName = container.sourceName || container.runnerName;
+  const instanceBadge = instanceName ? (
+    <span className={styles.portainerBadge} title={`Runner: ${instanceName}`}>
+      {instanceName}
     </span>
   ) : null;
 

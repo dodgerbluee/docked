@@ -28,21 +28,18 @@ function buildEntriesFrom(containers) {
   for (const c of containers) {
     const name = (c.name || "").replace(/^\//, "");
     if (!name) continue;
-    // sourceName is the Portainer instance name; runnerName is the runner name
-    const sourceName = c.sourceName || c.portainerName || c.runnerName || "";
+    // sourceName/runnerName is the runner name
+    const sourceName = c.sourceName || c.runnerName || "";
     const stackNameVal = c.stackName || "";
     const id = c.id || `${name}__${sourceName}__${stackNameVal}`;
     if (seenIds.has(id)) continue;
     seenIds.add(id);
-    // "Self managed" = container accessed via Portainer but not in any Portainer stack
-    const isSelfManaged = !!(c.sourceName || c.portainerName) && !c.runnerName && !stackNameVal;
     entries.push({
       id,
       name,
       image: c.image || c.imageName || "",
       instance: sourceName,
       stackName: stackNameVal,
-      isSelfManaged,
     });
   }
   // Sort: by name, then by instance
@@ -237,13 +234,12 @@ function ContainerBlocklist({ containers = [] }) {
       const existingIds = new Set(prev.map((c) => c.id));
       const toAdd = moving
         .filter((c) => !existingIds.has(c.id))
-        .map(({ id, name, image, instance, stackName, isSelfManaged }) => ({
+        .map(({ id, name, image, instance, stackName }) => ({
           id,
           name,
           image,
           instance,
           stackName,
-          isSelfManaged,
         }));
       return [...prev, ...toAdd];
     });
@@ -269,13 +265,12 @@ function ContainerBlocklist({ containers = [] }) {
       const existingIds = new Set(prev.map((c) => c.id));
       const toAdd = disallowedList
         .filter((c) => !c.orphan && !existingIds.has(c.id))
-        .map(({ id, name, image, instance, stackName, isSelfManaged }) => ({
+        .map(({ id, name, image, instance, stackName }) => ({
           id,
           name,
           image,
           instance,
           stackName,
-          isSelfManaged,
         }));
       return [...prev, ...toAdd];
     });
@@ -381,14 +376,11 @@ function ContainerBlocklist({ containers = [] }) {
                   >
                     <span className={styles.containerName}>{c.name}</span>
                     {c.image && <span className={styles.containerImage}>{c.image}</span>}
-                    {(c.instance || c.stackName || c.isSelfManaged) && (
+                    {(c.instance || c.stackName) && (
                       <div className={styles.cardFooter}>
                         {c.instance && <span className={styles.instanceBadge}>{c.instance}</span>}
                         {c.stackName && c.stackName !== "Standalone" && (
                           <span className={styles.stackBadge}>{c.stackName}</span>
-                        )}
-                        {c.isSelfManaged && (
-                          <span className={styles.selfManagedBadge}>Self managed</span>
                         )}
                       </div>
                     )}
@@ -477,9 +469,6 @@ function ContainerBlocklist({ containers = [] }) {
                       {c.stackName && c.stackName !== "Standalone" && (
                         <span className={styles.stackBadge}>{c.stackName}</span>
                       )}
-                      {c.isSelfManaged && (
-                        <span className={styles.selfManagedBadge}>Self managed</span>
-                      )}
                       {c.orphan && <span className={styles.orphanBadge}>offline</span>}
                     </div>
                   </div>
@@ -531,7 +520,6 @@ ContainerBlocklist.propTypes = {
       image: PropTypes.string,
       imageName: PropTypes.string,
       sourceName: PropTypes.string,
-      portainerName: PropTypes.string,
       runnerName: PropTypes.string,
       stackName: PropTypes.string,
     })

@@ -21,7 +21,6 @@ function SettingsPage({
   onUsernameUpdate,
   onLogout,
   onPasswordUpdateSuccess,
-  onSourceInstancesChange,
   onAvatarChange,
   onRecentAvatarsChange,
   onAvatarUploaded,
@@ -30,9 +29,6 @@ function SettingsPage({
   onColorSchemeChange,
   onClearSourceData,
   onClearTrackedAppData,
-  onEditInstance,
-  editingSourceInstance,
-  refreshInstances,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
   hideTabNavigation = false,
@@ -98,12 +94,6 @@ function SettingsPage({
     [onRecentAvatarsChange]
   );
 
-  const handleSourceInstancesChange = useCallback(async () => {
-    if (onSourceInstancesChange) {
-      await onSourceInstancesChange();
-    }
-  }, [onSourceInstancesChange]);
-
   return (
     <div className={styles.settingsPage}>
       <div className={styles.summaryHeader}>
@@ -134,12 +124,9 @@ function SettingsPage({
             onRecentAvatarsChange={handleRecentAvatarsChange}
             onAvatarUploaded={onAvatarUploaded}
             onPasswordUpdateSuccess={onPasswordUpdateSuccess}
-            onSourceInstancesChange={handleSourceInstancesChange}
             activeSection={activeTab}
             onSectionChange={handleTabChange}
             showUserInfoAboveTabs={false}
-            onEditInstance={onEditInstance}
-            refreshInstances={editingSourceInstance === null ? refreshInstances : null}
             onBatchConfigUpdate={onBatchConfigUpdate}
             colorScheme={colorScheme}
             onColorSchemeChange={onColorSchemeChange}
@@ -163,7 +150,6 @@ SettingsPage.propTypes = {
   onUsernameUpdate: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   onPasswordUpdateSuccess: PropTypes.func.isRequired,
-  onSourceInstancesChange: PropTypes.func,
   onAvatarChange: PropTypes.func,
   onRecentAvatarsChange: PropTypes.func,
   onAvatarUploaded: PropTypes.func,
@@ -172,9 +158,6 @@ SettingsPage.propTypes = {
   onColorSchemeChange: PropTypes.func,
   onClearSourceData: PropTypes.func,
   onClearTrackedAppData: PropTypes.func,
-  onEditInstance: PropTypes.func,
-  editingSourceInstance: PropTypes.object,
-  refreshInstances: PropTypes.func,
   activeTab: PropTypes.string,
   onTabChange: PropTypes.func,
   hideTabNavigation: PropTypes.bool,

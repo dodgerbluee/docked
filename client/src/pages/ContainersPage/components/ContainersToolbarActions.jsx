@@ -17,7 +17,6 @@ import styles from "../../ContainersPage.module.css";
  * @param {Set} props.selectedContainers - Selected containers
  * @param {Set} props.selectedImages - Selected images
  * @param {Array} props.sourceUnusedImages - Unused images
- * @param {boolean} props.batchUpgrading - Whether batch upgrade is in progress
  * @param {boolean} props.deletingImages - Whether images are being deleted
  * @param {Function} props.onToggleSelect - Container selection toggle handler
  * @param {Function} props.onToggleImageSelect - Image selection toggle handler
@@ -30,7 +29,6 @@ const ContainersToolbarActions = ({
   selectedContainers,
   selectedImages,
   sourceUnusedImages,
-  batchUpgrading,
   deletingImages,
   onToggleSelect,
   onToggleImageSelect,
@@ -63,7 +61,6 @@ const ContainersToolbarActions = ({
                 });
               }
             }}
-            disabled={batchUpgrading}
           >
             {allSelectableSelected
               ? compactLabels
@@ -77,13 +74,11 @@ const ContainersToolbarActions = ({
             variant="outline"
             size="sm"
             onClick={onBatchUpgrade}
-            disabled={selectedContainers.size === 0 || batchUpgrading}
+            disabled={selectedContainers.size === 0}
           >
-            {batchUpgrading
-              ? `Upgrading ${selectedContainers.size}...`
-              : compactLabels
-                ? `Upgrade (${selectedContainers.size})`
-                : `Upgrade Selected (${selectedContainers.size})`}
+            {compactLabels
+              ? `Upgrade (${selectedContainers.size})`
+              : `Upgrade Selected (${selectedContainers.size})`}
           </Button>
         </>
       );
@@ -146,7 +141,6 @@ const ContainersToolbarActions = ({
     selectedContainers,
     selectedImages,
     sourceUnusedImages,
-    batchUpgrading,
     deletingImages,
     onToggleSelect,
     onToggleImageSelect,
@@ -164,7 +158,6 @@ ContainersToolbarActions.propTypes = {
   selectedContainers: PropTypes.instanceOf(Set).isRequired,
   selectedImages: PropTypes.instanceOf(Set).isRequired,
   sourceUnusedImages: PropTypes.array.isRequired,
-  batchUpgrading: PropTypes.bool.isRequired,
   deletingImages: PropTypes.bool.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onToggleImageSelect: PropTypes.func.isRequired,

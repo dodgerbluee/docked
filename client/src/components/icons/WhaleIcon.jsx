@@ -2,7 +2,7 @@ import React from "react";
 
 /**
  * Custom whale icon component matching lucide-react style
- * Represents Docker/Portainer (Docker's logo is a whale)
+ * Represents Docker (Docker's logo is a whale)
  */
 const WhaleIcon = ({ size = 18, ...props }) => (
   <svg

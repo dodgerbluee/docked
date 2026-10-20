@@ -18,7 +18,7 @@ export const STAT_CARD_VARIANTS = {
   UNUSED_IMAGES: "unused-images",
 };
 
-// Stat type mappings for SourceInstanceCard
+// Stat type mappings for the sources grid
 export const STAT_TYPES = {
   TOTAL: "total",
   UPDATES: "updates",

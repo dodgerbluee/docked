@@ -7,7 +7,6 @@ import { getErrorMessage } from "../../../utils/errorHandling";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -108,13 +107,6 @@ export function useUserCreation({
       // Build config data (only include if user has it)
       const configData = {};
       if (
-        currentUser.sourceInstances &&
-        Array.isArray(currentUser.sourceInstances) &&
-        currentUser.sourceInstances.length > 0
-      ) {
-        configData.sourceInstances = currentUser.sourceInstances;
-      }
-      if (
         currentUser.discordWebhooks &&
         Array.isArray(currentUser.discordWebhooks) &&
         currentUser.discordWebhooks.length > 0
@@ -132,9 +124,6 @@ export function useUserCreation({
       // Build credentials (only include non-skipped steps)
       const credentials = {};
 
-      if (!skippedSteps.has(STEP_TYPES.SOURCES) && userCredentials[username]?.sourceInstances) {
-        credentials.sourceInstances = userCredentials[username].sourceInstances;
-      }
       if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
         credentials.discordWebhooks = userCredentials[username].discordWebhooks;
       }

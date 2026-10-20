@@ -1,7 +1,7 @@
 /**
  * Correlated Records View Component
  * Displays raw database records correlated by image name/version
- * Shows all related records (containers, deployed_images, registry_image_versions, portainer_instances)
+ * Shows all related records (containers, deployed_images, registry_image_versions, source_instances)
  * together in a single JSON object for debugging
  */
 
@@ -106,8 +106,8 @@ const CorrelatedRecordsView = ({
         <div className={styles.dataHeader}>Correlated Database Records by Image</div>
         <p className={styles.dataDescription}>
           Raw database records correlated by image name/version. All related records (containers,
-          deployed_images, registry_image_versions, portainer_instances) are grouped together to
-          show connections and help with debugging.
+          deployed_images, registry_image_versions, source_instances) are grouped together to show
+          connections and help with debugging.
         </p>
         {searchQuery.trim() && (
           <p className={styles.searchInfo}>
@@ -132,8 +132,6 @@ const CorrelatedRecordsView = ({
                 `${summary.deployedImageCount} deployed image${summary.deployedImageCount !== 1 ? "s" : ""}`,
               summary.registryVersionCount > 0 &&
                 `${summary.registryVersionCount} version${summary.registryVersionCount !== 1 ? "s" : ""}`,
-              summary.portainerInstanceCount > 0 &&
-                `${summary.portainerInstanceCount} instance${summary.portainerInstanceCount !== 1 ? "s" : ""}`,
             ]
               .filter(Boolean)
               .join(", ");

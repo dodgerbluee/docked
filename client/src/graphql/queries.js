@@ -19,7 +19,6 @@ export const USER_PREFERENCES_QUERY = /* GraphQL */ `
   query UserPreferences {
     userPreferences {
       colorScheme
-      disablePortainerPage
       disableTrackedAppsPage
       refreshingTogglesEnabled
     }
@@ -124,7 +123,6 @@ export const SUMMARY_STATS_QUERY = /* GraphQL */ `
   query SummaryStats {
     summaryStats {
       totalContainers
-      totalSources
       totalRunners
       totalTrackedApps
     }
@@ -152,12 +150,6 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
           lastSeen
           createdAt
           source {
-            ... on SourceInstance {
-              id
-              name
-              url
-              type
-            }
             ... on Runner {
               id
               name
@@ -189,11 +181,6 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
         name
         endpointId
         source {
-          ... on SourceInstance {
-            id
-            name
-            type
-          }
           ... on Runner {
             id
             name
@@ -218,12 +205,6 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
             lastSeen
             createdAt
             source {
-              ... on SourceInstance {
-                id
-                name
-                url
-                type
-              }
               ... on Runner {
                 id
                 name
@@ -251,12 +232,6 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
           totalCount
         }
       }
-      sources {
-        id
-        name
-        url
-        type
-      }
       runners {
         id
         name
@@ -271,31 +246,12 @@ export const CONTAINERS_QUERY = /* GraphQL */ `
       stats {
         totalContainers
         containersWithUpdates
-        totalSources
         totalRunners
         totalTrackedApps
         trackedAppsWithUpdates
         unusedImagesCount
       }
       unusedImagesCount
-    }
-  }
-`;
-
-export const SOURCE_INSTANCES_QUERY = /* GraphQL */ `
-  query SourceInstances {
-    sourceInstances {
-      id
-      name
-      url
-      type
-      authType
-      ipAddress
-      displayOrder
-      createdAt
-      updatedAt
-      hasApiKey
-      hasPassword
     }
   }
 `;
@@ -432,12 +388,6 @@ export const UPGRADE_HISTORY_QUERY = /* GraphQL */ `
         }
         createdAt
         source {
-          ... on SourceInstance {
-            id
-            name
-            url
-            type
-          }
           ... on Runner {
             id
             name
@@ -477,51 +427,6 @@ export const UNUSED_IMAGES_QUERY = /* GraphQL */ `
 export const UPDATE_USER_PREFERENCES_MUTATION = /* GraphQL */ `
   mutation UpdateUserPreferences($input: UpdateUserPreferencesInput!) {
     updateUserPreferences(input: $input) {
-      success
-      message
-    }
-  }
-`;
-
-export const CREATE_SOURCE_INSTANCE_MUTATION = /* GraphQL */ `
-  mutation CreateSourceInstance($input: CreateSourceInstanceInput!) {
-    createSourceInstance(input: $input) {
-      id
-      name
-      url
-      type
-      authType
-      ipAddress
-      displayOrder
-      createdAt
-      updatedAt
-      hasApiKey
-      hasPassword
-    }
-  }
-`;
-
-export const UPDATE_SOURCE_INSTANCE_MUTATION = /* GraphQL */ `
-  mutation UpdateSourceInstance($id: ID!, $input: UpdateSourceInstanceInput!) {
-    updateSourceInstance(id: $id, input: $input) {
-      id
-      name
-      url
-      type
-      authType
-      ipAddress
-      displayOrder
-      createdAt
-      updatedAt
-      hasApiKey
-      hasPassword
-    }
-  }
-`;
-
-export const DELETE_SOURCE_INSTANCE_MUTATION = /* GraphQL */ `
-  mutation DeleteSourceInstance($id: ID!) {
-    deleteSourceInstance(id: $id) {
       success
       message
     }
@@ -774,8 +679,8 @@ export const TRIGGER_BATCH_JOB_MUTATION = /* GraphQL */ `
 `;
 
 export const PULL_CONTAINERS_MUTATION = /* GraphQL */ `
-  mutation PullContainers($sourceInstanceId: ID, $runnerId: ID) {
-    pullContainers(sourceInstanceId: $sourceInstanceId, runnerId: $runnerId) {
+  mutation PullContainers($runnerId: ID) {
+    pullContainers(runnerId: $runnerId) {
       id
       type
       status
@@ -1083,34 +988,6 @@ export const CLEAR_TRACKED_APP_CACHE_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const VALIDATE_SOURCE_CREDENTIALS_MUTATION = /* GraphQL */ `
-  mutation ValidateSourceCredentials($input: ValidateSourceCredentialsInput!) {
-    validateSourceCredentials(input: $input) {
-      valid
-      message
-      errorCode
-    }
-  }
-`;
-
-export const REORDER_SOURCE_INSTANCES_MUTATION = /* GraphQL */ `
-  mutation ReorderSourceInstances($instances: [ReorderSourceInput!]!) {
-    reorderSourceInstances(instances: $instances) {
-      success
-      message
-    }
-  }
-`;
-
-export const CHECK_SOURCE_INSTANCE_HEALTH_MUTATION = /* GraphQL */ `
-  mutation CheckSourceInstanceHealth($id: ID!) {
-    checkSourceInstanceHealth(id: $id) {
-      online
-      message
-    }
-  }
-`;
-
 export const BATCH_JOB_PROGRESS_SUBSCRIPTION = /* GraphQL */ `
   subscription BatchJobProgress {
     batchJobProgress {
@@ -1240,7 +1117,6 @@ export const USER_STATS_QUERY = /* GraphQL */ `
   query GetUserStats($id: ID!) {
     user(id: $id) {
       id
-      sourceInstanceCount
       trackedAppCount
     }
   }
@@ -1373,7 +1249,6 @@ export const INTENT_PREVIEW_QUERY = /* GraphQL */ `
         containerName
         imageName
         stackName
-        sourceInstanceId
         runnerId
         hasUpdate
       }
@@ -1382,7 +1257,6 @@ export const INTENT_PREVIEW_QUERY = /* GraphQL */ `
         containerName
         imageName
         stackName
-        sourceInstanceId
         runnerId
         hasUpdate
         exclusionReason

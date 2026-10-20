@@ -40,9 +40,6 @@ export const useImageDeletion = ({
         const data = await deleteImages([
           {
             id: image.id,
-            portainerUrl: image.portainerUrl,
-            sourceUrl: image.sourceUrl,
-            endpointId: image.endpointId,
             runnerId: image.runnerId,
           },
         ]);
@@ -101,7 +98,7 @@ export const useImageDeletion = ({
         const uniqueImages = [];
         const seenKeys = new Set();
         for (const img of imagesToDelete) {
-          const key = `${img.id}-${img.sourceUrl ?? img.portainerUrl}-${img.endpointId}`;
+          const key = `${img.id}-${img.runnerId}`;
           if (!seenKeys.has(key)) {
             seenKeys.add(key);
             uniqueImages.push(img);
@@ -111,9 +108,6 @@ export const useImageDeletion = ({
         const data = await deleteImages(
           uniqueImages.map((img) => ({
             id: img.id,
-            portainerUrl: img.portainerUrl,
-            sourceUrl: img.sourceUrl,
-            endpointId: img.endpointId,
             runnerId: img.runnerId,
           }))
         );

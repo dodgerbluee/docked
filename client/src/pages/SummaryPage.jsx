@@ -16,7 +16,7 @@ import HeroStats from "./SummaryPage/components/HeroStats";
 import ActivityFeed from "./SummaryPage/components/ActivityFeed";
 import ContainerHealthOverview from "./SummaryPage/components/ContainerHealthOverview";
 import ImageStatistics from "./SummaryPage/components/ImageStatistics";
-import ModernPortainerInstances from "./SummaryPage/components/ModernPortainerInstances";
+import SourcesGrid from "./SummaryPage/components/SourcesGrid";
 import styles from "./SummaryPage.module.css";
 
 /**
@@ -24,23 +24,23 @@ import styles from "./SummaryPage.module.css";
  * @param {Object} props - Component props
  */
 const SummaryPage = ({
-  portainerInstances = [],
+  sourceInstances = [],
   containers = [],
   unusedImages = [],
   unusedImagesCount = 0,
   trackedApps = [],
   dismissedTrackedAppNotifications = new Map(),
-  onNavigateToPortainer,
+  onNavigateToContainers,
   onNavigateToTrackedApps,
   onNavigateToAnalytics,
-  onSetSelectedPortainerInstances,
+  onSetSelectedSourceInstances,
   onSetContentTab,
   isLoading = false,
   dataFetched = false,
   onAddInstance,
 }) => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const hasNoInstances = portainerInstances.length === 0;
+  const hasNoInstances = sourceInstances.length === 0;
   const hasNoTrackedApps = trackedApps.length === 0;
   const shouldShowWelcome = hasNoInstances && hasNoTrackedApps;
 
@@ -55,7 +55,7 @@ const SummaryPage = ({
 
     if (shouldShowWelcome && !welcomeModalShown) {
       const timer = setTimeout(() => {
-        if (portainerInstances.length === 0 && trackedApps.length === 0 && dataFetched) {
+        if (sourceInstances.length === 0 && trackedApps.length === 0 && dataFetched) {
           setShowWelcomeModal(true);
           localStorage.setItem("welcomeModalShown", "true");
         }
@@ -65,10 +65,10 @@ const SummaryPage = ({
     } else {
       setShowWelcomeModal(false);
     }
-  }, [shouldShowWelcome, portainerInstances.length, trackedApps.length, dataFetched]);
+  }, [shouldShowWelcome, sourceInstances.length, trackedApps.length, dataFetched]);
 
   const summaryStats = useSummaryStats({
-    portainerInstances,
+    sourceInstances,
     containers,
     unusedImages,
     unusedImagesCount,
@@ -77,21 +77,21 @@ const SummaryPage = ({
   });
 
   const {
-    handleSourceStatClick: handlePortainerStatClick,
+    handleSourceStatClick,
     handleInstanceClick,
     handleInstanceStatClick,
     handleTrackedAppsClick,
   } = useNavigationHandlers({
-    onNavigateToContainers: onNavigateToPortainer,
+    onNavigateToContainers,
     onNavigateToTrackedApps,
-    onSetSelectedSourceInstances: onSetSelectedPortainerInstances,
+    onSetSelectedSourceInstances,
     onSetContentTab,
   });
 
   // Fetch batch run data for activity feed
   const { latestRunsByJobType, recentRuns } = useBatchRuns();
 
-  const shouldShowEmptyState = dataFetched && portainerInstances.length === 0;
+  const shouldShowEmptyState = dataFetched && sourceInstances.length === 0;
 
   // Show skeleton while initial data hasn't been fetched yet
   if (!dataFetched) {
@@ -112,7 +112,7 @@ const SummaryPage = ({
           <HeroStats
             stats={summaryStats}
             shouldShowEmptyState={shouldShowEmptyState}
-            onPortainerStatClick={handlePortainerStatClick}
+            onSourceStatClick={handleSourceStatClick}
             onTrackedAppsClick={handleTrackedAppsClick}
           />
 
@@ -120,8 +120,8 @@ const SummaryPage = ({
           <div className={styles.dashboardGrid}>
             {/* Left Column - Instances & Health + Images (two equal sections) */}
             <div className={styles.leftColumn}>
-              <ModernPortainerInstances
-                portainerStats={summaryStats.portainerStats}
+              <SourcesGrid
+                sourceStats={summaryStats.sourceStats}
                 shouldShowEmptyState={shouldShowEmptyState}
                 onInstanceClick={handleInstanceClick}
                 onStatClick={handleInstanceStatClick}
@@ -132,13 +132,13 @@ const SummaryPage = ({
                   containers={containers}
                   summaryStats={summaryStats}
                   shouldShowEmptyState={shouldShowEmptyState}
-                  onStatClick={handlePortainerStatClick}
+                  onStatClick={handleSourceStatClick}
                 />
                 <ImageStatistics
                   containers={containers}
                   unusedImagesCount={unusedImagesCount}
                   shouldShowEmptyState={shouldShowEmptyState}
-                  onUnusedImagesClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
+                  onUnusedImagesClick={() => handleSourceStatClick(CONTENT_TABS.UNUSED)}
                 />
               </div>
             </div>
@@ -170,23 +170,22 @@ const SummaryPage = ({
             onNavigateToTrackedApps();
           }
         }}
-        onNavigateToPortainer={onNavigateToPortainer}
       />
     </div>
   );
 };
 
 SummaryPage.propTypes = {
-  portainerInstances: PropTypes.arrayOf(sourceInstanceShape),
+  sourceInstances: PropTypes.arrayOf(sourceInstanceShape),
   containers: PropTypes.arrayOf(containerShape),
   unusedImages: PropTypes.arrayOf(unusedImageShape),
   unusedImagesCount: PropTypes.number,
   trackedApps: PropTypes.arrayOf(trackedAppShape),
   dismissedTrackedAppNotifications: PropTypes.instanceOf(Map),
-  onNavigateToPortainer: PropTypes.func,
+  onNavigateToContainers: PropTypes.func,
   onNavigateToTrackedApps: PropTypes.func,
   onNavigateToAnalytics: PropTypes.func,
-  onSetSelectedPortainerInstances: PropTypes.func,
+  onSetSelectedSourceInstances: PropTypes.func,
   onSetContentTab: PropTypes.func,
   isLoading: PropTypes.bool,
   dataFetched: PropTypes.bool,

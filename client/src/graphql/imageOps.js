@@ -8,7 +8,7 @@ import { graphqlClient } from "./client";
 import { DELETE_IMAGES_MUTATION } from "./queries";
 
 /**
- * @param {Array<{id: string, portainerUrl?: string, sourceUrl?: string, endpointId?: number, runnerId?: number|string}>} images
+ * @param {Array<{id: string, sourceUrl?: string, endpointId?: number, runnerId?: number|string}>} images
  * @returns {Promise<{success: boolean, deleted: number, results: Array, errors?: Array}>}
  */
 export async function deleteImages(images) {

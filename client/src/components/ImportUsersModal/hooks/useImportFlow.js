@@ -6,7 +6,6 @@ import { isInstanceAdmin } from "../utils/userImportParsers";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -93,13 +92,6 @@ export function useImportFlow({
         const updated = { ...prev };
         if (updated[username]) {
           delete updated[username][stepType];
-          if (stepType === STEP_TYPES.SOURCES) {
-            Object.keys(updated[username]).forEach((key) => {
-              if (key.startsWith("source_")) {
-                delete updated[username][key];
-              }
-            });
-          }
         }
         return updated;
       });
@@ -139,7 +131,7 @@ export function useImportFlow({
         }
 
         // For credential steps, validate with backend
-        if ([STEP_TYPES.SOURCES, STEP_TYPES.DISCORD].includes(currentStepType)) {
+        if (currentStepType === STEP_TYPES.DISCORD) {
           setLoading(true);
           try {
             const validation = await validateCredentialsStep();
@@ -288,7 +280,6 @@ export function useImportFlow({
     }
 
     // Mark all credential steps as skipped
-    skipped.add(STEP_TYPES.SOURCES);
     skipped.add(STEP_TYPES.DISCORD);
     setUserSkippedSteps((prev) => ({ ...prev, [username]: skipped }));
 

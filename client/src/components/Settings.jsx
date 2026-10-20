@@ -15,11 +15,9 @@ const Settings = React.memo(
     onUsernameUpdate,
     onLogout,
     onPasswordUpdateSuccess,
-    onSourceInstancesChange,
     activeSection = "general",
     onSectionChange = null,
     showUserInfoAboveTabs = false,
-    onEditInstance = null,
     avatar,
     recentAvatars = [],
     onAvatarChange,
@@ -28,7 +26,6 @@ const Settings = React.memo(
     onBatchConfigUpdate = null,
     colorScheme = "system",
     onColorSchemeChange = null,
-    refreshInstances = null,
     onClearSourceData = null,
     onClearTrackedAppData = null,
     containers = [],
@@ -53,13 +50,6 @@ const Settings = React.memo(
       [onAvatarChange]
     );
 
-    // Memoize onSourceInstancesChange to prevent re-renders when container state changes
-    const handleSourceInstancesChange = useCallback(async () => {
-      if (onSourceInstancesChange) {
-        await onSourceInstancesChange();
-      }
-    }, [onSourceInstancesChange]);
-
     // Memoize onColorSchemeChange to prevent re-renders
     const handleColorSchemeChange = useCallback(
       (scheme) => {
@@ -76,25 +66,19 @@ const Settings = React.memo(
         username,
         onUsernameUpdate,
         onPasswordUpdateSuccess,
-        onSourceInstancesChange: handleSourceInstancesChange,
         onAvatarChange: handleAvatarChange,
         onBatchConfigUpdate: handleBatchConfigUpdate,
         colorScheme,
         onColorSchemeChange: handleColorSchemeChange,
-        refreshInstances,
-        activeSection,
       }),
       [
         username,
         onUsernameUpdate,
         onPasswordUpdateSuccess,
-        handleSourceInstancesChange,
         handleAvatarChange,
         handleBatchConfigUpdate,
         colorScheme,
         handleColorSchemeChange,
-        refreshInstances,
-        activeSection,
       ]
     );
 
@@ -204,7 +188,6 @@ const Settings = React.memo(
             onAvatarChange={onAvatarChange}
             onRecentAvatarsChange={onRecentAvatarsChange}
             onAvatarUploaded={onAvatarUploaded}
-            onEditInstance={onEditInstance}
             handleClearSourceData={handleClearSourceData}
             handleClearTrackedAppData={handleClearTrackedAppData}
             clearingSourceData={clearingSourceData}
@@ -232,16 +215,13 @@ const Settings = React.memo(
       prevProps.onUsernameUpdate === nextProps.onUsernameUpdate &&
       prevProps.onLogout === nextProps.onLogout &&
       prevProps.onPasswordUpdateSuccess === nextProps.onPasswordUpdateSuccess &&
-      prevProps.onSourceInstancesChange === nextProps.onSourceInstancesChange &&
       prevProps.onAvatarChange === nextProps.onAvatarChange &&
       prevProps.onRecentAvatarsChange === nextProps.onRecentAvatarsChange &&
       prevProps.onAvatarUploaded === nextProps.onAvatarUploaded &&
       prevProps.onBatchConfigUpdate === nextProps.onBatchConfigUpdate &&
       prevProps.onColorSchemeChange === nextProps.onColorSchemeChange &&
       // onClearSourceData and onClearTrackedAppData excluded - we use refs, so reference changes don't matter
-      prevProps.onEditInstance === nextProps.onEditInstance &&
       prevProps.onSectionChange === nextProps.onSectionChange &&
-      prevProps.refreshInstances === nextProps.refreshInstances &&
       prevProps.containers === nextProps.containers &&
       prevProps.sourceInstances === nextProps.sourceInstances
     );

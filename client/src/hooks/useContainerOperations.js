@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useContainerUpgrade } from "./useContainerOperations/hooks/useContainerUpgrade";
 import { useContainerDeletion } from "./useContainerOperations/hooks/useContainerDeletion";
 import { useContainerPull } from "./useContainerOperations/hooks/useContainerPull";
 import { useContainerClear } from "./useContainerOperations/hooks/useContainerClear";
@@ -9,7 +8,6 @@ import { useContainerClear } from "./useContainerOperations/hooks/useContainerCl
  * Handles all container-related actions and state management
  */
 export const useContainerOperations = ({
-  containers,
   unusedImages,
   setContainers,
   setStacks,
@@ -37,14 +35,6 @@ export const useContainerOperations = ({
   const setDeletingImagesState = setDeletingImagesProp || (() => {});
 
   // Use extracted hooks
-  const { upgrading, batchUpgrading, handleUpgrade, handleBatchUpgrade } = useContainerUpgrade({
-    containers,
-    setContainers,
-    setSelectedContainers,
-    successfullyUpdatedContainersRef,
-    fetchContainers,
-  });
-
   const { deletingImages, handleDeleteImage, handleDeleteImages } = useContainerDeletion({
     unusedImages,
     setUnusedImages,
@@ -82,10 +72,6 @@ export const useContainerOperations = ({
   });
 
   return {
-    upgrading,
-    batchUpgrading,
-    handleUpgrade,
-    handleBatchUpgrade,
     handleDeleteImage,
     handleDeleteImages,
     handleClear,

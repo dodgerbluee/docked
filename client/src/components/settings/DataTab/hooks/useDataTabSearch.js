@@ -31,14 +31,6 @@ export const useDataTabSearch = (dataEntries) => {
         const entryKey = entry.key?.toLowerCase() || "";
         const matchesEntryKey = entryKey.includes(query);
 
-        // Search in Portainer instance name
-        const instanceName = entry.data?.instanceName?.toLowerCase() || "";
-        const matchesInstanceName = instanceName.includes(query);
-
-        // Search in Portainer instance URL
-        const instanceUrl = entry.data?.instanceUrl?.toLowerCase() || "";
-        const matchesInstanceUrl = instanceUrl.includes(query);
-
         // Search in container names
         const containerNames = entry.containerNames || [];
         const matchingContainerNames = containerNames.filter((name) =>
@@ -86,8 +78,6 @@ export const useDataTabSearch = (dataEntries) => {
         // Entry matches if any of the above match
         const entryMatches =
           matchesEntryKey ||
-          matchesInstanceName ||
-          matchesInstanceUrl ||
           matchingContainerNames.length > 0 ||
           matchingContainers.length > 0 ||
           matchesJsonContent;

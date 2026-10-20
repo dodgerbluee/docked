@@ -223,8 +223,8 @@ function UpgradeHistoryTab() {
                   {upgrade.runner_name && (
                     <span className={styles.instanceBadge}>{upgrade.runner_name}</span>
                   )}
-                  {!upgrade.runner_name && upgrade.portainer_instance_name && (
-                    <span className={styles.instanceBadge}>{upgrade.portainer_instance_name}</span>
+                  {!upgrade.runner_name && upgrade.source_name && (
+                    <span className={styles.instanceBadge}>{upgrade.source_name}</span>
                   )}
                 </div>
                 <ChevronRight size={18} className={styles.chevronIcon} />

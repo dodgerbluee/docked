@@ -70,13 +70,11 @@ const HomePageContent = ({
   fetchContainers,
   fetchUnusedImages,
   fetchTrackedApps,
-  openModal,
   handlePull,
   handleBatchPull,
   handleBatchTrackedAppsCheck,
   handleUsernameUpdate,
   handlePasswordUpdateSuccessWithNavigation,
-  handleSourceInstancesChange,
   handleAvatarChange,
   handleRecentAvatarsChange,
   handleAvatarUploaded,
@@ -86,31 +84,39 @@ const HomePageContent = ({
   handleClear,
   handleClearGitHubCache,
   handleLogoutWithCleanup,
-  editingSourceInstance,
-  fetchSourceInstances,
   containerUpgrade,
 }) => {
   const [appsWithUpdates, setAppsWithUpdates] = useState(0);
+
+  // Navigate to the Settings → Sources tab (used by welcome/CTA flows)
+  const navigateToSources = useCallback(() => {
+    setActiveTab(TAB_NAMES.SETTINGS);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+      });
+    });
+  }, [setActiveTab, setSettingsTab]);
 
   // Render summary page
   const renderSummary = useCallback(() => {
     const isLoading = loading;
     return (
       <SummaryPage
-        portainerInstances={sourceInstances}
+        sourceInstances={sourceInstances}
         containers={containers}
         unusedImages={unusedImages}
         unusedImagesCount={unusedImagesCount}
         trackedApps={trackedApps}
         dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
-        onNavigateToPortainer={() => setActiveTab(TAB_NAMES.CONTAINERS)}
+        onNavigateToContainers={() => setActiveTab(TAB_NAMES.CONTAINERS)}
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
         onNavigateToAnalytics={() => setActiveTab(TAB_NAMES.ANALYTICS)}
-        onSetSelectedPortainerInstances={setSelectedSourceInstances}
+        onSetSelectedSourceInstances={setSelectedSourceInstances}
         onSetContentTab={setContentTab}
         isLoading={isLoading}
         dataFetched={dataFetched}
-        onAddInstance={openModal}
+        onAddInstance={navigateToSources}
       />
     );
   }, [
@@ -125,7 +131,7 @@ const HomePageContent = ({
     setActiveTab,
     setSelectedSourceInstances,
     setContentTab,
-    openModal,
+    navigateToSources,
   ]);
 
   // Render tracked apps
@@ -164,7 +170,7 @@ const HomePageContent = ({
     }
   }, [activeTab]);
 
-  // Automatically refresh containers when navigating to Portainer or Summary tabs
+  // Automatically refresh containers when navigating to Containers or Summary tabs
   // This ensures containers are refreshed and update status is re-evaluated
   useEffect(() => {
     const previousTab = previousTabRef.current;
@@ -174,7 +180,7 @@ const HomePageContent = ({
     // (e.g. when fetchContainers identity changes but the tab didn't)
     previousTabRef.current = currentTab;
 
-    // Only refresh if we're navigating TO Portainer or Summary (not FROM them)
+    // Only refresh if we're navigating TO Containers or Summary (not FROM them)
     // This prevents unnecessary refreshes when already on those tabs
     if (
       previousTab !== currentTab &&
@@ -187,13 +193,13 @@ const HomePageContent = ({
       }
 
       // Refresh containers with update status re-evaluation
-      // This fetches fresh data from Portainer and re-checks if updates are still needed
+      // This fetches fresh data from the runners and re-checks if updates are still needed
       if (fetchContainers) {
         // Use a small delay to avoid refreshing too frequently during rapid navigation
         // But don't delay too much - we want fresh data quickly
         const timeoutId = setTimeout(() => {
           lastContainerFetchRef.current = Date.now();
-          fetchContainers(false, null, true, true); // showLoading=false, instanceUrl=null, portainerOnly=true, refreshUpdates=true
+          fetchContainers(false, null); // showLoading=false, instanceUrl=null
         }, 100); // Reduced delay from 300ms to 100ms for faster refresh
 
         return () => clearTimeout(timeoutId);
@@ -278,18 +284,14 @@ const HomePageContent = ({
               onUsernameUpdate={handleUsernameUpdate}
               onLogout={handleLogoutWithCleanup}
               onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
-              onSourceInstancesChange={handleSourceInstancesChange}
               onAvatarChange={handleAvatarChange}
               onRecentAvatarsChange={handleRecentAvatarsChange}
               onAvatarUploaded={handleAvatarUploaded}
               onBatchConfigUpdate={handleBatchConfigUpdate}
               colorScheme={colorScheme}
               onColorSchemeChange={handleColorSchemeChange}
-              onClearPortainerData={handleClear}
+              onClearSourceData={handleClear}
               onClearTrackedAppData={handleClearGitHubCache}
-              onEditInstance={openModal}
-              editingSourceInstance={editingSourceInstance}
-              refreshInstances={editingSourceInstance === null ? fetchSourceInstances : null}
               activeTab={settingsTab}
               onTabChange={setSettingsTab}
             />
@@ -365,7 +367,6 @@ const HomePageContent = ({
                   onContainersUpdate={setContainers}
                   onUnusedImagesUpdate={setUnusedImages}
                   onUnusedImagesCountUpdate={setUnusedImagesCount}
-                  onAddInstance={openModal}
                   onPullDockerHub={handlePull}
                   pullingDockerHub={pulling}
                   pullError={pullError}
@@ -457,13 +458,11 @@ HomePageContent.propTypes = {
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
   fetchTrackedApps: PropTypes.func.isRequired,
-  openModal: PropTypes.func.isRequired,
   handlePull: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
   handlePasswordUpdateSuccessWithNavigation: PropTypes.func.isRequired,
-  handleSourceInstancesChange: PropTypes.func.isRequired,
   handleAvatarChange: PropTypes.func.isRequired,
   handleRecentAvatarsChange: PropTypes.func.isRequired,
   handleAvatarUploaded: PropTypes.func.isRequired,
@@ -473,8 +472,6 @@ HomePageContent.propTypes = {
   handleClear: PropTypes.func.isRequired,
   handleClearGitHubCache: PropTypes.func.isRequired,
   handleLogoutWithCleanup: PropTypes.func.isRequired,
-  editingSourceInstance: PropTypes.object,
-  fetchSourceInstances: PropTypes.func.isRequired,
   containerUpgrade: PropTypes.object,
 };
 

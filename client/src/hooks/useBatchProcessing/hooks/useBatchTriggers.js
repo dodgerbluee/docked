@@ -34,13 +34,8 @@ export const useBatchTriggers = ({
   setLastPullTime,
   fetchTrackedApps,
 }) => {
-  const {
-    setContainers,
-    setStacks,
-    setDockerHubDataPulled,
-    setDataFetched,
-    fetchUnusedImages,
-  } = containersData;
+  const { setContainers, setStacks, setDockerHubDataPulled, setDataFetched, fetchUnusedImages } =
+    containersData;
 
   const handleBatchPull = useCallback(async () => {
     try {

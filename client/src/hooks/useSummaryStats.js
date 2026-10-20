@@ -5,7 +5,7 @@ import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 /**
  * Custom hook to calculate summary statistics for the Summary page
  * @param {Object} params - Parameters for calculating stats
- * @param {Array} params.portainerInstances - Array of Portainer instances
+ * @param {Array} params.sourceInstances - Array of runner source instances
  * @param {Array} params.containers - Array of all containers
  * @param {Array} params.unusedImages - Array of unused images
  * @param {number} params.unusedImagesCount - Total count of unused images
@@ -14,7 +14,7 @@ import { computeHasUpdate } from "../utils/containerUpdateHelpers";
  * @returns {Object} Summary statistics object
  */
 export const useSummaryStats = ({
-  portainerInstances = [],
+  sourceInstances = [],
   containers = [],
   unusedImages = [],
   unusedImagesCount = 0,
@@ -33,13 +33,10 @@ export const useSummaryStats = ({
     [containers]
   );
 
-  // Calculate unused images per instance — keyed by sourceUrl for Portainer, runnerId for runners
+  // Calculate unused images per source — keyed by runnerId
   const unusedImagesByKey = useMemo(() => {
     return unusedImages.reduce((acc, img) => {
-      const key =
-        img.runnerId != null
-          ? `runner:${img.runnerId}`
-          : img.sourceUrl || img.portainerUrl || "Unknown";
+      const key = img.runnerId != null ? `runner:${img.runnerId}` : img.sourceUrl || "Unknown";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
@@ -57,7 +54,6 @@ export const useSummaryStats = ({
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
     return {
-      totalPortainers: portainerInstances.length,
       totalContainers: containers.length,
       containersWithUpdates: containersWithUpdates.length,
       containersUpToDate: containersUpToDate.length,
@@ -66,7 +62,7 @@ export const useSummaryStats = ({
       trackedAppsUpToDate,
       trackedAppsBehind,
       trackedAppsUnknown,
-      portainerStats: portainerInstances
+      sourceStats: sourceInstances
         .filter((p) => p != null) // Filter out any null/undefined entries
         .map((p) => ({
           name: p.name || "Unknown",
@@ -74,11 +70,11 @@ export const useSummaryStats = ({
           total: (p.containers || []).length,
           withUpdates: (p.withUpdates || []).length,
           upToDate: (p.upToDate || []).length,
-          unusedImages: unusedImagesByKey[p.isRunner ? `runner:${p.runnerId}` : p.url] || 0,
+          unusedImages: unusedImagesByKey[`runner:${p.runnerId}`] || 0,
         })),
     };
   }, [
-    portainerInstances,
+    sourceInstances,
     containers.length,
     containersWithUpdates.length,
     containersUpToDate.length,

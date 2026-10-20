@@ -80,9 +80,6 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
   // Display containers if we have container names OR if we have containers in the data
   const hasContainers = filteredContainerNames.length > 0 || filteredContainers.length > 0;
 
-  // Check if we have source instance data (instanceName, instanceUrl) even without containers
-  const hasSourceInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
-
   // If we have data but no containers, show all available data in a structured format
   if (hasData && !hasContainers) {
     // Build complete data structure showing all available information
@@ -96,37 +93,12 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       sourceData: {},
     };
 
-    // Add source instance data if available
-    if (hasSourceInstanceData) {
-      completeData.sourceData.sourceInstance = {
-        name: entry.data.instanceName || null,
-        url: entry.data.instanceUrl || null,
-      };
-    }
-
     // Include any other data from entry.data that might be useful
     const otherData = { ...entry.data };
-    delete otherData.instanceName;
-    delete otherData.instanceUrl;
     delete otherData.containers;
 
     if (Object.keys(otherData).length > 0) {
       completeData.sourceData.other = otherData;
-    }
-
-    // If we have source instance data, show structured format
-    if (hasSourceInstanceData) {
-      return (
-        <div className={styles.dataEntry}>
-          <div className={styles.dataSection}>
-            <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
-            <Alert variant="info" style={{ marginBottom: "12px" }}>
-              No containers found in this data entry. Showing all available source instance data.
-            </Alert>
-            <JSONViewer data={completeData} />
-          </div>
-        </div>
-      );
     }
 
     // Fallback: show raw data if no structured source data
@@ -251,27 +223,15 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       sourceData: {},
     };
 
-    // Check if we have source instance data
-    const hasSourceInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
-
-    if (hasSourceInstanceData) {
-      completeData.sourceData.sourceInstance = {
-        name: entry.data.instanceName || null,
-        url: entry.data.instanceUrl || null,
-      };
-    }
-
     // Include any other data from entry.data
     const otherData = { ...entry.data };
-    delete otherData.instanceName;
-    delete otherData.instanceUrl;
     delete otherData.containers;
 
     if (Object.keys(otherData).length > 0) {
       completeData.sourceData.other = otherData;
     }
 
-    if (hasSourceInstanceData || Object.keys(completeData.sourceData).length > 0) {
+    if (Object.keys(completeData.sourceData).length > 0) {
       return (
         <div className={styles.dataEntry}>
           <div className={styles.dataSection}>

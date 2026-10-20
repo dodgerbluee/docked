@@ -137,8 +137,8 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
               </Button>
             </div>
             <small className={`${generalStyles.dataActionHelper} ${styles.exportHelperText}`}>
-              Export all your database configurations including Portainer instances, Docker Hub
-              credentials, Discord webhooks, tracked images, and general settings in JSON format.
+              Export all your database configurations including Discord webhooks, tracked images,
+              and general settings in JSON format.
             </small>
           </div>
         </div>

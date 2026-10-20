@@ -25,7 +25,6 @@ import { SETTINGS_TABS } from "../../../constants/settings";
  * @param {Function} props.onAvatarChange - Avatar change handler
  * @param {Function} props.onRecentAvatarsChange - Recent avatars change handler
  * @param {Function} props.onAvatarUploaded - Avatar uploaded handler
- * @param {Function} props.onEditInstance - Edit instance handler
  * @param {Function} props.handleClearSourceData - Clear source data handler
  * @param {Function} props.handleClearTrackedAppData - Clear tracked app data handler
  * @param {boolean} props.clearingSourceData - Whether clearing source data
@@ -39,7 +38,6 @@ const SettingsTabs = ({
   onAvatarChange,
   onRecentAvatarsChange,
   onAvatarUploaded,
-  onEditInstance,
   handleClearSourceData,
   handleClearTrackedAppData,
   clearingSourceData,
@@ -74,10 +72,6 @@ const SettingsTabs = ({
   if (currentActiveSection === SETTINGS_TABS.SOURCES) {
     return (
       <SourcesTab
-        sourceInstances={settings.sourceInstances}
-        onEditInstance={onEditInstance}
-        handleEditInstance={settings.handleEditInstance}
-        handleDeleteInstance={settings.handleDeleteInstance}
         onClearSourceData={handleClearSourceData}
         clearingSourceData={clearingSourceData}
         containers={containers}
@@ -166,7 +160,6 @@ SettingsTabs.propTypes = {
   onAvatarChange: PropTypes.func.isRequired,
   onRecentAvatarsChange: PropTypes.func.isRequired,
   onAvatarUploaded: PropTypes.func.isRequired,
-  onEditInstance: PropTypes.func,
   handleClearSourceData: PropTypes.func.isRequired,
   handleClearTrackedAppData: PropTypes.func.isRequired,
   clearingSourceData: PropTypes.bool.isRequired,

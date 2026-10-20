@@ -221,7 +221,7 @@ const DatabaseRecordsView = forwardRef(({ rawDatabaseRecords, searchQuery = "" }
 
                           // Get display header based on table type
                           let displayHeader = `ID: ${primaryKey || `Record ${index + 1}`}`;
-                          if (tableName === "portainer_instances" && record.name) {
+                          if (tableName === "source_instances" && record.name) {
                             displayHeader = record.name;
                           } else if (tableName === "deployed_images" && record.repository) {
                             displayHeader = record.repository;

@@ -36,8 +36,8 @@ function mapUpgradeRecord(r) {
     performed_by: r.performedBy?.username ?? null,
     created_at: r.createdAt,
     // Fields from source relation (if available)
-    portainer_instance_name: r.source?.name,
-    portainer_url: r.source?.url,
+    source_name: r.source?.name,
+    source_url: r.source?.url,
     runner_name: r.source?.name,
     provider: r.registry?.toLowerCase(),
   };

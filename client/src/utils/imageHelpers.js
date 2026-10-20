@@ -6,6 +6,6 @@
  * @returns {string} Composite key
  */
 export function getImageKey(image) {
-  const url = image.sourceUrl ?? image.portainerUrl ?? "";
+  const url = image.sourceUrl ?? "";
   return `${url}|${image.id}`;
 }

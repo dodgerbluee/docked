@@ -7,7 +7,7 @@ import styles from "./HeroStats.module.css";
 /**
  * Hero stats section displaying key metrics at a glance
  */
-const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTrackedAppsClick }) => {
+const HeroStats = ({ stats, shouldShowEmptyState, onSourceStatClick, onTrackedAppsClick }) => {
   const heroCards = [];
 
   heroCards.push({
@@ -18,8 +18,8 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
     color: "blue",
     clickable: !shouldShowEmptyState,
     onClick: () => {
-      if (!shouldShowEmptyState && onPortainerStatClick) {
-        onPortainerStatClick(CONTENT_TABS.ALL);
+      if (!shouldShowEmptyState && onSourceStatClick) {
+        onSourceStatClick(CONTENT_TABS.ALL);
       }
     },
   });
@@ -32,8 +32,8 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
     color: stats.containersWithUpdates > 0 ? "orange" : "green",
     clickable: !shouldShowEmptyState,
     onClick: () => {
-      if (!shouldShowEmptyState && onPortainerStatClick) {
-        onPortainerStatClick(CONTENT_TABS.UPDATES);
+      if (!shouldShowEmptyState && onSourceStatClick) {
+        onSourceStatClick(CONTENT_TABS.UPDATES);
       }
     },
     highlight: stats.containersWithUpdates > 0,
@@ -47,8 +47,8 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
     color: "green",
     clickable: !shouldShowEmptyState,
     onClick: () => {
-      if (!shouldShowEmptyState && onPortainerStatClick) {
-        onPortainerStatClick(CONTENT_TABS.CURRENT);
+      if (!shouldShowEmptyState && onSourceStatClick) {
+        onSourceStatClick(CONTENT_TABS.CURRENT);
       }
     },
   });
@@ -61,8 +61,8 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
     color: "purple",
     clickable: !shouldShowEmptyState,
     onClick: () => {
-      if (!shouldShowEmptyState && onPortainerStatClick) {
-        onPortainerStatClick(CONTENT_TABS.UNUSED);
+      if (!shouldShowEmptyState && onSourceStatClick) {
+        onSourceStatClick(CONTENT_TABS.UNUSED);
       }
     },
     subtext: null,
@@ -129,7 +129,7 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
 HeroStats.propTypes = {
   stats: PropTypes.object.isRequired,
   shouldShowEmptyState: PropTypes.bool,
-  onPortainerStatClick: PropTypes.func,
+  onSourceStatClick: PropTypes.func,
   onTrackedAppsClick: PropTypes.func,
 };
 

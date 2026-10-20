@@ -72,7 +72,7 @@ function useExcludeSuggestions(containers, matchType, matchValues, allSuggestion
           case MATCH_TYPES.STACKS:
             return fieldMatchesValue(c.stackName || "", val);
           case MATCH_TYPES.SOURCES:
-            return fieldMatchesValue(c.sourceName || c.portainerName || c.runnerName || "", val);
+            return fieldMatchesValue(c.sourceName || c.runnerName || "", val);
           case MATCH_TYPES.REGISTRIES: {
             const parts = (c.image || "").split("/");
             const registry = parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
@@ -150,22 +150,13 @@ function useSuggestions(containers, sourceInstances, runners) {
 }
 
 /**
- * Build a name↔typed-ID map for all sources (portainer instances + runners).
- * Typed IDs have the form "portainer:5" or "runner:3".
+ * Build a name↔typed-ID map for all runner sources.
+ * Typed IDs have the form "runner:3".
  */
-function useSourceNameIdMap(sourceInstances, runners) {
+function useSourceNameIdMap(runners) {
   return useMemo(() => {
     const nameToId = new Map();
     const idToName = new Map();
-    if (sourceInstances && sourceInstances.length > 0) {
-      for (const inst of sourceInstances) {
-        if (inst.name && inst.id != null) {
-          const typedId = `portainer:${inst.id}`;
-          nameToId.set(inst.name, typedId);
-          idToName.set(typedId, inst.name);
-        }
-      }
-    }
     if (runners && runners.length > 0) {
       for (const r of runners) {
         if (r.name && r.id != null) {
@@ -176,7 +167,7 @@ function useSourceNameIdMap(sourceInstances, runners) {
       }
     }
     return { nameToId, idToName };
-  }, [sourceInstances, runners]);
+  }, [runners]);
 }
 
 /**
@@ -523,7 +514,7 @@ const IntentForm = React.memo(function IntentForm({
   runners = [],
 }) {
   const isEditing = !!initialData?.id;
-  const { nameToId, idToName } = useSourceNameIdMap(sourceInstances, runners);
+  const { nameToId, idToName } = useSourceNameIdMap(runners);
   const suggestions = useSuggestions(containers, sourceInstances, runners);
 
   const [formData, setFormData] = useState(() => {

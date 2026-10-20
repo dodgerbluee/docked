@@ -16,38 +16,6 @@ export function validatePasswordStep(password) {
 }
 
 /**
- * Validate source credentials step
- */
-export function validateSourceStep(credentials, instances) {
-  const errors = {};
-
-  if (instances.length > 0) {
-    credentials.forEach((cred, index) => {
-      if (cred.auth_type === "apikey") {
-        if (!cred.apiKey) {
-          errors[`source_${index}_apiKey`] = "API key is required";
-        }
-      } else if (cred.auth_type === "password") {
-        if (!cred.username) {
-          errors[`source_${index}_username`] = "Username is required";
-        }
-        if (!cred.password) {
-          errors[`source_${index}_password`] = "Password is required";
-        }
-      }
-    });
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-  };
-}
-
-/**
- * Validate Docker Hub credentials step
- */
-/**
  * Validate Discord webhooks step
  */
 export function validateDiscordStep(credentials, webhooks) {
@@ -72,12 +40,10 @@ export function validateDiscordStep(credentials, webhooks) {
 /**
  * Validate current step based on step type
  */
-export function validateStep(stepType, credentials, password, instances, webhooks) {
+export function validateStep(stepType, credentials, password, webhooks) {
   switch (stepType) {
     case "password":
       return validatePasswordStep(password);
-    case "sources":
-      return validateSourceStep(credentials?.sourceInstances || [], instances);
     case "discord":
       return validateDiscordStep(credentials, webhooks);
     default:

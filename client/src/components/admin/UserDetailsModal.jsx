@@ -106,7 +106,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
         setError("User not found");
       } else {
         setStats({
-          portainerInstancesCount: u.sourceInstanceCount,
           trackedAppsCount: u.trackedAppCount,
         });
       }
@@ -348,10 +347,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
                   <LoadingSpinner size="sm" message="Loading statistics..." />
                 ) : stats ? (
                   <div className={styles.statsGrid}>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Sources</span>
-                      <span className={styles.statValue}>{stats.portainerInstancesCount}</span>
-                    </div>
                     <div className={styles.statItem}>
                       <span className={styles.statLabel}>Apps</span>
                       <span className={styles.statValue}>{stats.trackedAppsCount}</span>

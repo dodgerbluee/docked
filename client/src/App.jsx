@@ -39,16 +39,12 @@ import { useBatchConfig } from "./hooks/useBatchConfig";
 import { useTrackedApps } from "./hooks/useTrackedApps";
 import { useSourceInstances } from "./hooks/useSourceInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
-import { useNewSourceInstance } from "./hooks/useNewSourceInstance";
 import { useVersion } from "./hooks/useVersion";
-import { useModalState } from "./hooks/useModalState";
 import { useMenuState } from "./hooks/useMenuState";
 import { useTabState } from "./hooks/useTabState";
 import { useGitHubCache } from "./hooks/useGitHubCache";
-import { useTabReordering } from "./hooks/useTabReordering";
 import { useEnhancedNavigation } from "./hooks/useEnhancedNavigation";
 import { useAppInitialization } from "./hooks/useAppInitialization";
-import { useAddSourceModal } from "./hooks/useAddSourceModal";
 import { useDiscordSettings } from "./hooks/useDiscordSettings";
 import { useContainerUpgrade } from "./hooks/useContainersPage/hooks/useContainerUpgrade";
 import HomePage from "./components/HomePage";
@@ -68,9 +64,6 @@ function App() {
     handlePasswordUpdateSuccess,
     handleLogout,
   } = useAuth();
-  // Modal state - using custom hook
-  const modalState = useModalState();
-  const { showAddSourceModal, editingSourceInstance, openModal, closeModal } = modalState;
 
   // Menu state - using custom hook
   const menuState = useMenuState();
@@ -179,11 +172,7 @@ function App() {
 
   // Container data management - using custom hook
   const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
-  const containersData = useContainersData(
-    isAuthenticated,
-    authToken,
-    successfullyUpdatedContainersRef
-  );
+  const containersData = useContainersData(successfullyUpdatedContainersRef);
   const {
     containers,
     stacks,
@@ -191,32 +180,23 @@ function App() {
     error,
     unusedImages,
     unusedImagesCount,
-    sourceInstancesFromAPI,
-    sourceInstancesLoading,
     loadingInstances,
     dockerHubDataPulled,
     dataFetched,
     setContainers,
     setStacks,
     setError,
-    setLoading,
     setUnusedImages,
     setUnusedImagesCount,
-    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     fetchContainers,
     fetchUnusedImages,
-    fetchSourceInstances,
     updateLastImageDeleteTime,
   } = containersData;
 
   // GitHub cache management - using custom hook (moved after fetchTrackedApps is available)
   const { handleClearGitHubCache } = useGitHubCache(fetchTrackedApps);
-
-  // Tab reordering - using custom hook (moved after fetchContainers is available)
-  const { draggedTabIndex, setDraggedTabIndex, handleReorderTabs } =
-    useTabReordering(fetchContainers);
 
   // Batch processing - using custom hook
   const batchProcessing = useBatchProcessing({
@@ -233,24 +213,8 @@ function App() {
   });
   const { handleBatchPull, handleBatchTrackedAppsCheck } = batchProcessing;
 
-  // New source instance handler - using custom hook
-  const { handleNewInstanceDataFetch } = useNewSourceInstance({
-    setSourceInstancesFromAPI,
-    setContainers,
-    setStacks,
-    setUnusedImagesCount,
-    setDockerHubDataPulled,
-    setLoading,
-    setActiveTab,
-    setContentTab,
-    fetchContainers,
-    fetchUnusedImages,
-    successfullyUpdatedContainersRef,
-  });
-
   // Container operations - using custom hook
   const containerOperations = useContainerOperations({
-    containers,
     unusedImages,
     setContainers,
     setStacks,
@@ -271,14 +235,7 @@ function App() {
     fetchUnusedImages,
     updateLastImageDeleteTime,
   });
-  const {
-    handleUpgrade,
-    handleBatchUpgrade,
-    handleDeleteImage,
-    handleDeleteImages,
-    handleClear,
-    handlePull,
-  } = containerOperations;
+  const { handleClear, handlePull } = containerOperations;
 
   // Container upgrade state lifted to App so completed upgrade cards persist 10 min when switching tabs
   const containerUpgrade = useContainerUpgrade({
@@ -347,13 +304,11 @@ function App() {
     authToken,
     fetchColorScheme,
     fetchContainers,
-    fetchSourceInstances,
     fetchAvatar,
     fetchRecentAvatars,
     fetchTrackedApps,
     setDataFetched,
     setDockerHubDataPulled,
-    setSourceInstancesFromAPI,
     setContainers,
     setStacks,
     setUnusedImages,
@@ -367,18 +322,10 @@ function App() {
 
   // handleToggleImageSelect and handleSelectAllImages are now provided by useSelectionHandlers hook
 
-  // handleDeleteImage is now provided by useContainerOperations hook
-
-  // handleDeleteImages is now provided by useContainerOperations hook
-
   // formatBytes is now imported from utils/formatters
-
-  // handleUpgrade is now provided by useContainerOperations hook
 
   // Removed duplicate handleToggleSelect, handleSelectAll, handleToggleStackSelect
   // These are now provided by useSelectionHandlers hook
-
-  // handleBatchUpgrade is now provided by useContainerOperations hook
 
   // Notification management - using custom hook
   const {
@@ -396,13 +343,10 @@ function App() {
   const { trackedAppsBehind } = trackedAppsStats;
 
   // Source instances management - using custom hook
-  const { sourceInstances, containersBySource } = useSourceInstances({
-    sourceInstancesFromAPI,
-    containers,
-  });
+  const { sourceInstances, containersBySource } = useSourceInstances({ containers });
 
   // Safety check: If activeTab is a source instance name but that instance doesn't exist,
-  // and we're not currently loading instances, switch back to summary to avoid broken state
+  // switch back to summary to avoid broken state
   useEffect(() => {
     const validTabs = [
       TAB_NAMES.SUMMARY,
@@ -419,16 +363,13 @@ function App() {
 
     if (
       !validTabs.includes(activeTab) &&
-      !sourceInstancesLoading && // Don't switch during loading
-      sourceInstancesFromAPI && // Only check if we have instances loaded
-      sourceInstancesFromAPI.length > 0 &&
-      !sourceInstances.find((inst) => inst.name === activeTab) &&
-      !sourceInstancesFromAPI.find((inst) => inst.name === activeTab)
+      sourceInstances.length > 0 &&
+      !sourceInstances.find((inst) => inst.name === activeTab)
     ) {
       console.warn(`Active tab "${activeTab}" no longer exists, switching to summary`);
       setActiveTab(TAB_NAMES.SUMMARY);
     }
-  }, [activeTab, sourceInstances, sourceInstancesFromAPI, sourceInstancesLoading, setActiveTab]);
+  }, [activeTab, sourceInstances, setActiveTab]);
 
   // Initialize selectedSourceInstances to empty (show all) when Containers tab is first opened
   // Empty set means show all instances
@@ -446,22 +387,6 @@ function App() {
 
   // Match sidebar height to stacks container height - using custom hook
   useSidebarHeight(activeTab);
-
-  // AddSourceModal success handler - using custom hook
-  const { handleModalSuccess } = useAddSourceModal({
-    fetchSourceInstances,
-    fetchContainers,
-    handleNewInstanceDataFetch,
-    setSourceInstancesFromAPI,
-    setActiveTab,
-    setContentTab,
-    setSelectedSourceInstances,
-    setSettingsTab,
-    editingSourceInstance,
-    activeTab,
-    settingsTab,
-    closeModal,
-  });
 
   const toggleStack = (stackKey) => {
     setCollapsedStacks((prev) => {
@@ -532,10 +457,6 @@ function App() {
                 onUsernameUpdate: handleUsernameUpdate,
                 onLogout: handleLogoutWithCleanup,
                 onPasswordUpdateSuccess: handlePasswordUpdateSuccessWithNavigation,
-                onSourceInstancesChange: async () => {
-                  await fetchSourceInstances();
-                  await fetchContainers(false);
-                },
                 onAvatarChange: handleAvatarChange,
                 onRecentAvatarsChange: (avatars) => {
                   setRecentAvatars(avatars);
@@ -549,9 +470,6 @@ function App() {
                 onColorSchemeChange: handleColorSchemeChange,
                 onClearSourceData: handleClear,
                 onClearTrackedAppData: handleClearGitHubCache,
-                onEditInstance: openModal,
-                editingSourceInstance,
-                refreshInstances: editingSourceInstance === null ? fetchSourceInstances : null,
               }}
               onNavigateToSummary={handleNavigateToSummary}
               onNavigateToSettings={handleNavigateToSettings}
@@ -598,7 +516,6 @@ function App() {
               dataFetched={dataFetched}
               lastPullTime={lastPullTime}
               successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-              sourceInstancesFromAPI={sourceInstancesFromAPI}
               notificationCount={notificationCount}
               activeContainersWithUpdates={activeContainersWithUpdates}
               activeTrackedAppsBehind={activeTrackedAppsBehind}
@@ -609,9 +526,6 @@ function App() {
               showNotificationMenu={showNotificationMenu}
               toggleAvatarMenu={toggleAvatarMenu}
               toggleNotificationMenu={toggleNotificationMenu}
-              showAddSourceModal={showAddSourceModal}
-              editingSourceInstance={editingSourceInstance}
-              closeModal={closeModal}
               setActiveTab={setActiveTab}
               setContentTab={setContentTab}
               setSettingsTab={setSettingsTab}
@@ -631,10 +545,6 @@ function App() {
               handleLogoutWithCleanup={handleLogoutWithCleanup}
               handleUsernameUpdate={handleUsernameUpdate}
               handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
-              handleSourceInstancesChange={async () => {
-                await fetchSourceInstances();
-                await fetchContainers(false);
-              }}
               handleAvatarChange={handleAvatarChange}
               handleRecentAvatarsChange={(avatars) => {
                 setRecentAvatars(avatars);
@@ -647,18 +557,12 @@ function App() {
               handleClear={handleClear}
               handleClearGitHubCache={handleClearGitHubCache}
               handlePull={handlePull}
-              handleUpgrade={handleUpgrade}
-              handleBatchUpgrade={handleBatchUpgrade}
-              handleDeleteImage={handleDeleteImage}
-              handleDeleteImages={handleDeleteImages}
               handleToggleSelect={handleToggleSelect}
               handleSelectAll={handleSelectAll}
               handleToggleImageSelect={handleToggleImageSelect}
               handleSelectAllImages={handleSelectAllImages}
               handleBatchPull={handleBatchPull}
               handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
-              handleNewInstanceDataFetch={handleNewInstanceDataFetch}
-              fetchSourceInstances={fetchSourceInstances}
               fetchContainers={fetchContainers}
               fetchUnusedImages={fetchUnusedImages}
               fetchRecentAvatars={fetchRecentAvatars}
@@ -668,8 +572,6 @@ function App() {
               setStacks={setStacks}
               setUnusedImages={setUnusedImages}
               setUnusedImagesCount={setUnusedImagesCount}
-              openModal={openModal}
-              handleModalSuccess={handleModalSuccess}
               colorScheme={colorScheme}
               handleColorSchemeChange={handleColorSchemeChange}
               batchConfig={batchConfig}
@@ -677,9 +579,6 @@ function App() {
               version={version}
               isDevBuild={isDevBuild}
               API_BASE_URL={API_BASE_URL}
-              draggedTabIndex={draggedTabIndex}
-              setDraggedTabIndex={setDraggedTabIndex}
-              handleReorderTabs={handleReorderTabs}
               toggleStack={toggleStack}
               discordWebhooks={discordWebhooks}
               containerUpgrade={containerUpgrade}

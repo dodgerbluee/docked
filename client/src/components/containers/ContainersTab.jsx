@@ -39,7 +39,7 @@ const ContainersTab = React.memo(function ContainersTab({
     return (
       <LoadingSpinner
         size="md"
-        message="Loading container data from Portainer..."
+        message="Loading container data..."
         className={styles.loadingState}
       />
     );
@@ -50,7 +50,7 @@ const ContainersTab = React.memo(function ContainersTab({
     if (groupedStacks.length === 0) {
       const emptyMessage = hasData
         ? "No containers found."
-        : "No containers found. Data will appear once fetched from Portainer.";
+        : "No containers found. Data will appear once fetched.";
 
       return <EmptyState message={emptyMessage} className={styles.emptyState} />;
     }
@@ -168,7 +168,7 @@ const ContainersTab = React.memo(function ContainersTab({
 
   // For Updates tab: "Updating" section (if any) then "Updates" section
   if (showUpdates) {
-    // Collect all containers with updates, grouped by Portainer instance
+    // Collect all containers with updates, grouped by source
     const allContainersWithUpdates = groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate)
     );
@@ -191,17 +191,17 @@ const ContainersTab = React.memo(function ContainersTab({
 
     const hasUpdates = allContainersWithUpdates.length > 0;
 
-    // Group containers by Portainer instance and sort
-    const containersByPortainer = allContainersWithUpdates.reduce((acc, container) => {
-      const portainerName = container.portainerName || "Unknown";
-      if (!acc[portainerName]) {
-        acc[portainerName] = [];
+    // Group containers by source and sort
+    const containersBySource = allContainersWithUpdates.reduce((acc, container) => {
+      const sourceName = container.sourceName || container.runnerName || "Unknown";
+      if (!acc[sourceName]) {
+        acc[sourceName] = [];
       }
-      acc[portainerName].push(container);
+      acc[sourceName].push(container);
       return acc;
     }, {});
 
-    const sortedPortainerNames = Object.keys(containersByPortainer).sort((a, b) => {
+    const sortedSourceNames = Object.keys(containersBySource).sort((a, b) => {
       if (a === "Unknown") return 1;
       if (b === "Unknown") return -1;
       return a.localeCompare(b);
@@ -255,8 +255,8 @@ const ContainersTab = React.memo(function ContainersTab({
             {!isUpdatesCollapsed && (
               <div className={styles.portainerGrid}>
                 {hasUpdates ? (
-                  sortedPortainerNames.map((portainerName) =>
-                    containersByPortainer[portainerName].map((container) => {
+                  sortedSourceNames.map((sourceName) =>
+                    containersBySource[sourceName].map((container) => {
                       const isPortainer = isPortainerContainer(container);
                       return (
                         <SourceContainerCard
@@ -303,7 +303,7 @@ const ContainersTab = React.memo(function ContainersTab({
   if (filteredStacks.length === 0) {
     const emptyMessage = hasData
       ? "No up-to-date containers found."
-      : "No containers found. Data will appear once fetched from Portainer.";
+      : "No containers found. Data will appear once fetched.";
 
     const icon = hasData ? CheckCircle2 : Package;
 

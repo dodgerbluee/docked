@@ -40,7 +40,7 @@ function AnalyticsPage({ sourceInstances = [] }) {
     if (!includeContainers) return [];
     if (selectedSourceInstances.size === 0) return containerHistoryRaw;
     return containerHistoryRaw.filter((u) =>
-      selectedSourceInstances.has(u.portainer_instance_name || "Unknown")
+      selectedSourceInstances.has(u.source_name || "Unknown")
     );
   }, [containerHistoryRaw, selectedDataSources, selectedSourceInstances]);
 

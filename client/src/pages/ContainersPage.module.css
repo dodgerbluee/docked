@@ -16,11 +16,6 @@
   padding-bottom: 0;
 }
 
-.portainerHeader {
-  margin: 0;
-  white-space: nowrap;
-}
-
 .headerLeft {
   display: flex;
   align-items: center;
@@ -245,14 +240,6 @@ body.dark-mode .deleteButtonHover:hover:not(:disabled) {
   border-color: var(--dodger-red) !important;
   color: var(--dodger-red) !important;
   background-color: rgba(239, 62, 66, 0.15) !important;
-}
-
-.portainerHeader {
-  color: var(--text-primary);
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 600;
-  line-height: 1.2;
 }
 
 .alertContainer {

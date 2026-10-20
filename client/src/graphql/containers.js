@@ -31,7 +31,6 @@ function tagFromImageName(imageName) {
 export function mapGqlContainer(c) {
   const info = c.imageInfo || null;
   const src = c.source || {};
-  const isRunner = src.type === "RUNNER";
   const currentTag = info?.currentTag ?? tagFromImageName(c.imageName);
   const latestTag = info?.latestTag ?? currentTag;
 
@@ -65,19 +64,12 @@ export function mapGqlContainer(c) {
     existsInDockerHub: Boolean(info?.latestDigest),
   };
 
-  if (isRunner) {
-    container.source = "runner";
-    container.runnerId = Number(src.id);
-    container.runnerName = src.name ?? null;
-    container.runnerUrl = src.url ?? null;
-    container.sourceUrl = src.url ?? null;
-    container.sourceName = src.name ?? null;
-  } else {
-    container.sourceUrl = src.url ?? null;
-    container.sourceName = src.name ?? null;
-    container.portainerUrl = src.url ?? null;
-    container.portainerName = src.name ?? null;
-  }
+  container.source = "runner";
+  container.runnerId = Number(src.id);
+  container.runnerName = src.name ?? null;
+  container.runnerUrl = src.url ?? null;
+  container.sourceUrl = src.url ?? null;
+  container.sourceName = src.name ?? null;
 
   return container;
 }

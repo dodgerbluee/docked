@@ -321,8 +321,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                 <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
                   If this nginx-proxy-manager instance handles URL or DNS resolution for Docked or
-                  your Portainer instances, the upgrade can fail after the old container is removed
-                  and may require manual recovery. Do not upgrade if that applies to your setup.
+                  your runners, the upgrade can fail after the old container is removed and may
+                  require manual recovery. Do not upgrade if that applies to your setup.
                 </p>
               </div>
             ) : container?.providesNetwork ? (

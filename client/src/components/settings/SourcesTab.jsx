@@ -1,20 +1,14 @@
 /**
  * SourcesTab Component
- * Unified settings tab that merges the former "Containers" (PortainerTab)
- * and "Runners" (RunnerTab) tabs into a single "Sources" view.
- *
- * Shows all connected sources (Portainer instances + dockhand runners) in a
- * mixed card grid with type badges, and provides "Add Source" with a type picker.
- * Portainer-specific sections (Intents, Blocklist, Data Management) appear
- * below the grid when at least one Portainer instance exists.
+ * Settings tab listing connected sources (dockhand runners) and providing
+ * runner enrollment. Intents and the upgrade blocklist appear below the grid
+ * when at least one source exists.
  */
 
-import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import {
-  Lock,
-  Package,
   Server,
   Wifi,
   WifiOff,
@@ -31,16 +25,11 @@ import {
 import { API_BASE_URL } from "../../constants/api";
 import { uninstallRunner } from "../../graphql/runnerOps";
 import { graphqlClient } from "../../graphql/client";
-import {
-  CHECK_SOURCE_INSTANCE_HEALTH_MUTATION,
-  DELETE_RUNNER_MUTATION,
-} from "../../graphql/queries";
-import PortainerIcon from "../icons/PortainerIcon";
+import { DELETE_RUNNER_MUTATION } from "../../graphql/queries";
 import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
-import InstanceDetailModal from "./InstanceDetailModal";
 import ContainerBlocklist from "./ContainerBlocklist";
 import RunnerDetailModal from "./RunnerDetailModal";
 import RunOperationModal from "../ui/RunOperationModal";
@@ -323,64 +312,9 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
   );
 }
 
-/* ── Type Picker ──────────────────────────────────────────────────────── */
-
-function TypePickerDialog({ onClose, onSelectPortainer, onSelectRunner }) {
-  return (
-    <div className={styles.typePickerOverlay} onClick={onClose}>
-      <div className={styles.typePickerModal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.typePickerHeader}>
-          <h3 className={styles.typePickerTitle}>Add Source</h3>
-          <button className={styles.typePickerClose} onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className={styles.typePickerBody}>
-          <div
-            className={styles.typePickerOption}
-            onClick={onSelectPortainer}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && onSelectPortainer()}
-          >
-            <PortainerIcon size={28} className={styles.typePickerOptionIcon} />
-            <div className={styles.typePickerOptionText}>
-              <span className={styles.typePickerOptionTitle}>Portainer Instance</span>
-              <span className={styles.typePickerOptionDesc}>
-                Connect to an existing Portainer installation to manage its containers.
-              </span>
-            </div>
-          </div>
-          <div
-            className={styles.typePickerOption}
-            onClick={onSelectRunner}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && onSelectRunner()}
-          >
-            <Server size={28} className={styles.typePickerOptionIcon} />
-            <div className={styles.typePickerOptionText}>
-              <span className={styles.typePickerOptionTitle}>Dockhand Runner</span>
-              <span className={styles.typePickerOptionDesc}>
-                Install a lightweight agent on a machine to manage Docker containers and run
-                operations.
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Main SourcesTab Component ────────────────────────────────────────── */
 
 const SourcesTab = React.memo(function SourcesTab({
-  // Source props (passed from SettingsTabs via useSettings)
-  sourceInstances,
-  onEditInstance,
-  handleEditInstance,
-  handleDeleteInstance,
   onClearSourceData,
   clearingSourceData,
   containers = [],
@@ -389,58 +323,8 @@ const SourcesTab = React.memo(function SourcesTab({
   // Runner state (self-contained via hook)
   const runner = useRunnerState();
 
-  // Portainer local state
-  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
-  const [portainerConfirm, setPortainerConfirm] = useState(false);
-  const [detailInstance, setDetailInstance] = useState(null);
-
-  // Portainer health state (mirrors runner healthStatus pattern)
-  const [portainerHealth, setPortainerHealth] = useState({}); // id -> { online, checking }
-  const hasAutoPingedPortainer = useRef(false);
-
-  // Auto-ping all Portainer instances on mount
-  useEffect(() => {
-    if (hasAutoPingedPortainer.current || !sourceInstances?.length) return;
-    hasAutoPingedPortainer.current = true;
-
-    sourceInstances.forEach((inst) => {
-      setPortainerHealth((prev) => ({ ...prev, [inst.id]: { checking: true } }));
-      graphqlClient
-        .mutation(CHECK_SOURCE_INSTANCE_HEALTH_MUTATION, { id: inst.id })
-        .toPromise()
-        .then((result) => {
-          setPortainerHealth((prev) => ({
-            ...prev,
-            [inst.id]: {
-              online: !result.error && !!result.data?.checkSourceInstanceHealth?.online,
-              checking: false,
-            },
-          }));
-        })
-        .catch(() => {
-          setPortainerHealth((prev) => ({
-            ...prev,
-            [inst.id]: { online: false, checking: false },
-          }));
-        });
-    });
-  }, [sourceInstances]);
-
-  // Type picker state
-  const [showTypePicker, setShowTypePicker] = useState(false);
-
-  /* ── Portainer handlers ───────────────────────────────────────────── */
-
-  const handleDeleteClick = useCallback((instanceId) => {
-    setDeleteConfirm({ isOpen: true, instanceId });
-  }, []);
-
-  const handleDeleteConfirm = useCallback(() => {
-    if (deleteConfirm.instanceId) {
-      handleDeleteInstance(deleteConfirm.instanceId);
-    }
-    setDeleteConfirm({ isOpen: false, instanceId: null });
-  }, [deleteConfirm.instanceId, handleDeleteInstance]);
+  // Clear-data confirmation
+  const [clearDataConfirm, setClearDataConfirm] = useState(false);
 
   const handleClearSourceData = useCallback(async () => {
     if (!onClearSourceData) {
@@ -449,55 +333,15 @@ const SourcesTab = React.memo(function SourcesTab({
     }
     try {
       await onClearSourceData(true);
-      setPortainerConfirm(false);
+      setClearDataConfirm(false);
     } catch (error) {
       console.error("Error clearing source data:", error);
       alert("Error clearing source data: " + (error.message || "Unknown error"));
     }
   }, [onClearSourceData]);
 
-  const handleDeleteClose = useCallback(() => {
-    setDeleteConfirm({ isOpen: false, instanceId: null });
-  }, []);
-
-  const handlePortainerConfirmClose = useCallback(() => {
-    setPortainerConfirm(false);
-  }, []);
-
-  const handleEditInstanceClick = useCallback(
-    (instance) => {
-      if (onEditInstance) {
-        onEditInstance(instance);
-      } else {
-        handleEditInstance(instance);
-      }
-    },
-    [onEditInstance, handleEditInstance]
-  );
-
-  /* ── Type picker handlers ─────────────────────────────────────────── */
-
-  const handleAddSource = useCallback(() => {
-    setShowTypePicker(true);
-  }, []);
-
-  const handleSelectPortainer = useCallback(() => {
-    setShowTypePicker(false);
-    if (onEditInstance) {
-      onEditInstance(null);
-    }
-  }, [onEditInstance]);
-
-  const handleSelectRunner = useCallback(() => {
-    setShowTypePicker(false);
-    runner.setShowEnrollment(true);
-  }, [runner]);
-
-  /* ── Loading state ────────────────────────────────────────────────── */
-
-  const hasPortainerInstances = sourceInstances && sourceInstances.length > 0;
-  const hasDockerRunners = runner.runners && runner.runners.some((r) => r.docker_enabled !== 0);
-  const hasAnySources = hasPortainerInstances || hasDockerRunners;
+  const hasDockerRunners = runner.runners && runner.runners.length > 0;
+  const hasAnySources = hasDockerRunners;
 
   // Runners that are online and have a pending version update
   const runnersWithUpdates = runner.runners.filter(
@@ -546,7 +390,7 @@ const SourcesTab = React.memo(function SourcesTab({
 
   return (
     <div className={styles.wrapper}>
-      {/* ── Mixed source card grid ──────────────────────────────────── */}
+      {/* ── Source card grid ────────────────────────────────────────── */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h4 className={styles.sectionTitle}>Sources</h4>
@@ -577,92 +421,16 @@ const SourcesTab = React.memo(function SourcesTab({
           </p>
           <ul className={styles.sourceTypeList}>
             <li>
-              <strong>Portainer</strong> &mdash; connects to an existing Portainer installation
-            </li>
-            <li>
               <strong>Dockhand Runner</strong> &mdash; a lightweight agent installed directly on
               your machine, or via Docker, to manage containers and run operations.
             </li>
           </ul>
         </div>
         <div className={styles.sourceGrid}>
-          {/* All source cards — Portainer instances and Runners combined, sorted alphabetically */}
-          {[
-            ...(sourceInstances || []).map((instance) => ({
-              type: "portainer",
-              id: instance.id,
-              name: instance.name,
-              data: instance,
-            })),
-            ...runner.runners.map((r) => ({
-              type: "runner",
-              id: r.id,
-              name: r.name,
-              data: r,
-            })),
-          ]
+          {/* Runner cards, sorted alphabetically */}
+          {[...runner.runners]
             .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-            .map((item) => {
-              if (item.type === "portainer") {
-                const instance = item.data;
-                const phs = portainerHealth[instance.id];
-                return (
-                  <Card
-                    key={`portainer-${instance.id}`}
-                    variant="default"
-                    padding="sm"
-                    className={styles.sourceCard}
-                    onClick={() => setDetailInstance(instance)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === "Enter" && setDetailInstance(instance)}
-                  >
-                    <div className={styles.runnerHeader}>
-                      <div className={styles.sourceLogo}>
-                        <PortainerIcon size={18} />
-                      </div>
-                      <div className={styles.runnerMeta}>
-                        <strong className={styles.runnerName}>{instance.name}</strong>
-                        <span className={styles.runnerUrl}>{instance.url}</span>
-                      </div>
-                      <div className={styles.statusColumn}>
-                        {phs && !phs.checking && (
-                          <span
-                            className={phs.online ? styles.statusOnline : styles.statusOffline}
-                            title={phs.online ? "Online" : "Offline"}
-                          >
-                            {phs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-                            {phs.online ? "Online" : "Offline"}
-                          </span>
-                        )}
-                        {phs?.checking && (
-                          <span className={styles.statusChecking}>Checking...</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className={styles.instanceBadges}>
-                      <span className={`${styles.typeBadge} ${styles.typeBadgeSource}`}>
-                        Portainer
-                      </span>
-                      {instance.auth_type === "apikey" ? (
-                        <span className={styles.authBadge}>
-                          <Package size={11} className={styles.badgeIcon} />
-                          API Key
-                        </span>
-                      ) : (
-                        <span className={styles.authBadge}>
-                          <Lock size={11} className={styles.badgeIcon} />
-                          Password
-                        </span>
-                      )}
-                    </div>
-                  </Card>
-                );
-              }
-
-              // Runner card
-              const r = item.data;
+            .map((r) => {
               const hs = runner.healthStatus[r.id];
               return (
                 <Card
@@ -757,10 +525,10 @@ const SourcesTab = React.memo(function SourcesTab({
           {/* Add source card */}
           <div
             className={styles.addCard}
-            onClick={handleAddSource}
+            onClick={() => runner.setShowEnrollment(true)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && handleAddSource()}
+            onKeyDown={(e) => e.key === "Enter" && runner.setShowEnrollment(true)}
           >
             <Plus size={24} className={styles.addIcon} />
             <span className={styles.addText}>Add Source</span>
@@ -796,7 +564,7 @@ const SourcesTab = React.memo(function SourcesTab({
       )}
 
       {/* ── Data Management ─────────────────────────────────────────── */}
-      {hasPortainerInstances && (
+      {hasAnySources && (
         <div className={styles.dataManagement}>
           <h4 className={styles.sectionTitle}>Data Management</h4>
           <div className={styles.dataActions}>
@@ -804,16 +572,15 @@ const SourcesTab = React.memo(function SourcesTab({
               <Button
                 type="button"
                 variant="danger"
-                onClick={() => setPortainerConfirm(true)}
+                onClick={() => setClearDataConfirm(true)}
                 disabled={clearingSourceData}
                 className={styles.dangerButton}
               >
                 {clearingSourceData ? "Clearing..." : "Clear Source Data"}
               </Button>
               <small className={styles.dataActionHelper}>
-                Removes all cached container information from Portainer instances. This will clear
-                container data, stacks, and unused images. Portainer instance configurations will be
-                preserved.
+                Removes all cached container information. This will clear container data, stacks,
+                and unused images. Source configurations will be preserved.
               </small>
             </div>
           </div>
@@ -822,48 +589,13 @@ const SourcesTab = React.memo(function SourcesTab({
 
       {/* ── Modals ──────────────────────────────────────────────────── */}
 
-      {/* Type Picker */}
-      {showTypePicker && (
-        <TypePickerDialog
-          onClose={() => setShowTypePicker(false)}
-          onSelectPortainer={handleSelectPortainer}
-          onSelectRunner={handleSelectRunner}
-        />
-      )}
-
-      {/* Portainer: Instance Detail */}
-      <InstanceDetailModal
-        instance={detailInstance}
-        isOpen={!!detailInstance}
-        onClose={() => setDetailInstance(null)}
-        onEdit={(inst) => {
-          setDetailInstance(null);
-          handleEditInstanceClick(inst);
-        }}
-        onDelete={(instanceId) => {
-          handleDeleteClick(instanceId);
-        }}
-      />
-
-      {/* Portainer: Delete Confirmation */}
-      <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        onClose={handleDeleteClose}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Portainer Instance?"
-        message="Are you sure you want to delete this Portainer instance? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-      />
-
       {/* Source: Clear Data Confirmation */}
       <ConfirmDialog
-        isOpen={portainerConfirm}
-        onClose={handlePortainerConfirmClose}
+        isOpen={clearDataConfirm}
+        onClose={() => setClearDataConfirm(false)}
         onConfirm={handleClearSourceData}
         title="Clear Source Data?"
-        message="This will remove all cached container information from source instances. This action cannot be undone."
+        message="This will remove all cached container information from sources. This action cannot be undone."
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"
@@ -972,10 +704,6 @@ const SourcesTab = React.memo(function SourcesTab({
 });
 
 SourcesTab.propTypes = {
-  sourceInstances: PropTypes.arrayOf(PropTypes.object).isRequired,
-  onEditInstance: PropTypes.func,
-  handleEditInstance: PropTypes.func.isRequired,
-  handleDeleteInstance: PropTypes.func.isRequired,
   onClearSourceData: PropTypes.func,
   clearingSourceData: PropTypes.bool,
   containers: PropTypes.array,

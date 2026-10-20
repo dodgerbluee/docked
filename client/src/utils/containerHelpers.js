@@ -25,13 +25,8 @@ export const isPortainerContainer = (container) => {
 export const buildContainersBySource = (containers) => {
   return containers.reduce((acc, container) => {
     let key, name;
-    if (container.source === "runner") {
-      key = `runner:${container.runnerId}`;
-      name = container.runnerName || "Runner";
-    } else {
-      key = container.sourceUrl || container.portainerUrl || "Unknown";
-      name = container.sourceName || container.portainerName || key;
-    }
+    key = `runner:${container.runnerId}`;
+    name = container.runnerName || "Runner";
 
     if (!acc[key]) {
       acc[key] = {

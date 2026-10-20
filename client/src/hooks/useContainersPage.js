@@ -147,7 +147,7 @@ export function useContainersPage({
 
   // Filter unused images for selected source instances
   const sourceUnusedImages = useMemo(() => {
-    // Portainer instances use their HTTP URL as key; runner instances use "runner:<id>"
+    // Runner instances use the "runner:<id>" key
     const selectedUrls = new Set(instancesToShow.map((inst) => inst?.url).filter(Boolean));
     const selectedRunnerIds = new Set(
       instancesToShow
@@ -252,11 +252,6 @@ export function useContainersPage({
     return upgradeOperations.handleBatchUpgrade(selectedContainers, aggregatedContainers);
   }, [upgradeOperations, selectedContainers, aggregatedContainers]);
 
-  // Wrapper for executeBatchUpgrade that includes setSelectedContainers
-  const executeBatchUpgrade = useCallback(async () => {
-    return upgradeOperations.executeBatchUpgrade(setSelectedContainers);
-  }, [upgradeOperations, setSelectedContainers]);
-
   // Wrapper for handleDeleteImages that includes sourceUnusedImages
   const handleDeleteImages = useCallback(() => {
     return imageDeletion.handleDeleteImages(selectedImages, sourceUnusedImages);
@@ -285,7 +280,6 @@ export function useContainersPage({
     setSelectedContainers,
     selectedImages,
     upgrading: upgradeOperations.upgrading,
-    batchUpgrading: upgradeOperations.batchUpgrading,
     deletingImages: imageDeletion.deletingImages,
 
     // Error modal
@@ -303,16 +297,6 @@ export function useContainersPage({
     batchUpgradeConfirmContainers: upgradeOperations.batchUpgradeConfirmContainers,
     closeBatchUpgradeConfirm: upgradeOperations.closeBatchUpgradeConfirm,
     confirmAndStartBatchUpgrade: upgradeOperations.confirmAndStartBatchUpgrade,
-
-    // Legacy
-    upgradeModal: upgradeOperations.upgradeModal,
-    closeUpgradeModal: upgradeOperations.closeUpgradeModal,
-    executeUpgrade: upgradeOperations.executeUpgrade,
-    handleUpgradeSuccess: upgradeOperations.handleUpgradeSuccess,
-    batchUpgradeModal: upgradeOperations.batchUpgradeModal,
-    closeBatchUpgradeModal: upgradeOperations.closeBatchUpgradeModal,
-    executeBatchUpgrade,
-    handleBatchUpgradeSuccess: upgradeOperations.handleBatchUpgradeSuccess,
 
     // Computed data
     sortedSourceInstances,
