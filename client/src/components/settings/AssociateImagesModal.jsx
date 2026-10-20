@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
-import { API_BASE_URL } from "../../utils/api";
 import { graphqlClient } from "../../graphql/client";
+import { fetchContainersGraphql } from "../../graphql/containers";
 import { TOKEN_ASSOCIATED_IMAGES_QUERY, ASSOCIATE_IMAGES_MUTATION } from "../../graphql/queries";
 import styles from "./AssociateImagesModal.module.css";
 
@@ -45,8 +44,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     setError(null);
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/containers`);
-      const allContainers = response.data.containers || [];
+      const { containers: allContainers } = await fetchContainersGraphql();
 
       // Filter containers by registry matching the token provider
       const filteredContainers = allContainers.filter((container) => {

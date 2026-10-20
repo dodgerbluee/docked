@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { CheckCircle2, Loader2, AlertCircle, Wifi, Square } from "lucide-react";
-import axios from "axios";
 import Modal from "./Modal";
 import Button from "./Button";
-import { API_BASE_URL } from "../../utils/api";
+import { fetchContainersGraphql } from "../../graphql/containers";
 import { MODAL_STAGES } from "../../constants/modalStages";
 import { TIMING } from "../../constants/timing";
 import styles from "./UpgradeProgressModal.module.css";
@@ -219,17 +218,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
             try {
               // Try to fetch containers - if this succeeds, nginx is back up
-              const response = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
-
-              // Handle both grouped and flat response formats
-              let containers = [];
-              if (response.data?.grouped && response.data?.containers) {
-                containers = response.data.containers;
-              } else if (Array.isArray(response.data)) {
-                containers = response.data;
-              } else if (Array.isArray(response.data?.containers)) {
-                containers = response.data.containers;
-              }
+              const { containers } = await fetchContainersGraphql();
 
               // Check if the container still exists by name (upgrade completed)
               // After upgrade, container ID changes, so we match by name

@@ -3,8 +3,8 @@
  */
 
 import { useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../constants/api";
+import { fetchContainersGraphql } from "../../../graphql/containers";
+import { runContainerSync } from "../../../graphql/sync";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
 import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
 
@@ -17,7 +17,6 @@ import { updateContainersWithPreservedState } from "../../../utils/containerStat
  * @param {Function} params.setPullSuccess - Set pull success function
  * @param {Function} params.setContainers - Set containers function
  * @param {Function} params.setStacks - Set stacks function
- * @param {Function} params.setUnusedImagesCount - Set unused images count function
  * @param {Function} params.setDockerHubDataPulled - Set Docker Hub data pulled function
  * @param {Function} params.setDataFetched - Set data fetched function
  * @param {Function} params.fetchUnusedImages - Fetch unused images function
@@ -31,7 +30,6 @@ export const useContainerPull = ({
   setPullSuccess,
   setContainers,
   setStacks,
-  setUnusedImagesCount,
   setDockerHubDataPulled,
   setDataFetched,
   fetchUnusedImages,
@@ -39,7 +37,7 @@ export const useContainerPull = ({
 }) => {
   const handlePull = useCallback(
     async (additionalParams = {}) => {
-      const { setSourceInstancesFromAPI, setLastPullTime } = additionalParams;
+      const { setLastPullTime } = additionalParams;
       try {
         setPulling(true);
         // Clear any previous errors when starting a new pull
@@ -47,98 +45,44 @@ export const useContainerPull = ({
         setPullError(null);
         setPullSuccess(null);
 
-        const pullPromise = axios.post(
-          `${API_BASE_URL}/api/containers/pull`,
-          {},
-          {
-            timeout: 300000,
-          }
-        );
+        // Kick off the container sync in the Go API. The mutation registers a
+        // 'running' docker-hub-pull batch run before responding, so the poll
+        // inside runContainerSync always observes the new run.
+        const syncPromise = runContainerSync();
 
+        // Show the cached container set while the registry scan works.
         try {
-          // When pulling, fetch cached data WITH refreshUpdates=true to get fresh Portainer data
-          // This ensures we show the correct hasUpdate status (detects manual upgrades)
-          // instead of showing stale cached hasUpdate values
-          // Use new cache service for better experience
-          const cachedResponse = await axios.get(
-            `${API_BASE_URL}/api/containers?useNewCache=true&portainerOnly=true&refreshUpdates=true`
-          );
-          if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
-            const apiContainers = cachedResponse.data.containers || [];
-            // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
-            const updatedContainers = updateContainersWithPreservedState(
-              apiContainers,
-              successfullyUpdatedContainersRef
-            );
-            // portainerOnly response — merge with existing runner containers
-            setContainers((prev) => {
-              const runnerContainers = prev.filter((c) => c.source === "runner");
-              return [...updatedContainers, ...runnerContainers];
-            });
-            setStacks(cachedResponse.data.stacks || []);
-            setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
-
-            const cachedSourceInstances =
-              cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances;
-            if (cachedSourceInstances && setSourceInstancesFromAPI) {
-              setSourceInstancesFromAPI(cachedSourceInstances);
-            }
-            setDataFetched(true);
-          }
-        } catch {
-          // No cached data available yet - this is expected on first run
-        }
-
-        const response = await pullPromise;
-
-        if (response.data.success === false) {
-          throw new Error(
-            response.data.error || response.data.message || "Failed to pull container data"
-          );
-        }
-
-        if (response.data.grouped && response.data.stacks) {
-          const apiContainers = response.data.containers || [];
-          // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
-          // This ensures all containers have correct hasUpdate status even after pull
-          const updatedContainers = updateContainersWithPreservedState(
-            apiContainers,
-            successfullyUpdatedContainersRef
-          );
-          // Merge with existing runner containers so they aren't dropped
-          // (pull response only contains Portainer-sourced containers)
-          setContainers((prev) => {
-            const runnerContainers = prev.filter((c) => c.source === "runner");
-            // If the pull response already includes runner containers, use as-is
-            const hasRunners = updatedContainers.some((c) => c.source === "runner");
-            return hasRunners ? updatedContainers : [...updatedContainers, ...runnerContainers];
-          });
-          setStacks(response.data.stacks || []);
-          setUnusedImagesCount(response.data.unusedImagesCount || 0);
-
-          const pullSourceInstances =
-            response.data.sourceInstances || response.data.portainerInstances;
-          if (pullSourceInstances && setSourceInstancesFromAPI) {
-            setSourceInstancesFromAPI(pullSourceInstances);
-          }
-
-          setDockerHubDataPulled(true);
-          localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
-          if (setLastPullTime) {
-            const pullTime = new Date();
-            setLastPullTime(pullTime);
-            localStorage.setItem("lastPullTime", pullTime.toISOString());
-          }
-        } else {
-          const apiContainers = Array.isArray(response.data) ? response.data : [];
-          // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
+          const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+          // updateContainersWithPreservedState keeps hasUpdate:false for
+          // containers the user just upgraded in this session.
           const updatedContainers = updateContainersWithPreservedState(
             apiContainers,
             successfullyUpdatedContainersRef
           );
           setContainers(updatedContainers);
-          setStacks([]);
-          setUnusedImagesCount(0);
+          setStacks(apiStacks);
+          setDataFetched(true);
+        } catch {
+          // No cached data available yet - this is expected on first run
+        }
+
+        await syncPromise;
+
+        // Registry data is fresh now — refetch so hasUpdate reflects the scan
+        const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+        const updatedContainers = updateContainersWithPreservedState(
+          apiContainers,
+          successfullyUpdatedContainersRef
+        );
+        setContainers(updatedContainers);
+        setStacks(apiStacks);
+
+        setDockerHubDataPulled(true);
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+        if (setLastPullTime) {
+          const pullTime = new Date();
+          setLastPullTime(pullTime);
+          localStorage.setItem("lastPullTime", pullTime.toISOString());
         }
 
         // Clear any errors on successful pull
@@ -148,7 +92,6 @@ export const useContainerPull = ({
         await fetchUnusedImages();
         setPullSuccess("Data pulled successfully!");
       } catch (err) {
-        // handleDockerHubError(err, setError) — previous call incorrectly passed 4 args
         const errorMessage = await handleDockerHubError(err, setError);
         setPullError(errorMessage);
         console.error("Error pulling containers:", err);
@@ -163,7 +106,6 @@ export const useContainerPull = ({
       setPullSuccess,
       setContainers,
       setStacks,
-      setUnusedImagesCount,
       setDockerHubDataPulled,
       setDataFetched,
       fetchUnusedImages,

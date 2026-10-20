@@ -9,6 +9,7 @@ import { toast } from "../../../utils/toast";
 import { getUpgradeSteps } from "../../../utils/upgradeSteps";
 import { TIMING } from "../../../constants/timing";
 import { upgradeRunnerContainer } from "../../../graphql/upgrades";
+import { fetchContainersGraphql } from "../../../graphql/containers";
 
 /** Auto-dismiss completed (success/error) items after this many ms (10 min) */
 const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
@@ -199,11 +200,7 @@ export const useContainerUpgrade = ({
             while (Date.now() - start < maxWait) {
               await new Promise((r) => setTimeout(r, pollInterval));
               try {
-                const res = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
-                let list = [];
-                if (res.data?.grouped && res.data?.containers) list = res.data.containers;
-                else if (Array.isArray(res.data)) list = res.data;
-                else if (Array.isArray(res.data?.containers)) list = res.data.containers;
+                const { containers: list } = await fetchContainersGraphql();
                 const found = list.find(
                   (c) => c.name === containerName || c.name === container?.name
                 );

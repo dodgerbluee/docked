@@ -3,18 +3,15 @@
  */
 
 import { useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../constants/api";
 import { graphqlClient } from "../../../graphql/client";
 import {
   TRACKED_APPS_QUERY,
   CHECK_TRACKED_APP_UPDATES_MUTATION,
-  BATCH_RUNS_QUERY,
   CREATE_BATCH_RUN_MUTATION,
   UPDATE_BATCH_RUN_MUTATION,
-  PULL_CONTAINERS_MUTATION,
 } from "../../../graphql/queries";
-import { mapGraphRunToRow } from "../../batchRunsCache";
+import { fetchContainersGraphql } from "../../../graphql/containers";
+import { runContainerSync } from "../../../graphql/sync";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
 import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
 
@@ -40,8 +37,6 @@ export const useBatchTriggers = ({
   const {
     setContainers,
     setStacks,
-    setUnusedImagesCount,
-    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     fetchUnusedImages,
@@ -52,97 +47,41 @@ export const useBatchTriggers = ({
       setPulling(true);
       setError(null);
 
-      // Kick off the container sync in the Go API. The mutation registers a
-      // 'running' docker-hub-pull batch run before responding, so the poll
-      // below always observes the new run.
-      const triggerResult = await graphqlClient.mutation(PULL_CONTAINERS_MUTATION, {}).toPromise();
-      if (triggerResult.error || !triggerResult.data?.pullContainers) {
-        throw new Error(triggerResult.error?.message || "Failed to trigger container sync");
-      }
+      // Kick off the container sync in the Go API and wait for its batch run
+      // to finish (the mutation registers a 'running' docker-hub-pull run
+      // before responding, so the poll always observes the new run).
+      const syncPromise = runContainerSync();
 
-      // Fetch cached data for immediate display (portainerOnly — no need to hit runners here)
+      // Show cached data while the registry scan works
       try {
-        const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
-        if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
-          const apiContainers = cachedResponse.data.containers || [];
-          const updatedContainers = updateContainersWithPreservedState(
-            apiContainers,
-            successfullyUpdatedContainersRef
-          );
-          setContainers(updatedContainers);
-          setStacks(cachedResponse.data.stacks || []);
-          setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
-
-          if (cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances) {
-            setSourceInstancesFromAPI(
-              cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances
-            );
-          }
-          setDataFetched(true);
-        }
-      } catch {
-        // Ignore cache errors
-      }
-
-      // Poll for the latest batch run to get the runId and wait for completion
-      const maxWaitTime = 300000; // 5 minutes
-      const pollInterval = 1000; // 1 second
-      const startTime = Date.now();
-      let batchRun = null;
-
-      while (Date.now() - startTime < maxWaitTime) {
-        try {
-          const runsResult = await graphqlClient
-            .query(BATCH_RUNS_QUERY, { jobType: "DOCKER_HUB_PULL", first: 1 })
-            .toPromise();
-          batchRun = mapGraphRunToRow(runsResult.data?.batchRuns?.items?.[0]);
-
-          if (batchRun) {
-            // Check if the run is completed or failed
-            if (batchRun.status === "completed" || batchRun.status === "failed") {
-              break;
-            }
-          }
-        } catch {
-          // Continue polling on error
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      }
-
-      if (!batchRun) {
-        throw new Error("Batch job did not complete within the expected time");
-      }
-
-      if (batchRun.status === "failed") {
-        throw new Error(batchRun.error_message || "Batch job failed");
-      }
-
-      // Fetch updated container data after batch job completes
-      const response = await axios.get(`${API_BASE_URL}/api/containers`);
-
-      if (response.data.grouped && response.data.stacks) {
-        const apiContainers = response.data.containers || [];
+        const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
         const updatedContainers = updateContainersWithPreservedState(
           apiContainers,
           successfullyUpdatedContainersRef
         );
         setContainers(updatedContainers);
-        setStacks(response.data.stacks || []);
-        setUnusedImagesCount(response.data.unusedImagesCount || 0);
-
-        if (response.data.sourceInstances || response.data.portainerInstances) {
-          setSourceInstancesFromAPI(
-            response.data.sourceInstances || response.data.portainerInstances
-          );
-        }
-
-        setDockerHubDataPulled(true);
-        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
-        const pullTime = new Date();
-        setLastPullTime(pullTime);
-        localStorage.setItem("lastPullTime", pullTime.toISOString());
+        setStacks(apiStacks);
+        setDataFetched(true);
+      } catch {
+        // Ignore cache errors
       }
+
+      await syncPromise;
+
+      // Registry data is fresh now — refetch so hasUpdate reflects the scan
+      const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+      const updatedContainers = updateContainersWithPreservedState(
+        apiContainers,
+        successfullyUpdatedContainersRef
+      );
+      setContainers(updatedContainers);
+      setStacks(apiStacks);
+
+      setDockerHubDataPulled(true);
+      localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+      const pullTime = new Date();
+      setLastPullTime(pullTime);
+      localStorage.setItem("lastPullTime", pullTime.toISOString());
 
       setError(null);
       setDataFetched(true);
@@ -162,8 +101,6 @@ export const useBatchTriggers = ({
     setError,
     setContainers,
     setStacks,
-    setUnusedImagesCount,
-    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     setLastPullTime,

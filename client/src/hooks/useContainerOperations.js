@@ -61,7 +61,6 @@ export const useContainerOperations = ({
     setPullSuccess,
     setContainers,
     setStacks,
-    setUnusedImagesCount,
     setDockerHubDataPulled,
     setDataFetched,
     fetchUnusedImages,
