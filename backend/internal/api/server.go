@@ -25,11 +25,15 @@ import (
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/imagesync"
 )
 
 // NewServer builds the chi router with all middleware and routes registered.
 // The GraphQL endpoint is mounted at /graphql; the playground at /playground.
-func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
+// hub is the event hub shared by subscription resolvers and the Node bridge;
+// syncSvc drives the docker-hub-pull container sync (may be nil, in which
+// case pullContainers reports it as unavailable).
+func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *imagesync.Service) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -40,15 +44,12 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 	// Configure auth secret
 	auth.SetSecret(cfg.JWTSecret)
 
-	// Event hub shared by subscription resolvers and the Node bridge.
-	hub := events.NewHub()
-
 	// Build the gqlgen server. Same transports as handler.NewDefaultServer,
 	// plus a websocket connection-init authenticator: graphql-ws clients send
 	// the JWT in connectionParams, which is the only place a token can ride
 	// on a WS handshake. The returned context flows into every subscription
 	// operation on that connection.
-	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub}
+	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc}
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	srv.AddTransport(transport.Websocket{
 		// Auth is the JWT in connectionParams (see InitFunc), not cookies, so

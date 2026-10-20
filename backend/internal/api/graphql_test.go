@@ -25,6 +25,8 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/imagesync"
 )
 
 const testSecret = "test-secret"
@@ -292,7 +294,8 @@ func newTestEnv(t *testing.T, seed bool) *testEnv {
 	}
 
 	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0"}
-	env.ts = httptest.NewServer(NewServer(cfg, database))
+	hub := events.NewHub()
+	env.ts = httptest.NewServer(NewServer(cfg, database, hub, imagesync.NewService(database, hub)))
 	t.Cleanup(func() {
 		env.ts.Close()
 		database.Close()
@@ -1690,14 +1693,27 @@ func TestBatchAndPullGuards(t *testing.T) {
 	if r := env.gql(t, admin, `mutation { pullContainers(runnerId: "999999") { id } }`, nil); !r.hasErrorContaining("runner not found") {
 		t.Fatalf("pullContainers with unknown runner must report not found, got: %+v", r)
 	}
-	if r := env.gql(t, admin, `mutation { pullContainers { id } }`, nil); !r.hasErrorContaining("not supported") {
-		t.Fatalf("pullContainers must be rejected honestly, got: %+v", r)
+	// Container sync now runs in Go: the mutation kicks off an async
+	// docker-hub-pull batch run and reports RUNNING immediately.
+	r := env.gql(t, admin, `mutation { pullContainers { id type status } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("pullContainers must be accepted, got: %+v", r.Errors)
+	}
+	var op struct {
+		Type   string `json:"type"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(r.Data["pullContainers"], &op); err != nil {
+		t.Fatalf("decode pull op: %v", err)
+	}
+	if op.Type != "PULL_CONTAINERS" || op.Status != "RUNNING" {
+		t.Fatalf("pull op wrong: %+v", op)
 	}
 	if r := env.gql(t, admin, `mutation { triggerBatchJob(jobType: DOCKER_HUB_PULL) { id } }`, nil); !r.hasErrorContaining("not supported") {
 		t.Fatalf("DOCKER_HUB_PULL batch job must be rejected honestly, got: %+v", r)
 	}
 
-	r := env.gql(t, admin, `mutation { triggerBatchJob(jobType: TRACKED_APPS_CHECK) { id jobType status isManual } }`, nil)
+	r = env.gql(t, admin, `mutation { triggerBatchJob(jobType: TRACKED_APPS_CHECK) { id jobType status isManual } }`, nil)
 	if len(r.Errors) != 0 {
 		t.Fatalf("TRACKED_APPS_CHECK must be accepted, got: %+v", r.Errors)
 	}

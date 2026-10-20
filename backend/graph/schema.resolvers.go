@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -499,23 +500,41 @@ func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID 
 		return nil, err
 	}
 
-	// Validate the requested target so bad IDs still report "not found",
-	// then reject: container inventory sync (fetch + upsert into the shared
-	// DB) is only implemented by the Node backend.
+	// Portainer source instances are retired; only runner-backed sync exists.
+	if sourceInstanceID != nil && *sourceInstanceID != "" {
+		return nil, fmt.Errorf("source instance sync is not supported")
+	}
 	if runnerID != nil && *runnerID != "" {
 		rid, _ := strconv.ParseInt(*runnerID, 10, 64)
-		runner, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
-		if err != nil || runner == nil {
+		runnerRow, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
+		if err != nil || runnerRow == nil {
 			return nil, fmt.Errorf("runner not found")
 		}
-	} else if sourceInstanceID != nil && *sourceInstanceID != "" {
-		sid, _ := strconv.ParseInt(*sourceInstanceID, 10, 64)
-		src, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
-		if err != nil || src == nil {
-			return nil, fmt.Errorf("source instance not found")
+		if runnerRow.DockerEnabled.Int64 != 1 {
+			return nil, fmt.Errorf("docker is not enabled for runner %q", runnerRow.Name)
 		}
 	}
-	return nil, fmt.Errorf("container sync is not supported by the Go API; use the primary server")
+
+	// Async like Node's manual batch trigger: batch_runs bookkeeping and the
+	// already-running guard live in RunWithLock; the client tracks progress
+	// through batchRuns polling / subscriptions.
+	if r.Sync == nil {
+		return nil, fmt.Errorf("container sync is unavailable")
+	}
+	go func() {
+		if _, err := r.Sync.RunWithLock(context.WithoutCancel(ctx), uid, true); err != nil {
+			slog.Error("manual container sync failed", "userId", uid, "error", err)
+		}
+	}()
+
+	msg := "Container sync started"
+	return &model.Operation{
+		ID:       fmt.Sprintf("pull-%d", time.Now().UnixMilli()),
+		Type:     model.OperationTypePullContainers,
+		Status:   model.OperationStatusRunning,
+		Message:  &msg,
+		QueuedAt: time.Now(),
+	}, nil
 }
 
 // UpgradeContainer is the resolver for the upgradeContainer field.

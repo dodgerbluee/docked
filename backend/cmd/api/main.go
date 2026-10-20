@@ -13,6 +13,9 @@ import (
 	"github.com/dockedapp/backend/internal/api"
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/imagesync"
+	"github.com/dockedapp/backend/internal/scheduler"
 )
 
 func main() {
@@ -35,9 +38,20 @@ func main() {
 	}
 	defer database.Close()
 
+	// Event hub shared by subscription resolvers, the Node bridge, and the
+	// container-sync service.
+	hub := events.NewHub()
+	syncSvc := imagesync.NewService(database, hub)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Batch scheduler (docker-hub-pull) runs alongside the HTTP server.
+	go scheduler.New(syncSvc).Start(ctx)
+
 	srv := &http.Server{
 		Addr:         cfg.Addr,
-		Handler:      api.NewServer(cfg, database),
+		Handler:      api.NewServer(cfg, database, hub, syncSvc),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -51,9 +65,7 @@ func main() {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-ctx.Done()
 
 	slog.Info("shutting down server")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

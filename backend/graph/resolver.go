@@ -5,11 +5,13 @@ import (
 
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/imagesync"
 )
 
 // Resolver holds shared dependencies injected into all resolvers.
 type Resolver struct {
-	DB  *sql.DB
-	Cfg *config.Config
-	Hub *events.Hub
+	DB   *sql.DB
+	Cfg  *config.Config
+	Hub  *events.Hub
+	Sync *imagesync.Service
 }
