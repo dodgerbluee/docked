@@ -24,6 +24,16 @@ class JobHandler {
   }
 
   /**
+   * Whether the scheduler should run this job type automatically.
+   * Handlers return false to keep manual triggers while leaving the
+   * schedule to another process (docker-hub-pull is scheduled by the Go API).
+   * @returns {boolean}
+   */
+  getScheduled() {
+    return true;
+  }
+
+  /**
    * Execute the batch job
    * @param {Object} context - Execution context with logger, config, etc.
    * @returns {Promise<Object>} - Result object with metrics

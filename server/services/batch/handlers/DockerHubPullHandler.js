@@ -1,10 +1,12 @@
 /**
  * Docker Hub Pull Job Handler
- * Handles batch jobs for pulling container update information from Docker Hub
+ * Handles manual batch jobs for pulling container update information.
+ * Scheduling and container scanning now live in the Go API
+ * (internal/imagesync + internal/scheduler); this handler only serves
+ * the legacy REST /api/batch/trigger path until clients cut over.
  */
 
 const JobHandler = require("../JobHandler");
-const containerService = require("../../containerService");
 const runnerDockerService = require("../../runnerDockerService");
 const imageUpdateService = require("../../imageUpdateService");
 const imageRepoParser = require("../../../utils/imageRepoParser");
@@ -15,7 +17,6 @@ const { getContainersWithUpdates } = require("../../../db/index");
 
 /**
  * Scan all containers on a single runner for image updates.
- * Mirrors the Portainer scan but routes through runnerDockerService.
  */
 async function scanRunnerContainers(runner, userId, batchLogger) {
   let checked = 0;
@@ -58,7 +59,7 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
         (container.Names?.[0] || "").replace(/^\//, "") || container.Id.substring(0, 12);
       const stackName = details.Config?.Labels?.["com.docker.compose.project"] || null;
 
-      // Clean repoDigests from the runner container listing (same format as Portainer path).
+      // Clean repoDigests from the runner container listing.
       // Dockhand returns entries like "nginx@sha256:abc..." — strip the image prefix.
       const cleanRepoDigests = (container.repoDigests || [])
         .map((rd) => (rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd))
@@ -134,6 +135,12 @@ class DockerHubPullHandler extends JobHandler {
     return "Docker Hub Scan";
   }
 
+  // The Go API's scheduler owns the recurring scan; this process keeps the
+  // handler only for manual REST triggers.
+  getScheduled() {
+    return false;
+  }
+
   getDefaultConfig() {
     return {
       enabled: false,
@@ -160,16 +167,8 @@ class DockerHubPullHandler extends JobHandler {
     try {
       logger.info("Starting Docker Hub pull batch job", { userId });
 
-      // Snapshot previous DB state for notification comparison (runners + portainer)
+      // Snapshot previous DB state for notification comparison
       const previousContainers = await getContainersWithUpdates(userId);
-
-      // --- Portainer containers ---
-      const serviceResult = await containerService.getAllContainersWithUpdates(
-        true,
-        null,
-        userId,
-        logger
-      );
 
       // --- Runner containers ---
       const runners = await getEnabledRunnersWithKeysByUser(userId);
@@ -192,14 +191,12 @@ class DockerHubPullHandler extends JobHandler {
       );
 
       // Extract metrics
-      result.itemsChecked = (serviceResult.containers?.length || 0) + runnerChecked;
-      result.itemsUpdated =
-        (serviceResult.containers?.filter((c) => c.hasUpdate).length || 0) + runnerUpdated;
+      result.itemsChecked = runnerChecked;
+      result.itemsUpdated = runnerUpdated;
 
       logger.info("Docker Hub pull completed successfully", {
         containersChecked: result.itemsChecked,
         containersUpdated: result.itemsUpdated,
-        portainerContainers: serviceResult.containers?.length || 0,
         runnerContainers: runnerChecked,
         userId,
       });

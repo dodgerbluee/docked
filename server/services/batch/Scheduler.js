@@ -29,7 +29,7 @@ class Scheduler {
 
     // Get all users and load last run times for each user
     const users = await getAllUsers();
-    const jobTypes = this.batchManager.getRegisteredJobTypes();
+    const jobTypes = this.getSchedulableJobTypes();
 
     for (const user of users) {
       for (const jobType of jobTypes) {
@@ -139,6 +139,18 @@ class Scheduler {
   }
 
   /**
+   * Registered job types whose handlers opt into scheduling here.
+   * Handlers like docker-hub-pull are scheduled by the Go API and only
+   * keep their manual-trigger registration in this process.
+   */
+  getSchedulableJobTypes() {
+    return this.batchManager.getRegisteredJobTypes().filter((jobType) => {
+      const handler = this.batchManager.getHandler(jobType);
+      return !handler || handler.getScheduled() !== false;
+    });
+  }
+
+  /**
    * Check batch configs and schedule jobs that are due
    */
   // eslint-disable-next-line max-lines-per-function, complexity -- Job scheduling requires comprehensive logic
@@ -151,7 +163,7 @@ class Scheduler {
       }
 
       const now = Date.now();
-      const jobTypes = this.batchManager.getRegisteredJobTypes();
+      const jobTypes = this.getSchedulableJobTypes();
       let jobsTriggered = 0;
 
       // Check each user's batch configs
