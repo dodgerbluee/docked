@@ -58,7 +58,7 @@ func TestEnumConstCoversDBDomain(t *testing.T) {
 		{"OperationType", []string{"pull-containers", "upgrade-container", "batch-upgrade", "intent-execution", "batch-job"}, func(s string) bool { return model.OperationType(s).IsValid() }},
 		{"Registry", []string{"docker-hub", "ghcr", "gitlab", "gcr", "quay", "other"}, func(s string) bool { return model.Registry(s).IsValid() }},
 		{"RunnerStatus", []string{"online", "offline", "degraded"}, func(s string) bool { return model.RunnerStatus(s).IsValid() }},
-		{"SourceType", []string{"portainer", "runner"}, func(s string) bool { return model.SourceType(s).IsValid() }},
+		{"SourceType", []string{"runner"}, func(s string) bool { return model.SourceType(s).IsValid() }},
 		{"TrackedAppSourceType", []string{"docker", "github", "gitlab"}, func(s string) bool { return model.TrackedAppSourceType(s).IsValid() }},
 		{"UpgradePhase", []string{"pulling", "stopping", "recreating", "starting", "restarting-dependents", "completed", "failed"}, func(s string) bool { return model.UpgradePhase(s).IsValid() }},
 		{"UpgradeStatus", []string{"success", "failed", "skipped"}, func(s string) bool { return model.UpgradeStatus(s).IsValid() }},

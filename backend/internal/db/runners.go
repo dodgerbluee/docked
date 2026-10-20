@@ -143,6 +143,17 @@ func UpdateRunner(ctx context.Context, database *sql.DB, id, userID int64, name,
 	return err
 }
 
+func joinStrings(parts []string, sep string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += sep
+		}
+		result += p
+	}
+	return result
+}
+
 // DeleteRunner removes a runner.
 func DeleteRunner(ctx context.Context, database *sql.DB, id, userID int64) error {
 	_, err := database.ExecContext(ctx,

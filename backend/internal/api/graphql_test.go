@@ -643,9 +643,8 @@ func TestInstanceAdminTokenGrantFlow(t *testing.T) {
 }
 
 // TestUserStatsAndDeleteCascade guards the migration-13 rename
-// (portainer_instances -> source_instances): the per-user stats resolver and
-// the delete cascade must target the live table name, otherwise every
-// sourceInstanceCount query errors and deleteUser fails outright.
+// (portainer_instances -> source_instances): the delete cascade must target
+// the live table name, otherwise deleteUser fails outright.
 func TestUserStatsAndDeleteCascade(t *testing.T) {
 	env := newTestEnv(t, true)
 	ctx := context.Background()
@@ -665,21 +664,20 @@ func TestUserStatsAndDeleteCascade(t *testing.T) {
 	}
 
 	r := env.gql(t, admin,
-		`query($id: ID!){ user(id: $id){ id containerCount sourceInstanceCount trackedAppCount } }`,
+		`query($id: ID!){ user(id: $id){ id containerCount trackedAppCount } }`,
 		map[string]any{"id": strconv.FormatInt(env.memberID, 10)})
 	if len(r.Errors) != 0 {
 		t.Fatalf("stats query errored: %+v", r.Errors)
 	}
 	var u struct {
-		ContainerCount      int `json:"containerCount"`
-		SourceInstanceCount int `json:"sourceInstanceCount"`
-		TrackedAppCount     int `json:"trackedAppCount"`
+		ContainerCount  int `json:"containerCount"`
+		TrackedAppCount int `json:"trackedAppCount"`
 	}
 	if err := json.Unmarshal(r.Data["user"], &u); err != nil {
 		t.Fatalf("decode user: %v", err)
 	}
-	if u.ContainerCount != 1 || u.SourceInstanceCount != 1 || u.TrackedAppCount != 1 {
-		t.Fatalf("stats = %+v, want 1/1/1", u)
+	if u.ContainerCount != 1 || u.TrackedAppCount != 1 {
+		t.Fatalf("stats = %+v, want 1/1", u)
 	}
 
 	r = env.gql(t, admin, `mutation($id: ID!){ deleteUser(userId: $id){ success } }`,
@@ -996,37 +994,7 @@ func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
 	}
 }
 
-// TestUpdateSourceInstanceWritesNodeAuthType guards the UPDATE-path enum fix:
-// updateSourceInstance must persist auth_type in the Node domain ("apikey"/
-// "password"), not the UPPER_SNAKE GraphQL enum member.
-func TestUpdateSourceInstanceWritesNodeAuthType(t *testing.T) {
-	env := newTestEnv(t, true)
-	admin := env.token(t, env.adminID, "admin")
-
-	ctx := context.Background()
-	res, err := env.database.ExecContext(ctx,
-		"INSERT INTO source_instances (user_id, name, url, auth_type) VALUES (?, 'src', 'http://x', 'apikey')",
-		env.adminID)
-	if err != nil {
-		t.Fatalf("seed source instance: %v", err)
-	}
-	sid, _ := res.LastInsertId()
-
-	r := env.gql(t, admin, `mutation($id: ID!, $in: UpdateSourceInstanceInput!){ updateSourceInstance(id: $id, input: $in){ id authType } }`,
-		map[string]any{"id": strconv.FormatInt(sid, 10), "in": map[string]any{"authType": "PASSWORD"}})
-	if len(r.Errors) != 0 {
-		t.Fatalf("updateSourceInstance errored: %+v", r.Errors)
-	}
-
-	var stored string
-	if err := env.database.QueryRowContext(ctx, "SELECT auth_type FROM source_instances WHERE id = ?", sid).Scan(&stored); err != nil {
-		t.Fatalf("read auth_type: %v", err)
-	}
-	if stored != "password" {
-		t.Fatalf("DB auth_type = %q, want password", stored)
-	}
-}
-
+// TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone
 func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
@@ -1083,7 +1051,6 @@ func TestEntityQueriesReturnNullForMissing(t *testing.T) {
 
 	cases := map[string]string{
 		"container":       `query { container(id: "999999") { id } }`,
-		"sourceInstance":  `query { sourceInstance(id: "999999") { id } }`,
 		"runner":          `query { runner(id: "999999") { id } }`,
 		"trackedApp":      `query { trackedApp(id: "999999") { id } }`,
 		"intent":          `query { intent(id: "999999") { id } }`,
@@ -1382,7 +1349,6 @@ func TestContainersFilterAndPagination(t *testing.T) {
 		{`{ containers(filter: { hasUpdate: true }) { totalCount } }`, 1},
 		{`{ containers(filter: { hasUpdate: false }) { totalCount } }`, 2},
 		{fmt.Sprintf(`{ containers(filter: { runnerId: %q }) { totalCount } }`, strconv.FormatInt(runnerID, 10)), 2},
-		{fmt.Sprintf(`{ containers(filter: { sourceInstanceId: %q }) { totalCount } }`, strconv.FormatInt(sourceID, 10)), 1},
 		{`{ containers(filter: { state: RUNNING, hasUpdate: true }) { totalCount } }`, 1},
 	}
 	for _, c := range cases {

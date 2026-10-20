@@ -145,10 +145,6 @@ func (r *mutationResolver) publishUpgradePhase(uid int64, opID string, container
 		return
 	}
 	srcType, srcName := model.SourceTypeRunner, nullStrDefault(container.RunnerName)
-	if !container.RunnerID.Valid {
-		srcType = model.SourceTypePortainer
-		srcName = nullStrDefault(container.SourceName)
-	}
 	msg := message
 	progress := 100
 	r.Hub.PublishUpgradeProgress(uid, model.UpgradeProgressEvent{
@@ -192,12 +188,9 @@ func parseIntCursor(after *string) int {
 	return n
 }
 
-func containerTargetKey(containerID string, runnerID, sourceInstanceID *int64) string {
+func containerTargetKey(containerID string, runnerID *int64) string {
 	if runnerID != nil {
 		return "runner:" + strconv.FormatInt(*runnerID, 10) + ":" + containerID
-	}
-	if sourceInstanceID != nil {
-		return "portainer:" + strconv.FormatInt(*sourceInstanceID, 10) + ":" + containerID
 	}
 	return "unknown:" + containerID
 }
@@ -356,12 +349,6 @@ func filterContainerRows(rows []db.ContainerRow, f *model.ContainerFilterInput) 
 		if f.HasUpdate != nil && db.ContainerHasUpdate(row) != *f.HasUpdate {
 			continue
 		}
-		if f.SourceInstanceID != nil {
-			want := parseIDPtr(f.SourceInstanceID)
-			if want == nil || row.SourceInstanceID.Int64 != *want || !row.SourceInstanceID.Valid {
-				continue
-			}
-		}
 		if f.RunnerID != nil {
 			want := parseIDPtr(f.RunnerID)
 			if want == nil || row.RunnerID.Int64 != *want || !row.RunnerID.Valid {
@@ -412,24 +399,6 @@ func recordIntentExecContainer(ctx context.Context, database *sql.DB, execID int
 	}
 	_ = db.InsertIntentExecutionContainer(ctx, database, execID, c.ContainerID, c.ContainerName,
 		nullStrDefault(c.ImageName), status, siID, rID, nullStrPtr(c.ImageName), errMsg, durationMs)
-}
-func sourceInstanceToModel(s *db.SourceInstanceRow) *model.SourceInstance {
-	if s == nil {
-		return nil
-	}
-	return &model.SourceInstance{
-		ID:           strconv.FormatInt(s.ID, 10),
-		Name:         s.Name,
-		URL:          s.URL,
-		Type:         model.SourceTypePortainer,
-		AuthType:     model.AuthType(enumConst(s.AuthType)),
-		IPAddress:    nullStrPtr(s.IPAddress),
-		DisplayOrder: s.DisplayOrder,
-		CreatedAt:    parseTime(s.CreatedAt),
-		UpdatedAt:    parseTime(s.UpdatedAt),
-		HasAPIKey:    s.APIKey.Valid && s.APIKey.String != "",
-		HasPassword:  s.Password.Valid && s.Password.String != "",
-	}
 }
 func runnerToModel(r *db.RunnerRow) *model.Runner {
 	if r == nil {
@@ -565,11 +534,6 @@ func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
 		rec.Source = &model.Runner{
 			ID:   strconv.FormatInt(u.RunnerID.Int64, 10),
 			Name: nullStrDefault(u.RunnerName),
-		}
-	} else if u.SourceInstanceID.Valid {
-		rec.Source = &model.SourceInstance{
-			ID:   strconv.FormatInt(u.SourceInstanceID.Int64, 10),
-			Name: nullStrDefault(u.SourceName),
 		}
 	}
 	return rec
@@ -712,14 +676,6 @@ func containerSourceFromRow(c *db.ContainerRow) model.ContainerSource {
 			Name: nullStrDefault(c.RunnerName),
 			URL:  nullStrDefault(c.RunnerURL),
 			Type: model.SourceTypeRunner,
-		}
-	}
-	if c.SourceInstanceID.Valid {
-		return &model.SourceInstance{
-			ID:   strconv.FormatInt(c.SourceInstanceID.Int64, 10),
-			Name: nullStrDefault(c.SourceName),
-			URL:  nullStrDefault(c.SourceURL),
-			Type: model.SourceTypePortainer,
 		}
 	}
 	return nil
@@ -936,7 +892,7 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 	return resp.StatusCode, data, nil
 }
 
-// httpClient bounds transport time for runner/portainer calls so a hung
+// httpClient bounds transport time for runner calls so a hung
 // upstream cannot wedge a fire-and-forget goroutine forever.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 

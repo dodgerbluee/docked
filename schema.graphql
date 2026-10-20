@@ -30,7 +30,6 @@ enum AuthType {
 }
 
 enum SourceType {
-  PORTAINER
   RUNNER
 }
 
@@ -187,7 +186,6 @@ type User {
 
   # Stats
   containerCount: Int!
-  sourceInstanceCount: Int!
   trackedAppCount: Int!
 }
 
@@ -217,26 +215,6 @@ type InstanceAdminTokenResult {
   token: String
   message: String
   error: String
-}
-
-type SourceInstance implements ContainerSource {
-  id: ID!
-  name: String!
-  url: String!
-  type: SourceType!
-  authType: AuthType!
-  ipAddress: String
-  displayOrder: Int!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-
-  # Secrets are never returned — only presence
-  hasApiKey: Boolean!
-  hasPassword: Boolean!
-
-  # Relations
-  containers(first: Int, after: String): ContainerConnection!
-  upgradeHistory(first: Int, after: String): UpgradeRecordConnection!
 }
 
 type Runner implements ContainerSource {
@@ -390,7 +368,7 @@ type TrackedAppUpgradeRecord {
 #   - [] (empty array) = matches nothing
 #   - non-empty array = OR within field, AND across fields
 #   - exclusions are applied after inclusions
-#   - matchSources uses typed IDs: "portainer:<id>", "runner:<id>"
+#   - matchSources uses typed IDs: "runner:<id>" (legacy "portainer:<id>" entries are inert)
 #   - scheduleCron uses the intent's scheduleTimezone (IANA), defaults to server TZ
 
 type Intent {
@@ -482,7 +460,6 @@ type IntentExecutionContainer {
   containerName: String!
   imageName: String!
   sourceInstanceId: ID
-  sourceInstance: SourceInstance
   runnerId: ID
   runner: Runner
   status: ExecutionContainerStatus!
@@ -705,7 +682,6 @@ input UpdateSSOProviderInput {
 
 type UserPreferences {
   colorScheme: String!
-  disablePortainerPage: Boolean!
   disableTrackedAppsPage: Boolean!
   refreshingTogglesEnabled: Boolean!
 }
@@ -720,7 +696,7 @@ type DisallowedContainersResult {
 # Docker Images
 # -----------------------------------------------------------------------------
 
-# Live unused-image row (Portainer or runner host), shaped to match the
+# Live unused-image row (runner host), shaped to match the
 # legacy REST payload the unused-images UI consumes. created is normalized
 # to RFC3339 (runner unix-seconds values are converted server-side).
 type DockerImage {
@@ -741,7 +717,6 @@ type DockerImage {
 type SummaryStats {
   totalContainers: Int!
   containersWithUpdates: Int!
-  totalSources: Int!
   totalRunners: Int!
   totalTrackedApps: Int!
   trackedAppsWithUpdates: Int!
@@ -798,7 +773,6 @@ type BatchRunConnection {
 type ContainerGroup {
   stacks: [StackGroup!]!
   standalone(first: Int, after: String): ContainerConnection!
-  sources: [SourceInstance!]!
   runners: [Runner!]!
   unusedImagesCount: Int!
   stats: SummaryStats!
@@ -879,39 +853,6 @@ input UpdateUsernameInput {
   password: String
 }
 
-input CreateSourceInstanceInput {
-  name: String!
-  url: String!
-  authType: AuthType!
-  apiKey: String
-  username: String
-  password: String
-  ipAddress: String
-}
-
-input UpdateSourceInstanceInput {
-  name: String
-  url: String
-  authType: AuthType
-  apiKey: String
-  username: String
-  password: String
-  ipAddress: String
-}
-
-input ValidateSourceCredentialsInput {
-  url: String!
-  authType: AuthType!
-  apiKey: String
-  username: String
-  password: String
-}
-
-input ReorderSourceInput {
-  id: ID!
-  order: Int!
-}
-
 input CreateRunnerInput {
   name: String!
   url: String!
@@ -925,10 +866,9 @@ input UpdateRunnerInput {
   enabled: Boolean
 }
 
-# Exactly one of sourceInstanceId or runnerId must be provided (enforced in resolvers)
+# Runner-backed upgrade (Portainer instances are retired)
 input UpgradeContainerInput {
   dockerContainerId: String!
-  sourceInstanceId: ID
   runnerId: ID
   endpointId: String
   imageName: String!
@@ -1046,13 +986,11 @@ input ValidateRegistryCredentialsInput {
 
 input UpdateUserPreferencesInput {
   colorScheme: String
-  disablePortainerPage: Boolean
   disableTrackedAppsPage: Boolean
   refreshingTogglesEnabled: Boolean
 }
 
 input ContainerFilterInput {
-  sourceInstanceId: ID
   runnerId: ID
   state: ContainerState
   hasUpdate: Boolean
@@ -1065,7 +1003,6 @@ input UpgradeHistoryFilterInput {
   containerName: String
   status: UpgradeStatus
   intentId: ID
-  sourceInstanceId: ID
   runnerId: ID
   from: DateTime
   to: DateTime
@@ -1097,13 +1034,9 @@ type TrackedAppUpgradeHistoryStats {
   totalAppsUpgraded: Int!
 }
 
-# Mirrors the legacy REST delete payload: runnerId wins, otherwise the
-# Portainer instance is resolved from portainerUrl/sourceUrl.
+# Runner-backed image deletion (Portainer instances are retired)
 input DeleteImageInput {
   id: String!
-  portainerUrl: String
-  sourceUrl: String
-  endpointId: Int
   runnerId: String
 }
 
@@ -1148,10 +1081,6 @@ type Query {
 
   # ── Images ────────────────────────────────────────────────────────────────
   unusedImages: [DockerImage!]!
-
-  # ── Sources (Portainer instances) ─────────────────────────────────────────
-  sourceInstances: [SourceInstance!]!
-  sourceInstance(id: ID!): SourceInstance
 
   # ── Runners (dockhand agents) ─────────────────────────────────────────────
   runners: [Runner!]!
@@ -1295,21 +1224,13 @@ type Mutation {
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull
-  pullContainers(sourceInstanceId: ID, runnerId: ID): Operation!
+  pullContainers(runnerId: ID): Operation!
   upgradeContainer(input: UpgradeContainerInput!): Operation!
   batchUpgrade(input: BatchUpgradeInput!): Operation!
   clearContainerData: SuccessResult!
 
   # ── Images ────────────────────────────────────────────────────────────────
   deleteImages(images: [DeleteImageInput!]!): DeleteImagesResult!
-
-  # ── Sources ───────────────────────────────────────────────────────────────
-  createSourceInstance(input: CreateSourceInstanceInput!): SourceInstance!
-  updateSourceInstance(id: ID!, input: UpdateSourceInstanceInput!): SourceInstance!
-  deleteSourceInstance(id: ID!): SuccessResult!
-  reorderSourceInstances(instances: [ReorderSourceInput!]!): SuccessResult!
-  validateSourceCredentials(input: ValidateSourceCredentialsInput!): ValidationResult!
-  checkSourceInstanceHealth(id: ID!): SourceHealthResult!
 
   # ── Runners ───────────────────────────────────────────────────────────────
   createRunner(input: CreateRunnerInput!): Runner!
@@ -1411,11 +1332,6 @@ type ValidationResult {
   valid: Boolean!
   message: String
   errorCode: ErrorCode
-}
-
-type SourceHealthResult {
-  online: Boolean!
-  message: String
 }
 
 type UpgradeResult {

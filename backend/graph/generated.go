@@ -36,7 +36,6 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	RepositoryAccessToken() RepositoryAccessTokenResolver
 	Runner() RunnerResolver
-	SourceInstance() SourceInstanceResolver
 	Subscription() SubscriptionResolver
 	TrackedApp() TrackedAppResolver
 	User() UserResolver
@@ -144,7 +143,6 @@ type ComplexityRoot struct {
 
 	ContainerGroup struct {
 		Runners           func(childComplexity int) int
-		Sources           func(childComplexity int) int
 		Stacks            func(childComplexity int) int
 		Standalone        func(childComplexity int, first *int, after *string) int
 		Stats             func(childComplexity int) int
@@ -314,7 +312,6 @@ type ComplexityRoot struct {
 		OldImage          func(childComplexity int) int
 		Runner            func(childComplexity int) int
 		RunnerID          func(childComplexity int) int
-		SourceInstance    func(childComplexity int) int
 		SourceInstanceID  func(childComplexity int) int
 		Status            func(childComplexity int) int
 	}
@@ -356,7 +353,6 @@ type ComplexityRoot struct {
 	Mutation struct {
 		AssociateImages              func(childComplexity int, tokenID string, input model.AssociateImagesInput) int
 		BatchUpgrade                 func(childComplexity int, input model.BatchUpgradeInput) int
-		CheckSourceInstanceHealth    func(childComplexity int, id string) int
 		CheckTrackedAppUpdate        func(childComplexity int, id string) int
 		CheckTrackedAppUpdates       func(childComplexity int) int
 		ClearContainerData           func(childComplexity int) int
@@ -366,7 +362,6 @@ type ComplexityRoot struct {
 		CreateIntent                 func(childComplexity int, input model.CreateIntentInput) int
 		CreateRunner                 func(childComplexity int, input model.CreateRunnerInput) int
 		CreateSSOProvider            func(childComplexity int, input model.CreateSSOProviderInput) int
-		CreateSourceInstance         func(childComplexity int, input model.CreateSourceInstanceInput) int
 		CreateTrackedApp             func(childComplexity int, input model.CreateTrackedAppInput) int
 		DeleteAvatar                 func(childComplexity int) int
 		DeleteDiscordWebhook         func(childComplexity int, id string) int
@@ -376,7 +371,6 @@ type ComplexityRoot struct {
 		DeleteRepositoryToken        func(childComplexity int, id string) int
 		DeleteRunner                 func(childComplexity int, id string) int
 		DeleteSSOProvider            func(childComplexity int, id string) int
-		DeleteSourceInstance         func(childComplexity int, id string) int
 		DeleteTrackedApp             func(childComplexity int, id string) int
 		DeleteUser                   func(childComplexity int, userID string) int
 		DryRunIntent                 func(childComplexity int, id string) int
@@ -385,11 +379,10 @@ type ComplexityRoot struct {
 		GenerateRegistrationCode     func(childComplexity int) int
 		Login                        func(childComplexity int, input model.LoginInput) int
 		Logout                       func(childComplexity int) int
-		PullContainers               func(childComplexity int, sourceInstanceID *string, runnerID *string) int
+		PullContainers               func(childComplexity int, runnerID *string) int
 		RefreshToken                 func(childComplexity int, input model.RefreshTokenInput) int
 		RegenerateInstanceAdminToken func(childComplexity int, username string) int
 		Register                     func(childComplexity int, input model.RegisterInput) int
-		ReorderSourceInstances       func(childComplexity int, instances []*model.ReorderSourceInput) int
 		RestartRunner                func(childComplexity int, runnerID string) int
 		RunnerHealthCheck            func(childComplexity int, runnerID string) int
 		SaveRepositoryToken          func(childComplexity int, input model.CreateRepositoryTokenInput) int
@@ -414,14 +407,12 @@ type ComplexityRoot struct {
 		UpdateRunner                 func(childComplexity int, id string, input model.UpdateRunnerInput) int
 		UpdateRunnerBinary           func(childComplexity int, runnerID string, version *string) int
 		UpdateSSOProvider            func(childComplexity int, id string, input model.UpdateSSOProviderInput) int
-		UpdateSourceInstance         func(childComplexity int, id string, input model.UpdateSourceInstanceInput) int
 		UpdateTrackedApp             func(childComplexity int, id string, input model.UpdateTrackedAppInput) int
 		UpdateUserPreferences        func(childComplexity int, input model.UpdateUserPreferencesInput) int
 		UpdateUsername               func(childComplexity int, input model.UpdateUsernameInput) int
 		UpgradeContainer             func(childComplexity int, input model.UpgradeContainerInput) int
 		UploadAvatar                 func(childComplexity int, file model.Upload) int
 		ValidateRegistryCredentials  func(childComplexity int, input model.ValidateRegistryCredentialsInput) int
-		ValidateSourceCredentials    func(childComplexity int, input model.ValidateSourceCredentialsInput) int
 		VerifyInstanceAdminToken     func(childComplexity int, username string, token string) int
 		VerifyRegistrationCode       func(childComplexity int, code string) int
 	}
@@ -504,8 +495,6 @@ type ComplexityRoot struct {
 		RunnerEvents                  func(childComplexity int, runnerID string, first *int, offset *int, eventType *string) int
 		RunnerLogs                    func(childComplexity int, runnerID string, lines *int) int
 		Runners                       func(childComplexity int) int
-		SourceInstance                func(childComplexity int, id string) int
-		SourceInstances               func(childComplexity int) int
 		SsoProviders                  func(childComplexity int) int
 		SsoSettings                   func(childComplexity int) int
 		SummaryStats                  func(childComplexity int) int
@@ -636,27 +625,6 @@ type ComplexityRoot struct {
 		AllowLocalLogin func(childComplexity int) int
 	}
 
-	SourceHealthResult struct {
-		Message func(childComplexity int) int
-		Online  func(childComplexity int) int
-	}
-
-	SourceInstance struct {
-		AuthType       func(childComplexity int) int
-		Containers     func(childComplexity int, first *int, after *string) int
-		CreatedAt      func(childComplexity int) int
-		DisplayOrder   func(childComplexity int) int
-		HasAPIKey      func(childComplexity int) int
-		HasPassword    func(childComplexity int) int
-		ID             func(childComplexity int) int
-		IPAddress      func(childComplexity int) int
-		Name           func(childComplexity int) int
-		Type           func(childComplexity int) int
-		URL            func(childComplexity int) int
-		UpdatedAt      func(childComplexity int) int
-		UpgradeHistory func(childComplexity int, first *int, after *string) int
-	}
-
 	StackGroup struct {
 		Containers func(childComplexity int, first *int, after *string) int
 		EndpointID func(childComplexity int) int
@@ -684,7 +652,6 @@ type ComplexityRoot struct {
 		ContainersWithUpdates  func(childComplexity int) int
 		TotalContainers        func(childComplexity int) int
 		TotalRunners           func(childComplexity int) int
-		TotalSources           func(childComplexity int) int
 		TotalTrackedApps       func(childComplexity int) int
 		TrackedAppsWithUpdates func(childComplexity int) int
 		UnusedImagesCount      func(childComplexity int) int
@@ -823,30 +790,28 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		AvatarURL           func(childComplexity int) int
-		ContainerCount      func(childComplexity int) int
-		Containers          func(childComplexity int, first *int, after *string) int
-		CreatedAt           func(childComplexity int) int
-		DiscordWebhooks     func(childComplexity int) int
-		Email               func(childComplexity int) int
-		ID                  func(childComplexity int) int
-		InstanceAdmin       func(childComplexity int) int
-		Intents             func(childComplexity int) int
-		LastLogin           func(childComplexity int) int
-		PasswordChanged     func(childComplexity int) int
-		Preferences         func(childComplexity int) int
-		RepositoryTokens    func(childComplexity int) int
-		Role                func(childComplexity int) int
-		SourceInstanceCount func(childComplexity int) int
-		TrackedAppCount     func(childComplexity int) int
-		TrackedApps         func(childComplexity int) int
-		UpdatedAt           func(childComplexity int) int
-		Username            func(childComplexity int) int
+		AvatarURL        func(childComplexity int) int
+		ContainerCount   func(childComplexity int) int
+		Containers       func(childComplexity int, first *int, after *string) int
+		CreatedAt        func(childComplexity int) int
+		DiscordWebhooks  func(childComplexity int) int
+		Email            func(childComplexity int) int
+		ID               func(childComplexity int) int
+		InstanceAdmin    func(childComplexity int) int
+		Intents          func(childComplexity int) int
+		LastLogin        func(childComplexity int) int
+		PasswordChanged  func(childComplexity int) int
+		Preferences      func(childComplexity int) int
+		RepositoryTokens func(childComplexity int) int
+		Role             func(childComplexity int) int
+		TrackedAppCount  func(childComplexity int) int
+		TrackedApps      func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		Username         func(childComplexity int) int
 	}
 
 	UserPreferences struct {
 		ColorScheme              func(childComplexity int) int
-		DisablePortainerPage     func(childComplexity int) int
 		DisableTrackedAppsPage   func(childComplexity int) int
 		RefreshingTogglesEnabled func(childComplexity int) int
 	}
@@ -888,17 +853,11 @@ type MutationResolver interface {
 	SetUserPassword(ctx context.Context, userID string, newPassword string) (*model.SuccessResult, error)
 	SetUserRole(ctx context.Context, userID string, role model.Role, instanceAdmin *bool) (*model.SuccessResult, error)
 	DeleteUser(ctx context.Context, userID string) (*model.SuccessResult, error)
-	PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error)
+	PullContainers(ctx context.Context, runnerID *string) (*model.Operation, error)
 	UpgradeContainer(ctx context.Context, input model.UpgradeContainerInput) (*model.Operation, error)
 	BatchUpgrade(ctx context.Context, input model.BatchUpgradeInput) (*model.Operation, error)
 	ClearContainerData(ctx context.Context) (*model.SuccessResult, error)
 	DeleteImages(ctx context.Context, images []*model.DeleteImageInput) (*model.DeleteImagesResult, error)
-	CreateSourceInstance(ctx context.Context, input model.CreateSourceInstanceInput) (*model.SourceInstance, error)
-	UpdateSourceInstance(ctx context.Context, id string, input model.UpdateSourceInstanceInput) (*model.SourceInstance, error)
-	DeleteSourceInstance(ctx context.Context, id string) (*model.SuccessResult, error)
-	ReorderSourceInstances(ctx context.Context, instances []*model.ReorderSourceInput) (*model.SuccessResult, error)
-	ValidateSourceCredentials(ctx context.Context, input model.ValidateSourceCredentialsInput) (*model.ValidationResult, error)
-	CheckSourceInstanceHealth(ctx context.Context, id string) (*model.SourceHealthResult, error)
 	CreateRunner(ctx context.Context, input model.CreateRunnerInput) (*model.Runner, error)
 	UpdateRunner(ctx context.Context, id string, input model.UpdateRunnerInput) (*model.Runner, error)
 	DeleteRunner(ctx context.Context, id string) (*model.SuccessResult, error)
@@ -962,8 +921,6 @@ type QueryResolver interface {
 	Container(ctx context.Context, id string) (*model.Container, error)
 	ContainerData(ctx context.Context) (*model.ContainerDataResult, error)
 	UnusedImages(ctx context.Context) ([]*model.DockerImage, error)
-	SourceInstances(ctx context.Context) ([]*model.SourceInstance, error)
-	SourceInstance(ctx context.Context, id string) (*model.SourceInstance, error)
 	Runners(ctx context.Context) ([]*model.Runner, error)
 	Runner(ctx context.Context, id string) (*model.Runner, error)
 	RunnerEvents(ctx context.Context, runnerID string, first *int, offset *int, eventType *string) (*model.RunnerEventConnection, error)
@@ -1003,10 +960,6 @@ type RunnerResolver interface {
 	Containers(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.ContainerConnection, error)
 	UpgradeHistory(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.UpgradeRecordConnection, error)
 }
-type SourceInstanceResolver interface {
-	Containers(ctx context.Context, obj *model.SourceInstance, first *int, after *string) (*model.ContainerConnection, error)
-	UpgradeHistory(ctx context.Context, obj *model.SourceInstance, first *int, after *string) (*model.UpgradeRecordConnection, error)
-}
 type SubscriptionResolver interface {
 	ContainersUpdated(ctx context.Context) (<-chan *model.ContainersUpdatedEvent, error)
 	ContainerUpgradeProgress(ctx context.Context) (<-chan *model.UpgradeProgressEvent, error)
@@ -1026,7 +979,6 @@ type UserResolver interface {
 	RepositoryTokens(ctx context.Context, obj *model.User) ([]*model.RepositoryAccessToken, error)
 	Preferences(ctx context.Context, obj *model.User) (*model.UserPreferences, error)
 	ContainerCount(ctx context.Context, obj *model.User) (int, error)
-	SourceInstanceCount(ctx context.Context, obj *model.User) (int, error)
 	TrackedAppCount(ctx context.Context, obj *model.User) (int, error)
 }
 
@@ -1448,12 +1400,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ContainerGroup.Runners(childComplexity), true
-	case "ContainerGroup.sources":
-		if e.ComplexityRoot.ContainerGroup.Sources == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ContainerGroup.Sources(childComplexity), true
 	case "ContainerGroup.stacks":
 		if e.ComplexityRoot.ContainerGroup.Stacks == nil {
 			break
@@ -2211,12 +2157,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.IntentExecutionContainer.RunnerID(childComplexity), true
-	case "IntentExecutionContainer.sourceInstance":
-		if e.ComplexityRoot.IntentExecutionContainer.SourceInstance == nil {
-			break
-		}
-
-		return e.ComplexityRoot.IntentExecutionContainer.SourceInstance(childComplexity), true
 	case "IntentExecutionContainer.sourceInstanceId":
 		if e.ComplexityRoot.IntentExecutionContainer.SourceInstanceID == nil {
 			break
@@ -2388,17 +2328,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BatchUpgrade(childComplexity, args["input"].(model.BatchUpgradeInput)), true
-	case "Mutation.checkSourceInstanceHealth":
-		if e.ComplexityRoot.Mutation.CheckSourceInstanceHealth == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_checkSourceInstanceHealth_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CheckSourceInstanceHealth(childComplexity, args["id"].(string)), true
 	case "Mutation.checkTrackedAppUpdate":
 		if e.ComplexityRoot.Mutation.CheckTrackedAppUpdate == nil {
 			break
@@ -2483,17 +2412,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateSSOProvider(childComplexity, args["input"].(model.CreateSSOProviderInput)), true
-	case "Mutation.createSourceInstance":
-		if e.ComplexityRoot.Mutation.CreateSourceInstance == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createSourceInstance_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CreateSourceInstance(childComplexity, args["input"].(model.CreateSourceInstanceInput)), true
 	case "Mutation.createTrackedApp":
 		if e.ComplexityRoot.Mutation.CreateTrackedApp == nil {
 			break
@@ -2588,17 +2506,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteSSOProvider(childComplexity, args["id"].(string)), true
-	case "Mutation.deleteSourceInstance":
-		if e.ComplexityRoot.Mutation.DeleteSourceInstance == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_deleteSourceInstance_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.DeleteSourceInstance(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteTrackedApp":
 		if e.ComplexityRoot.Mutation.DeleteTrackedApp == nil {
 			break
@@ -2682,7 +2589,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PullContainers(childComplexity, args["sourceInstanceId"].(*string), args["runnerId"].(*string)), true
+		return e.ComplexityRoot.Mutation.PullContainers(childComplexity, args["runnerId"].(*string)), true
 	case "Mutation.refreshToken":
 		if e.ComplexityRoot.Mutation.RefreshToken == nil {
 			break
@@ -2716,17 +2623,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.Register(childComplexity, args["input"].(model.RegisterInput)), true
-	case "Mutation.reorderSourceInstances":
-		if e.ComplexityRoot.Mutation.ReorderSourceInstances == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_reorderSourceInstances_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.ReorderSourceInstances(childComplexity, args["instances"].([]*model.ReorderSourceInput)), true
 	case "Mutation.restartRunner":
 		if e.ComplexityRoot.Mutation.RestartRunner == nil {
 			break
@@ -2991,17 +2887,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateSSOProvider(childComplexity, args["id"].(string), args["input"].(model.UpdateSSOProviderInput)), true
-	case "Mutation.updateSourceInstance":
-		if e.ComplexityRoot.Mutation.UpdateSourceInstance == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_updateSourceInstance_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.UpdateSourceInstance(childComplexity, args["id"].(string), args["input"].(model.UpdateSourceInstanceInput)), true
 	case "Mutation.updateTrackedApp":
 		if e.ComplexityRoot.Mutation.UpdateTrackedApp == nil {
 			break
@@ -3068,17 +2953,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ValidateRegistryCredentials(childComplexity, args["input"].(model.ValidateRegistryCredentialsInput)), true
-	case "Mutation.validateSourceCredentials":
-		if e.ComplexityRoot.Mutation.ValidateSourceCredentials == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_validateSourceCredentials_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.ValidateSourceCredentials(childComplexity, args["input"].(model.ValidateSourceCredentialsInput)), true
 	case "Mutation.verifyInstanceAdminToken":
 		if e.ComplexityRoot.Mutation.VerifyInstanceAdminToken == nil {
 			break
@@ -3560,23 +3434,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Runners(childComplexity), true
-	case "Query.sourceInstance":
-		if e.ComplexityRoot.Query.SourceInstance == nil {
-			break
-		}
-
-		args, err := ec.field_Query_sourceInstance_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.SourceInstance(childComplexity, args["id"].(string)), true
-	case "Query.sourceInstances":
-		if e.ComplexityRoot.Query.SourceInstances == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.SourceInstances(childComplexity), true
 	case "Query.ssoProviders":
 		if e.ComplexityRoot.Query.SsoProviders == nil {
 			break
@@ -4160,108 +4017,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SSOSettings.AllowLocalLogin(childComplexity), true
 
-	case "SourceHealthResult.message":
-		if e.ComplexityRoot.SourceHealthResult.Message == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceHealthResult.Message(childComplexity), true
-	case "SourceHealthResult.online":
-		if e.ComplexityRoot.SourceHealthResult.Online == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceHealthResult.Online(childComplexity), true
-
-	case "SourceInstance.authType":
-		if e.ComplexityRoot.SourceInstance.AuthType == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.AuthType(childComplexity), true
-	case "SourceInstance.containers":
-		if e.ComplexityRoot.SourceInstance.Containers == nil {
-			break
-		}
-
-		args, err := ec.field_SourceInstance_containers_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.SourceInstance.Containers(childComplexity, args["first"].(*int), args["after"].(*string)), true
-	case "SourceInstance.createdAt":
-		if e.ComplexityRoot.SourceInstance.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.CreatedAt(childComplexity), true
-	case "SourceInstance.displayOrder":
-		if e.ComplexityRoot.SourceInstance.DisplayOrder == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.DisplayOrder(childComplexity), true
-	case "SourceInstance.hasApiKey":
-		if e.ComplexityRoot.SourceInstance.HasAPIKey == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.HasAPIKey(childComplexity), true
-	case "SourceInstance.hasPassword":
-		if e.ComplexityRoot.SourceInstance.HasPassword == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.HasPassword(childComplexity), true
-	case "SourceInstance.id":
-		if e.ComplexityRoot.SourceInstance.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.ID(childComplexity), true
-	case "SourceInstance.ipAddress":
-		if e.ComplexityRoot.SourceInstance.IPAddress == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.IPAddress(childComplexity), true
-	case "SourceInstance.name":
-		if e.ComplexityRoot.SourceInstance.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.Name(childComplexity), true
-	case "SourceInstance.type":
-		if e.ComplexityRoot.SourceInstance.Type == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.Type(childComplexity), true
-	case "SourceInstance.url":
-		if e.ComplexityRoot.SourceInstance.URL == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.URL(childComplexity), true
-	case "SourceInstance.updatedAt":
-		if e.ComplexityRoot.SourceInstance.UpdatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SourceInstance.UpdatedAt(childComplexity), true
-	case "SourceInstance.upgradeHistory":
-		if e.ComplexityRoot.SourceInstance.UpgradeHistory == nil {
-			break
-		}
-
-		args, err := ec.field_SourceInstance_upgradeHistory_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.SourceInstance.UpgradeHistory(childComplexity, args["first"].(*int), args["after"].(*string)), true
-
 	case "StackGroup.containers":
 		if e.ComplexityRoot.StackGroup.Containers == nil {
 			break
@@ -4372,12 +4127,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SummaryStats.TotalRunners(childComplexity), true
-	case "SummaryStats.totalSources":
-		if e.ComplexityRoot.SummaryStats.TotalSources == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SummaryStats.TotalSources(childComplexity), true
 	case "SummaryStats.totalTrackedApps":
 		if e.ComplexityRoot.SummaryStats.TotalTrackedApps == nil {
 			break
@@ -5096,12 +4845,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.Role(childComplexity), true
-	case "User.sourceInstanceCount":
-		if e.ComplexityRoot.User.SourceInstanceCount == nil {
-			break
-		}
-
-		return e.ComplexityRoot.User.SourceInstanceCount(childComplexity), true
 	case "User.trackedAppCount":
 		if e.ComplexityRoot.User.TrackedAppCount == nil {
 			break
@@ -5133,12 +4876,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.UserPreferences.ColorScheme(childComplexity), true
-	case "UserPreferences.disablePortainerPage":
-		if e.ComplexityRoot.UserPreferences.DisablePortainerPage == nil {
-			break
-		}
-
-		return e.ComplexityRoot.UserPreferences.DisablePortainerPage(childComplexity), true
 	case "UserPreferences.disableTrackedAppsPage":
 		if e.ComplexityRoot.UserPreferences.DisableTrackedAppsPage == nil {
 			break
@@ -5187,13 +4924,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateRepositoryTokenInput,
 		ec.unmarshalInputCreateRunnerInput,
 		ec.unmarshalInputCreateSSOProviderInput,
-		ec.unmarshalInputCreateSourceInstanceInput,
 		ec.unmarshalInputCreateTrackedAppInput,
 		ec.unmarshalInputDeleteImageInput,
 		ec.unmarshalInputLoginInput,
 		ec.unmarshalInputRefreshTokenInput,
 		ec.unmarshalInputRegisterInput,
-		ec.unmarshalInputReorderSourceInput,
 		ec.unmarshalInputTrackedAppHistoryFilterInput,
 		ec.unmarshalInputUpdateBatchConfigInput,
 		ec.unmarshalInputUpdateDiscordWebhookInput,
@@ -5202,14 +4937,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateRegistryCredentialsInput,
 		ec.unmarshalInputUpdateRunnerInput,
 		ec.unmarshalInputUpdateSSOProviderInput,
-		ec.unmarshalInputUpdateSourceInstanceInput,
 		ec.unmarshalInputUpdateTrackedAppInput,
 		ec.unmarshalInputUpdateUserPreferencesInput,
 		ec.unmarshalInputUpdateUsernameInput,
 		ec.unmarshalInputUpgradeContainerInput,
 		ec.unmarshalInputUpgradeHistoryFilterInput,
 		ec.unmarshalInputValidateRegistryCredentialsInput,
-		ec.unmarshalInputValidateSourceCredentialsInput,
 	)
 	first := true
 
@@ -5334,7 +5067,6 @@ enum AuthType {
 }
 
 enum SourceType {
-  PORTAINER
   RUNNER
 }
 
@@ -5491,7 +5223,6 @@ type User {
 
   # Stats
   containerCount: Int!
-  sourceInstanceCount: Int!
   trackedAppCount: Int!
 }
 
@@ -5521,26 +5252,6 @@ type InstanceAdminTokenResult {
   token: String
   message: String
   error: String
-}
-
-type SourceInstance implements ContainerSource {
-  id: ID!
-  name: String!
-  url: String!
-  type: SourceType!
-  authType: AuthType!
-  ipAddress: String
-  displayOrder: Int!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-
-  # Secrets are never returned — only presence
-  hasApiKey: Boolean!
-  hasPassword: Boolean!
-
-  # Relations
-  containers(first: Int, after: String): ContainerConnection!
-  upgradeHistory(first: Int, after: String): UpgradeRecordConnection!
 }
 
 type Runner implements ContainerSource {
@@ -5694,7 +5405,7 @@ type TrackedAppUpgradeRecord {
 #   - [] (empty array) = matches nothing
 #   - non-empty array = OR within field, AND across fields
 #   - exclusions are applied after inclusions
-#   - matchSources uses typed IDs: "portainer:<id>", "runner:<id>"
+#   - matchSources uses typed IDs: "runner:<id>" (legacy "portainer:<id>" entries are inert)
 #   - scheduleCron uses the intent's scheduleTimezone (IANA), defaults to server TZ
 
 type Intent {
@@ -5786,7 +5497,6 @@ type IntentExecutionContainer {
   containerName: String!
   imageName: String!
   sourceInstanceId: ID
-  sourceInstance: SourceInstance
   runnerId: ID
   runner: Runner
   status: ExecutionContainerStatus!
@@ -6009,7 +5719,6 @@ input UpdateSSOProviderInput {
 
 type UserPreferences {
   colorScheme: String!
-  disablePortainerPage: Boolean!
   disableTrackedAppsPage: Boolean!
   refreshingTogglesEnabled: Boolean!
 }
@@ -6024,7 +5733,7 @@ type DisallowedContainersResult {
 # Docker Images
 # -----------------------------------------------------------------------------
 
-# Live unused-image row (Portainer or runner host), shaped to match the
+# Live unused-image row (runner host), shaped to match the
 # legacy REST payload the unused-images UI consumes. created is normalized
 # to RFC3339 (runner unix-seconds values are converted server-side).
 type DockerImage {
@@ -6045,7 +5754,6 @@ type DockerImage {
 type SummaryStats {
   totalContainers: Int!
   containersWithUpdates: Int!
-  totalSources: Int!
   totalRunners: Int!
   totalTrackedApps: Int!
   trackedAppsWithUpdates: Int!
@@ -6102,7 +5810,6 @@ type BatchRunConnection {
 type ContainerGroup {
   stacks: [StackGroup!]!
   standalone(first: Int, after: String): ContainerConnection!
-  sources: [SourceInstance!]!
   runners: [Runner!]!
   unusedImagesCount: Int!
   stats: SummaryStats!
@@ -6183,39 +5890,6 @@ input UpdateUsernameInput {
   password: String
 }
 
-input CreateSourceInstanceInput {
-  name: String!
-  url: String!
-  authType: AuthType!
-  apiKey: String
-  username: String
-  password: String
-  ipAddress: String
-}
-
-input UpdateSourceInstanceInput {
-  name: String
-  url: String
-  authType: AuthType
-  apiKey: String
-  username: String
-  password: String
-  ipAddress: String
-}
-
-input ValidateSourceCredentialsInput {
-  url: String!
-  authType: AuthType!
-  apiKey: String
-  username: String
-  password: String
-}
-
-input ReorderSourceInput {
-  id: ID!
-  order: Int!
-}
-
 input CreateRunnerInput {
   name: String!
   url: String!
@@ -6229,10 +5903,9 @@ input UpdateRunnerInput {
   enabled: Boolean
 }
 
-# Exactly one of sourceInstanceId or runnerId must be provided (enforced in resolvers)
+# Runner-backed upgrade (Portainer instances are retired)
 input UpgradeContainerInput {
   dockerContainerId: String!
-  sourceInstanceId: ID
   runnerId: ID
   endpointId: String
   imageName: String!
@@ -6350,13 +6023,11 @@ input ValidateRegistryCredentialsInput {
 
 input UpdateUserPreferencesInput {
   colorScheme: String
-  disablePortainerPage: Boolean
   disableTrackedAppsPage: Boolean
   refreshingTogglesEnabled: Boolean
 }
 
 input ContainerFilterInput {
-  sourceInstanceId: ID
   runnerId: ID
   state: ContainerState
   hasUpdate: Boolean
@@ -6369,7 +6040,6 @@ input UpgradeHistoryFilterInput {
   containerName: String
   status: UpgradeStatus
   intentId: ID
-  sourceInstanceId: ID
   runnerId: ID
   from: DateTime
   to: DateTime
@@ -6401,13 +6071,9 @@ type TrackedAppUpgradeHistoryStats {
   totalAppsUpgraded: Int!
 }
 
-# Mirrors the legacy REST delete payload: runnerId wins, otherwise the
-# Portainer instance is resolved from portainerUrl/sourceUrl.
+# Runner-backed image deletion (Portainer instances are retired)
 input DeleteImageInput {
   id: String!
-  portainerUrl: String
-  sourceUrl: String
-  endpointId: Int
   runnerId: String
 }
 
@@ -6452,10 +6118,6 @@ type Query {
 
   # ── Images ────────────────────────────────────────────────────────────────
   unusedImages: [DockerImage!]!
-
-  # ── Sources (Portainer instances) ─────────────────────────────────────────
-  sourceInstances: [SourceInstance!]!
-  sourceInstance(id: ID!): SourceInstance
 
   # ── Runners (dockhand agents) ─────────────────────────────────────────────
   runners: [Runner!]!
@@ -6599,21 +6261,13 @@ type Mutation {
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull
-  pullContainers(sourceInstanceId: ID, runnerId: ID): Operation!
+  pullContainers(runnerId: ID): Operation!
   upgradeContainer(input: UpgradeContainerInput!): Operation!
   batchUpgrade(input: BatchUpgradeInput!): Operation!
   clearContainerData: SuccessResult!
 
   # ── Images ────────────────────────────────────────────────────────────────
   deleteImages(images: [DeleteImageInput!]!): DeleteImagesResult!
-
-  # ── Sources ───────────────────────────────────────────────────────────────
-  createSourceInstance(input: CreateSourceInstanceInput!): SourceInstance!
-  updateSourceInstance(id: ID!, input: UpdateSourceInstanceInput!): SourceInstance!
-  deleteSourceInstance(id: ID!): SuccessResult!
-  reorderSourceInstances(instances: [ReorderSourceInput!]!): SuccessResult!
-  validateSourceCredentials(input: ValidateSourceCredentialsInput!): ValidationResult!
-  checkSourceInstanceHealth(id: ID!): SourceHealthResult!
 
   # ── Runners ───────────────────────────────────────────────────────────────
   createRunner(input: CreateRunnerInput!): Runner!
@@ -6715,11 +6369,6 @@ type ValidationResult {
   valid: Boolean!
   message: String
   errorCode: ErrorCode
-}
-
-type SourceHealthResult {
-  online: Boolean!
-  message: String
 }
 
 type UpgradeResult {
@@ -7007,8 +6656,6 @@ func (ec *executionContext) childFields_ContainerGroup(ctx context.Context, fiel
 		return ec.fieldContext_ContainerGroup_stacks(ctx, field)
 	case "standalone":
 		return ec.fieldContext_ContainerGroup_standalone(ctx, field)
-	case "sources":
-		return ec.fieldContext_ContainerGroup_sources(ctx, field)
 	case "runners":
 		return ec.fieldContext_ContainerGroup_runners(ctx, field)
 	case "unusedImagesCount":
@@ -7329,8 +6976,6 @@ func (ec *executionContext) childFields_IntentExecutionContainer(ctx context.Con
 		return ec.fieldContext_IntentExecutionContainer_imageName(ctx, field)
 	case "sourceInstanceId":
 		return ec.fieldContext_IntentExecutionContainer_sourceInstanceId(ctx, field)
-	case "sourceInstance":
-		return ec.fieldContext_IntentExecutionContainer_sourceInstance(ctx, field)
 	case "runnerId":
 		return ec.fieldContext_IntentExecutionContainer_runnerId(ctx, field)
 	case "runner":
@@ -7739,48 +7384,6 @@ func (ec *executionContext) childFields_SSOSettings(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type SSOSettings", field.Name)
 }
 
-func (ec *executionContext) childFields_SourceHealthResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "online":
-		return ec.fieldContext_SourceHealthResult_online(ctx, field)
-	case "message":
-		return ec.fieldContext_SourceHealthResult_message(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type SourceHealthResult", field.Name)
-}
-
-func (ec *executionContext) childFields_SourceInstance(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_SourceInstance_id(ctx, field)
-	case "name":
-		return ec.fieldContext_SourceInstance_name(ctx, field)
-	case "url":
-		return ec.fieldContext_SourceInstance_url(ctx, field)
-	case "type":
-		return ec.fieldContext_SourceInstance_type(ctx, field)
-	case "authType":
-		return ec.fieldContext_SourceInstance_authType(ctx, field)
-	case "ipAddress":
-		return ec.fieldContext_SourceInstance_ipAddress(ctx, field)
-	case "displayOrder":
-		return ec.fieldContext_SourceInstance_displayOrder(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_SourceInstance_createdAt(ctx, field)
-	case "updatedAt":
-		return ec.fieldContext_SourceInstance_updatedAt(ctx, field)
-	case "hasApiKey":
-		return ec.fieldContext_SourceInstance_hasApiKey(ctx, field)
-	case "hasPassword":
-		return ec.fieldContext_SourceInstance_hasPassword(ctx, field)
-	case "containers":
-		return ec.fieldContext_SourceInstance_containers(ctx, field)
-	case "upgradeHistory":
-		return ec.fieldContext_SourceInstance_upgradeHistory(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type SourceInstance", field.Name)
-}
-
 func (ec *executionContext) childFields_StackGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -7815,8 +7418,6 @@ func (ec *executionContext) childFields_SummaryStats(ctx context.Context, field 
 		return ec.fieldContext_SummaryStats_totalContainers(ctx, field)
 	case "containersWithUpdates":
 		return ec.fieldContext_SummaryStats_containersWithUpdates(ctx, field)
-	case "totalSources":
-		return ec.fieldContext_SummaryStats_totalSources(ctx, field)
 	case "totalRunners":
 		return ec.fieldContext_SummaryStats_totalRunners(ctx, field)
 	case "totalTrackedApps":
@@ -8129,8 +7730,6 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_preferences(ctx, field)
 	case "containerCount":
 		return ec.fieldContext_User_containerCount(ctx, field)
-	case "sourceInstanceCount":
-		return ec.fieldContext_User_sourceInstanceCount(ctx, field)
 	case "trackedAppCount":
 		return ec.fieldContext_User_trackedAppCount(ctx, field)
 	}
@@ -8141,8 +7740,6 @@ func (ec *executionContext) childFields_UserPreferences(ctx context.Context, fie
 	switch field.Name {
 	case "colorScheme":
 		return ec.fieldContext_UserPreferences_colorScheme(ctx, field)
-	case "disablePortainerPage":
-		return ec.fieldContext_UserPreferences_disablePortainerPage(ctx, field)
 	case "disableTrackedAppsPage":
 		return ec.fieldContext_UserPreferences_disableTrackedAppsPage(ctx, field)
 	case "refreshingTogglesEnabled":
@@ -8403,20 +8000,6 @@ func (ec *executionContext) field_Mutation_batchUpgrade_args(ctx context.Context
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_checkSourceInstanceHealth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_checkTrackedAppUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8501,20 +8084,6 @@ func (ec *executionContext) field_Mutation_createSSOProvider_args(ctx context.Co
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CreateSSOProviderInput, error) {
 			return ec.unmarshalNCreateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSSOProviderInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_createSourceInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.CreateSourceInstanceInput, error) {
-			return ec.unmarshalNCreateSourceInstanceInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSourceInstanceInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -8635,20 +8204,6 @@ func (ec *executionContext) field_Mutation_deleteSSOProvider_args(ctx context.Co
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_deleteSourceInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_deleteTrackedApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8722,22 +8277,14 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 func (ec *executionContext) field_Mutation_pullContainers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceInstanceId",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOID2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["sourceInstanceId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOID2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["runnerId"] = arg1
+	args["runnerId"] = arg0
 	return args, nil
 }
 
@@ -8780,20 +8327,6 @@ func (ec *executionContext) field_Mutation_register_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_reorderSourceInstances_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instances",
-		func(ctx context.Context, v any) ([]*model.ReorderSourceInput, error) {
-			return ec.unmarshalNReorderSourceInput2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐReorderSourceInputᚄ(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["instances"] = arg0
 	return args, nil
 }
 
@@ -9253,28 +8786,6 @@ func (ec *executionContext) field_Mutation_updateSSOProvider_args(ctx context.Co
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_updateSourceInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.UpdateSourceInstanceInput, error) {
-			return ec.unmarshalNUpdateSourceInstanceInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateSourceInstanceInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_updateTrackedApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -9359,20 +8870,6 @@ func (ec *executionContext) field_Mutation_validateRegistryCredentials_args(ctx 
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.ValidateRegistryCredentialsInput, error) {
 			return ec.unmarshalNValidateRegistryCredentialsInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐValidateRegistryCredentialsInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_validateSourceCredentials_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.ValidateSourceCredentialsInput, error) {
-			return ec.unmarshalNValidateSourceCredentialsInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐValidateSourceCredentialsInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -9759,20 +9256,6 @@ func (ec *executionContext) field_Query_runner_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_sourceInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Query_trackedAppUpgradeHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -9898,50 +9381,6 @@ func (ec *executionContext) field_Runner_containers_args(ctx context.Context, ra
 }
 
 func (ec *executionContext) field_Runner_upgradeHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["first"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["after"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_SourceInstance_containers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["first"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["after"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_SourceInstance_upgradeHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
@@ -11711,38 +11150,6 @@ func (ec *executionContext) fieldContext_ContainerGroup_standalone(ctx context.C
 	if fc.Args, err = ec.field_ContainerGroup_standalone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ContainerGroup_sources(ctx context.Context, field graphql.CollectedField, obj *model.ContainerGroup) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ContainerGroup_sources(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Sources, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.SourceInstance) graphql.Marshaler {
-			return ec.marshalNSourceInstance2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstanceᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ContainerGroup_sources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ContainerGroup",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
 	}
 	return fc, nil
 }
@@ -14464,38 +13871,6 @@ func (ec *executionContext) fieldContext_IntentExecutionContainer_sourceInstance
 	return graphql.NewScalarFieldContext("IntentExecutionContainer", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _IntentExecutionContainer_sourceInstance(ctx context.Context, field graphql.CollectedField, obj *model.IntentExecutionContainer) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_IntentExecutionContainer_sourceInstance(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SourceInstance, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-			return ec.marshalOSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_IntentExecutionContainer_sourceInstance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "IntentExecutionContainer",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _IntentExecutionContainer_runnerId(ctx context.Context, field graphql.CollectedField, obj *model.IntentExecutionContainer) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15888,7 +15263,7 @@ func (ec *executionContext) _Mutation_pullContainers(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PullContainers(ctx, fc.Args["sourceInstanceId"].(*string), fc.Args["runnerId"].(*string))
+			return ec.Resolvers.Mutation().PullContainers(ctx, fc.Args["runnerId"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Operation) graphql.Marshaler {
@@ -16080,270 +15455,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteImages(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteImages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_createSourceInstance(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createSourceInstance(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateSourceInstance(ctx, fc.Args["input"].(model.CreateSourceInstanceInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-			return ec.marshalNSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_createSourceInstance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createSourceInstance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_updateSourceInstance(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_updateSourceInstance(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateSourceInstance(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateSourceInstanceInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-			return ec.marshalNSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_updateSourceInstance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_updateSourceInstance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_deleteSourceInstance(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_deleteSourceInstance(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteSourceInstance(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
-			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_deleteSourceInstance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SuccessResult(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteSourceInstance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_reorderSourceInstances(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_reorderSourceInstances(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ReorderSourceInstances(ctx, fc.Args["instances"].([]*model.ReorderSourceInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
-			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_reorderSourceInstances(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SuccessResult(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_reorderSourceInstances_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_validateSourceCredentials(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_validateSourceCredentials(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ValidateSourceCredentials(ctx, fc.Args["input"].(model.ValidateSourceCredentialsInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ValidationResult) graphql.Marshaler {
-			return ec.marshalNValidationResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐValidationResult(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_validateSourceCredentials(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ValidationResult(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_validateSourceCredentials_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_checkSourceInstanceHealth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_checkSourceInstanceHealth(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CheckSourceInstanceHealth(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceHealthResult) graphql.Marshaler {
-			return ec.marshalNSourceHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceHealthResult(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_checkSourceInstanceHealth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceHealthResult(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_checkSourceInstanceHealth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -19532,82 +18643,6 @@ func (ec *executionContext) fieldContext_Query_unusedImages(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_sourceInstances(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_sourceInstances(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().SourceInstances(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.SourceInstance) graphql.Marshaler {
-			return ec.marshalNSourceInstance2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstanceᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_sourceInstances(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_sourceInstance(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_sourceInstance(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SourceInstance(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-			return ec.marshalOSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_Query_sourceInstance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SourceInstance(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_sourceInstance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_runners(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22651,393 +21686,6 @@ func (ec *executionContext) fieldContext_SSOSettings_allowLocalLogin(_ context.C
 	return graphql.NewScalarFieldContext("SSOSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
-func (ec *executionContext) _SourceHealthResult_online(ctx context.Context, field graphql.CollectedField, obj *model.SourceHealthResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceHealthResult_online(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Online, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceHealthResult_online(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceHealthResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _SourceHealthResult_message(ctx context.Context, field graphql.CollectedField, obj *model.SourceHealthResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceHealthResult_message(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Message, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOString2ᚖstring(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_SourceHealthResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceHealthResult", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_id(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_name(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_url(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_url(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.URL, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_type(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_type(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.SourceType) graphql.Marshaler {
-			return ec.marshalNSourceType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceType(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type SourceType does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_authType(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_authType(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.AuthType, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.AuthType) graphql.Marshaler {
-			return ec.marshalNAuthType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_authType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type AuthType does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_ipAddress(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_ipAddress(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.IPAddress, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOString2ᚖstring(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_ipAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_displayOrder(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_displayOrder(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.DisplayOrder, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_displayOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type DateTime does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_updatedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type DateTime does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_hasApiKey(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_hasApiKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.HasAPIKey, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_hasApiKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_hasPassword(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_hasPassword(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.HasPassword, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_hasPassword(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SourceInstance", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _SourceInstance_containers(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_containers(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.SourceInstance().Containers(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ContainerConnection) graphql.Marshaler {
-			return ec.marshalNContainerConnection2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerConnection(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_containers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SourceInstance",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ContainerConnection(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_SourceInstance_containers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SourceInstance_upgradeHistory(ctx context.Context, field graphql.CollectedField, obj *model.SourceInstance) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SourceInstance_upgradeHistory(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.SourceInstance().UpgradeHistory(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.UpgradeRecordConnection) graphql.Marshaler {
-			return ec.marshalNUpgradeRecordConnection2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeRecordConnection(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SourceInstance_upgradeHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SourceInstance",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_UpgradeRecordConnection(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_SourceInstance_upgradeHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _StackGroup_id(ctx context.Context, field graphql.CollectedField, obj *model.StackGroup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23486,29 +22134,6 @@ func (ec *executionContext) _SummaryStats_containersWithUpdates(ctx context.Cont
 	)
 }
 func (ec *executionContext) fieldContext_SummaryStats_containersWithUpdates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SummaryStats", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _SummaryStats_totalSources(ctx context.Context, field graphql.CollectedField, obj *model.SummaryStats) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SummaryStats_totalSources(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalSources, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SummaryStats_totalSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SummaryStats", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -26431,29 +25056,6 @@ func (ec *executionContext) fieldContext_User_containerCount(_ context.Context, 
 	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
-func (ec *executionContext) _User_sourceInstanceCount(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_User_sourceInstanceCount(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.User().SourceInstanceCount(ctx, obj)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_User_sourceInstanceCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Int does not have child fields"))
-}
-
 func (ec *executionContext) _User_trackedAppCount(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26498,29 +25100,6 @@ func (ec *executionContext) _UserPreferences_colorScheme(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_UserPreferences_colorScheme(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("UserPreferences", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _UserPreferences_disablePortainerPage(ctx context.Context, field graphql.CollectedField, obj *model.UserPreferences) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_UserPreferences_disablePortainerPage(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.DisablePortainerPage, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_UserPreferences_disablePortainerPage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("UserPreferences", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _UserPreferences_disableTrackedAppsPage(ctx context.Context, field graphql.CollectedField, obj *model.UserPreferences) (ret graphql.Marshaler) {
@@ -27775,20 +26354,13 @@ func (ec *executionContext) unmarshalInputContainerFilterInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"sourceInstanceId", "runnerId", "state", "hasUpdate", "stackName", "imageName", "search"}
+	fieldsInOrder := [...]string{"runnerId", "state", "hasUpdate", "stackName", "imageName", "search"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "sourceInstanceId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceInstanceId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SourceInstanceID = data
 		case "runnerId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -28210,78 +26782,6 @@ func (ec *executionContext) unmarshalInputCreateSSOProviderInput(ctx context.Con
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputCreateSourceInstanceInput(ctx context.Context, obj any) (model.CreateSourceInstanceInput, error) {
-	var it model.CreateSourceInstanceInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"name", "url", "authType", "apiKey", "username", "password", "ipAddress"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "url":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.URL = data
-		case "authType":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authType"))
-			data, err := ec.unmarshalNAuthType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.AuthType = data
-		case "apiKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("apiKey"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.APIKey = data
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Username = data
-		case "password":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Password = data
-		case "ipAddress":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ipAddress"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IPAddress = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputCreateTrackedAppInput(ctx context.Context, obj any) (model.CreateTrackedAppInput, error) {
 	var it model.CreateTrackedAppInput
 	if obj == nil {
@@ -28365,7 +26865,7 @@ func (ec *executionContext) unmarshalInputDeleteImageInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "portainerUrl", "sourceUrl", "endpointId", "runnerId"}
+	fieldsInOrder := [...]string{"id", "runnerId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -28379,27 +26879,6 @@ func (ec *executionContext) unmarshalInputDeleteImageInput(ctx context.Context, 
 				return it, err
 			}
 			it.ID = data
-		case "portainerUrl":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("portainerUrl"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PortainerURL = data
-		case "sourceUrl":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceUrl"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SourceURL = data
-		case "endpointId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endpointId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EndpointID = data
 		case "runnerId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -28525,43 +27004,6 @@ func (ec *executionContext) unmarshalInputRegisterInput(ctx context.Context, obj
 				return it, err
 			}
 			it.RegistrationCode = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputReorderSourceInput(ctx context.Context, obj any) (model.ReorderSourceInput, error) {
-	var it model.ReorderSourceInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"id", "order"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "id":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ID = data
-		case "order":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("order"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Order = data
 		}
 	}
 	return it, nil
@@ -29073,78 +27515,6 @@ func (ec *executionContext) unmarshalInputUpdateSSOProviderInput(ctx context.Con
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputUpdateSourceInstanceInput(ctx context.Context, obj any) (model.UpdateSourceInstanceInput, error) {
-	var it model.UpdateSourceInstanceInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"name", "url", "authType", "apiKey", "username", "password", "ipAddress"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "url":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.URL = data
-		case "authType":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authType"))
-			data, err := ec.unmarshalOAuthType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.AuthType = data
-		case "apiKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("apiKey"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.APIKey = data
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Username = data
-		case "password":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Password = data
-		case "ipAddress":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ipAddress"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IPAddress = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputUpdateTrackedAppInput(ctx context.Context, obj any) (model.UpdateTrackedAppInput, error) {
 	var it model.UpdateTrackedAppInput
 	if obj == nil {
@@ -29235,7 +27605,7 @@ func (ec *executionContext) unmarshalInputUpdateUserPreferencesInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"colorScheme", "disablePortainerPage", "disableTrackedAppsPage", "refreshingTogglesEnabled"}
+	fieldsInOrder := [...]string{"colorScheme", "disableTrackedAppsPage", "refreshingTogglesEnabled"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -29249,13 +27619,6 @@ func (ec *executionContext) unmarshalInputUpdateUserPreferencesInput(ctx context
 				return it, err
 			}
 			it.ColorScheme = data
-		case "disablePortainerPage":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("disablePortainerPage"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DisablePortainerPage = data
 		case "disableTrackedAppsPage":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("disableTrackedAppsPage"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -29323,7 +27686,7 @@ func (ec *executionContext) unmarshalInputUpgradeContainerInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"dockerContainerId", "sourceInstanceId", "runnerId", "endpointId", "imageName", "idempotencyKey"}
+	fieldsInOrder := [...]string{"dockerContainerId", "runnerId", "endpointId", "imageName", "idempotencyKey"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -29337,13 +27700,6 @@ func (ec *executionContext) unmarshalInputUpgradeContainerInput(ctx context.Cont
 				return it, err
 			}
 			it.DockerContainerID = data
-		case "sourceInstanceId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceInstanceId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SourceInstanceID = data
 		case "runnerId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -29388,7 +27744,7 @@ func (ec *executionContext) unmarshalInputUpgradeHistoryFilterInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"containerName", "status", "intentId", "sourceInstanceId", "runnerId", "from", "to"}
+	fieldsInOrder := [...]string{"containerName", "status", "intentId", "runnerId", "from", "to"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -29416,13 +27772,6 @@ func (ec *executionContext) unmarshalInputUpgradeHistoryFilterInput(ctx context.
 				return it, err
 			}
 			it.IntentID = data
-		case "sourceInstanceId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceInstanceId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SourceInstanceID = data
 		case "runnerId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -29493,64 +27842,6 @@ func (ec *executionContext) unmarshalInputValidateRegistryCredentialsInput(ctx c
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputValidateSourceCredentialsInput(ctx context.Context, obj any) (model.ValidateSourceCredentialsInput, error) {
-	var it model.ValidateSourceCredentialsInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"url", "authType", "apiKey", "username", "password"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "url":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.URL = data
-		case "authType":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authType"))
-			data, err := ec.unmarshalNAuthType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.AuthType = data
-		case "apiKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("apiKey"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.APIKey = data
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Username = data
-		case "password":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Password = data
-		}
-	}
-	return it, nil
-}
-
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -29559,13 +27850,6 @@ func (ec *executionContext) _ContainerSource(ctx context.Context, sel ast.Select
 	switch obj := (obj).(type) {
 	case nil:
 		return graphql.Null
-	case model.SourceInstance:
-		return ec._SourceInstance(ctx, sel, &obj)
-	case *model.SourceInstance:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._SourceInstance(ctx, sel, obj)
 	case model.Runner:
 		return ec._Runner(ctx, sel, &obj)
 	case *model.Runner:
@@ -30357,11 +28641,6 @@ func (ec *executionContext) _ContainerGroup(ctx context.Context, sel ast.Selecti
 			}
 		case "standalone":
 			out.Values[i] = ec._ContainerGroup_standalone(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sources":
-			out.Values[i] = ec._ContainerGroup_sources(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -31552,11 +29831,6 @@ func (ec *executionContext) _IntentExecutionContainer(ctx context.Context, sel a
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
-		case "sourceInstance":
-			out.Values[i] = ec._IntentExecutionContainer_sourceInstance(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
 		case "runnerId":
 			out.Values[i] = ec._IntentExecutionContainer_runnerId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -32019,48 +30293,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteImages":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteImages(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createSourceInstance":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createSourceInstance(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updateSourceInstance":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_updateSourceInstance(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "deleteSourceInstance":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_deleteSourceInstance(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "reorderSourceInstances":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_reorderSourceInstances(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "validateSourceCredentials":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_validateSourceCredentials(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "checkSourceInstanceHealth":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_checkSourceInstanceHealth(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -33077,50 +31309,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_unusedImages(ctx, field)
 				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "sourceInstances":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_sourceInstances(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "sourceInstance":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_sourceInstance(ctx, field)
-				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -34747,213 +32935,6 @@ func (ec *executionContext) _SSOSettings(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
-var sourceHealthResultImplementors = []string{"SourceHealthResult"}
-
-func (ec *executionContext) _SourceHealthResult(ctx context.Context, sel ast.SelectionSet, obj *model.SourceHealthResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, sourceHealthResultImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("SourceHealthResult")
-		case "online":
-			out.Values[i] = ec._SourceHealthResult_online(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "message":
-			out.Values[i] = ec._SourceHealthResult_message(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var sourceInstanceImplementors = []string{"SourceInstance", "ContainerSource"}
-
-func (ec *executionContext) _SourceInstance(ctx context.Context, sel ast.SelectionSet, obj *model.SourceInstance) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, sourceInstanceImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("SourceInstance")
-		case "id":
-			out.Values[i] = ec._SourceInstance_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "name":
-			out.Values[i] = ec._SourceInstance_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "url":
-			out.Values[i] = ec._SourceInstance_url(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "type":
-			out.Values[i] = ec._SourceInstance_type(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "authType":
-			out.Values[i] = ec._SourceInstance_authType(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "ipAddress":
-			out.Values[i] = ec._SourceInstance_ipAddress(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "displayOrder":
-			out.Values[i] = ec._SourceInstance_displayOrder(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "createdAt":
-			out.Values[i] = ec._SourceInstance_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "updatedAt":
-			out.Values[i] = ec._SourceInstance_updatedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "hasApiKey":
-			out.Values[i] = ec._SourceInstance_hasApiKey(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "hasPassword":
-			out.Values[i] = ec._SourceInstance_hasPassword(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "containers":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._SourceInstance_containers(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.IsDeferred() {
-				deferredFieldSet.AddField(field)
-				fieldIndex := len(deferredFieldSet.Values) - 1
-				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, deferredFieldSet)
-				})
-
-				for _, deferrable := range field.Deferrables {
-					view, ok := deferLabelToView[deferrable.Label]
-					if !ok {
-						view = deferredFieldSet.NewView()
-						deferLabelToView[deferrable.Label] = view
-					}
-					view.AddIndices(fieldIndex)
-				}
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "upgradeHistory":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._SourceInstance_upgradeHistory(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.IsDeferred() {
-				deferredFieldSet.AddField(field)
-				fieldIndex := len(deferredFieldSet.Values) - 1
-				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, deferredFieldSet)
-				})
-
-				for _, deferrable := range field.Deferrables {
-					view, ok := deferLabelToView[deferrable.Label]
-					if !ok {
-						view = deferredFieldSet.NewView()
-						deferLabelToView[deferrable.Label] = view
-					}
-					view.AddIndices(fieldIndex)
-				}
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var stackGroupImplementors = []string{"StackGroup"}
 
 func (ec *executionContext) _StackGroup(ctx context.Context, sel ast.SelectionSet, obj *model.StackGroup) graphql.Marshaler {
@@ -35109,11 +33090,6 @@ func (ec *executionContext) _SummaryStats(ctx context.Context, sel ast.Selection
 			}
 		case "containersWithUpdates":
 			out.Values[i] = ec._SummaryStats_containersWithUpdates(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalSources":
-			out.Values[i] = ec._SummaryStats_totalSources(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -36377,44 +34353,6 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "sourceInstanceCount":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._User_sourceInstanceCount(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.IsDeferred() {
-				deferredFieldSet.AddField(field)
-				fieldIndex := len(deferredFieldSet.Values) - 1
-				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, deferredFieldSet)
-				})
-
-				for _, deferrable := range field.Deferrables {
-					view, ok := deferLabelToView[deferrable.Label]
-					if !ok {
-						view = deferredFieldSet.NewView()
-						deferLabelToView[deferrable.Label] = view
-					}
-					view.AddIndices(fieldIndex)
-				}
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "trackedAppCount":
 			field := field
 
@@ -36488,11 +34426,6 @@ func (ec *executionContext) _UserPreferences(ctx context.Context, sel ast.Select
 			out.Values[i] = graphql.MarshalString("UserPreferences")
 		case "colorScheme":
 			out.Values[i] = ec._UserPreferences_colorScheme(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "disablePortainerPage":
-			out.Values[i] = ec._UserPreferences_disablePortainerPage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -37018,16 +34951,6 @@ func (ec *executionContext) marshalNAuthPayload2ᚖgithubᚗcomᚋdockedappᚋba
 	return ec._AuthPayload(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNAuthType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx context.Context, v any) (model.AuthType, error) {
-	var res model.AuthType
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNAuthType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx context.Context, sel ast.SelectionSet, v model.AuthType) graphql.Marshaler {
-	return v
-}
-
 func (ec *executionContext) marshalNBatchConfig2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBatchConfigᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BatchConfig) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -37249,11 +35172,6 @@ func (ec *executionContext) unmarshalNCreateRunnerInput2githubᚗcomᚋdockedapp
 
 func (ec *executionContext) unmarshalNCreateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSSOProviderInput(ctx context.Context, v any) (model.CreateSSOProviderInput, error) {
 	res, err := ec.unmarshalInputCreateSSOProviderInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNCreateSourceInstanceInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSourceInstanceInput(ctx context.Context, v any) (model.CreateSourceInstanceInput, error) {
-	res, err := ec.unmarshalInputCreateSourceInstanceInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -37842,25 +35760,6 @@ func (ec *executionContext) marshalNRegistry2githubᚗcomᚋdockedappᚋbackend�
 	return v
 }
 
-func (ec *executionContext) unmarshalNReorderSourceInput2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐReorderSourceInputᚄ(ctx context.Context, v any) ([]*model.ReorderSourceInput, error) {
-	vSlice := graphql.CoerceList(v)
-	var err error
-	res := make([]*model.ReorderSourceInput, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNReorderSourceInput2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐReorderSourceInput(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) unmarshalNReorderSourceInput2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐReorderSourceInput(ctx context.Context, v any) (*model.ReorderSourceInput, error) {
-	res, err := ec.unmarshalInputReorderSourceInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) marshalNRepositoryAccessToken2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRepositoryAccessTokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RepositoryAccessToken) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -38097,42 +35996,6 @@ func (ec *executionContext) marshalNSSOSettings2ᚖgithubᚗcomᚋdockedappᚋba
 	return ec._SSOSettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSourceHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceHealthResult(ctx context.Context, sel ast.SelectionSet, v *model.SourceHealthResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._SourceHealthResult(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNSourceInstance2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SourceInstance) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx context.Context, sel ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._SourceInstance(ctx, sel, v)
-}
-
 func (ec *executionContext) unmarshalNSourceType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceType(ctx context.Context, v any) (model.SourceType, error) {
 	var res model.SourceType
 	err := res.UnmarshalGQL(v)
@@ -38361,11 +36224,6 @@ func (ec *executionContext) unmarshalNUpdateSSOProviderInput2githubᚗcomᚋdock
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNUpdateSourceInstanceInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateSourceInstanceInput(ctx context.Context, v any) (model.UpdateSourceInstanceInput, error) {
-	res, err := ec.unmarshalInputUpdateSourceInstanceInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalNUpdateTrackedAppInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateTrackedAppInput(ctx context.Context, v any) (model.UpdateTrackedAppInput, error) {
 	res, err := ec.unmarshalInputUpdateTrackedAppInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -38574,11 +36432,6 @@ func (ec *executionContext) unmarshalNValidateRegistryCredentialsInput2githubᚗ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNValidateSourceCredentialsInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐValidateSourceCredentialsInput(ctx context.Context, v any) (model.ValidateSourceCredentialsInput, error) {
-	res, err := ec.unmarshalInputValidateSourceCredentialsInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) marshalNValidationResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐValidationResult(ctx context.Context, sel ast.SelectionSet, v *model.ValidationResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -38727,22 +36580,6 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalOAuthType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx context.Context, v any) (*model.AuthType, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var res = new(model.AuthType)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOAuthType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐAuthType(ctx context.Context, sel ast.SelectionSet, v *model.AuthType) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return v
 }
 
 func (ec *executionContext) unmarshalOBatchJobType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBatchJobType(ctx context.Context, v any) (*model.BatchJobType, error) {
@@ -39058,13 +36895,6 @@ func (ec *executionContext) marshalORunner2ᚖgithubᚗcomᚋdockedappᚋbackend
 		return graphql.Null
 	}
 	return ec._Runner(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalOSourceInstance2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceInstance(ctx context.Context, sel ast.SelectionSet, v *model.SourceInstance) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._SourceInstance(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

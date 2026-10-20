@@ -132,19 +132,17 @@ type ContainerDataResult struct {
 }
 
 type ContainerFilterInput struct {
-	SourceInstanceID *string         `json:"sourceInstanceId,omitempty"`
-	RunnerID         *string         `json:"runnerId,omitempty"`
-	State            *ContainerState `json:"state,omitempty"`
-	HasUpdate        *bool           `json:"hasUpdate,omitempty"`
-	StackName        *string         `json:"stackName,omitempty"`
-	ImageName        *string         `json:"imageName,omitempty"`
-	Search           *string         `json:"search,omitempty"`
+	RunnerID  *string         `json:"runnerId,omitempty"`
+	State     *ContainerState `json:"state,omitempty"`
+	HasUpdate *bool           `json:"hasUpdate,omitempty"`
+	StackName *string         `json:"stackName,omitempty"`
+	ImageName *string         `json:"imageName,omitempty"`
+	Search    *string         `json:"search,omitempty"`
 }
 
 type ContainerGroup struct {
 	Stacks            []*StackGroup        `json:"stacks"`
 	Standalone        *ContainerConnection `json:"standalone"`
-	Sources           []*SourceInstance    `json:"sources"`
 	Runners           []*Runner            `json:"runners"`
 	UnusedImagesCount int                  `json:"unusedImagesCount"`
 	Stats             *SummaryStats        `json:"stats"`
@@ -208,16 +206,6 @@ type CreateSSOProviderInput struct {
 	Enabled      *bool   `json:"enabled,omitempty"`
 }
 
-type CreateSourceInstanceInput struct {
-	Name      string   `json:"name"`
-	URL       string   `json:"url"`
-	AuthType  AuthType `json:"authType"`
-	APIKey    *string  `json:"apiKey,omitempty"`
-	Username  *string  `json:"username,omitempty"`
-	Password  *string  `json:"password,omitempty"`
-	IPAddress *string  `json:"ipAddress,omitempty"`
-}
-
 type CreateTrackedAppInput struct {
 	Name           string               `json:"name"`
 	ImageName      *string              `json:"imageName,omitempty"`
@@ -229,11 +217,8 @@ type CreateTrackedAppInput struct {
 }
 
 type DeleteImageInput struct {
-	ID           string  `json:"id"`
-	PortainerURL *string `json:"portainerUrl,omitempty"`
-	SourceURL    *string `json:"sourceUrl,omitempty"`
-	EndpointID   *int    `json:"endpointId,omitempty"`
-	RunnerID     *string `json:"runnerId,omitempty"`
+	ID       string  `json:"id"`
+	RunnerID *string `json:"runnerId,omitempty"`
 }
 
 type DeleteImageResult struct {
@@ -387,7 +372,6 @@ type IntentExecutionContainer struct {
 	ContainerName     string                   `json:"containerName"`
 	ImageName         string                   `json:"imageName"`
 	SourceInstanceID  *string                  `json:"sourceInstanceId,omitempty"`
-	SourceInstance    *SourceInstance          `json:"sourceInstance,omitempty"`
 	RunnerID          *string                  `json:"runnerId,omitempty"`
 	Runner            *Runner                  `json:"runner,omitempty"`
 	Status            ExecutionContainerStatus `json:"status"`
@@ -506,11 +490,6 @@ type RegistrationCodeStatus struct {
 	CodeActive   bool `json:"codeActive"`
 }
 
-type ReorderSourceInput struct {
-	ID    string `json:"id"`
-	Order int    `json:"order"`
-}
-
 type RepositoryAccessToken struct {
 	ID               string             `json:"id"`
 	Provider         string             `json:"provider"`
@@ -625,33 +604,6 @@ type SSOSettings struct {
 	AllowLocalLogin bool `json:"allowLocalLogin"`
 }
 
-type SourceHealthResult struct {
-	Online  bool    `json:"online"`
-	Message *string `json:"message,omitempty"`
-}
-
-type SourceInstance struct {
-	ID             string                   `json:"id"`
-	Name           string                   `json:"name"`
-	URL            string                   `json:"url"`
-	Type           SourceType               `json:"type"`
-	AuthType       AuthType                 `json:"authType"`
-	IPAddress      *string                  `json:"ipAddress,omitempty"`
-	DisplayOrder   int                      `json:"displayOrder"`
-	CreatedAt      time.Time                `json:"createdAt"`
-	UpdatedAt      time.Time                `json:"updatedAt"`
-	HasAPIKey      bool                     `json:"hasApiKey"`
-	HasPassword    bool                     `json:"hasPassword"`
-	Containers     *ContainerConnection     `json:"containers"`
-	UpgradeHistory *UpgradeRecordConnection `json:"upgradeHistory"`
-}
-
-func (SourceInstance) IsContainerSource()                       {}
-func (this SourceInstance) GetID() string                       { return this.ID }
-func (this SourceInstance) GetName() string                     { return this.Name }
-func (this SourceInstance) GetType() SourceType                 { return this.Type }
-func (this SourceInstance) GetContainers() *ContainerConnection { return this.Containers }
-
 type StackGroup struct {
 	ID         string               `json:"id"`
 	Name       string               `json:"name"`
@@ -672,7 +624,6 @@ type SuccessResult struct {
 type SummaryStats struct {
 	TotalContainers        int `json:"totalContainers"`
 	ContainersWithUpdates  int `json:"containersWithUpdates"`
-	TotalSources           int `json:"totalSources"`
 	TotalRunners           int `json:"totalRunners"`
 	TotalTrackedApps       int `json:"totalTrackedApps"`
 	TrackedAppsWithUpdates int `json:"trackedAppsWithUpdates"`
@@ -814,16 +765,6 @@ type UpdateSSOProviderInput struct {
 	Enabled      *bool   `json:"enabled,omitempty"`
 }
 
-type UpdateSourceInstanceInput struct {
-	Name      *string   `json:"name,omitempty"`
-	URL       *string   `json:"url,omitempty"`
-	AuthType  *AuthType `json:"authType,omitempty"`
-	APIKey    *string   `json:"apiKey,omitempty"`
-	Username  *string   `json:"username,omitempty"`
-	Password  *string   `json:"password,omitempty"`
-	IPAddress *string   `json:"ipAddress,omitempty"`
-}
-
 type UpdateTrackedAppInput struct {
 	Name           *string               `json:"name,omitempty"`
 	ImageName      *string               `json:"imageName,omitempty"`
@@ -837,7 +778,6 @@ type UpdateTrackedAppInput struct {
 
 type UpdateUserPreferencesInput struct {
 	ColorScheme              *string `json:"colorScheme,omitempty"`
-	DisablePortainerPage     *bool   `json:"disablePortainerPage,omitempty"`
 	DisableTrackedAppsPage   *bool   `json:"disableTrackedAppsPage,omitempty"`
 	RefreshingTogglesEnabled *bool   `json:"refreshingTogglesEnabled,omitempty"`
 }
@@ -857,7 +797,6 @@ type UpdateUsernameResult struct {
 
 type UpgradeContainerInput struct {
 	DockerContainerID string  `json:"dockerContainerId"`
-	SourceInstanceID  *string `json:"sourceInstanceId,omitempty"`
 	RunnerID          *string `json:"runnerId,omitempty"`
 	EndpointID        *string `json:"endpointId,omitempty"`
 	ImageName         string  `json:"imageName"`
@@ -865,13 +804,12 @@ type UpgradeContainerInput struct {
 }
 
 type UpgradeHistoryFilterInput struct {
-	ContainerName    *string        `json:"containerName,omitempty"`
-	Status           *UpgradeStatus `json:"status,omitempty"`
-	IntentID         *string        `json:"intentId,omitempty"`
-	SourceInstanceID *string        `json:"sourceInstanceId,omitempty"`
-	RunnerID         *string        `json:"runnerId,omitempty"`
-	From             *time.Time     `json:"from,omitempty"`
-	To               *time.Time     `json:"to,omitempty"`
+	ContainerName *string        `json:"containerName,omitempty"`
+	Status        *UpgradeStatus `json:"status,omitempty"`
+	IntentID      *string        `json:"intentId,omitempty"`
+	RunnerID      *string        `json:"runnerId,omitempty"`
+	From          *time.Time     `json:"from,omitempty"`
+	To            *time.Time     `json:"to,omitempty"`
 }
 
 type UpgradeHistoryStats struct {
@@ -936,30 +874,28 @@ type UpgradeResult struct {
 func (UpgradeResult) IsOperationResult() {}
 
 type User struct {
-	ID                  string                   `json:"id"`
-	Username            string                   `json:"username"`
-	Role                Role                     `json:"role"`
-	PasswordChanged     bool                     `json:"passwordChanged"`
-	InstanceAdmin       bool                     `json:"instanceAdmin"`
-	Email               *string                  `json:"email,omitempty"`
-	LastLogin           *time.Time               `json:"lastLogin,omitempty"`
-	CreatedAt           time.Time                `json:"createdAt"`
-	UpdatedAt           time.Time                `json:"updatedAt"`
-	AvatarURL           *string                  `json:"avatarUrl,omitempty"`
-	Containers          *ContainerConnection     `json:"containers"`
-	TrackedApps         []*TrackedApp            `json:"trackedApps"`
-	Intents             []*Intent                `json:"intents"`
-	DiscordWebhooks     []*DiscordWebhook        `json:"discordWebhooks"`
-	RepositoryTokens    []*RepositoryAccessToken `json:"repositoryTokens"`
-	Preferences         *UserPreferences         `json:"preferences"`
-	ContainerCount      int                      `json:"containerCount"`
-	SourceInstanceCount int                      `json:"sourceInstanceCount"`
-	TrackedAppCount     int                      `json:"trackedAppCount"`
+	ID               string                   `json:"id"`
+	Username         string                   `json:"username"`
+	Role             Role                     `json:"role"`
+	PasswordChanged  bool                     `json:"passwordChanged"`
+	InstanceAdmin    bool                     `json:"instanceAdmin"`
+	Email            *string                  `json:"email,omitempty"`
+	LastLogin        *time.Time               `json:"lastLogin,omitempty"`
+	CreatedAt        time.Time                `json:"createdAt"`
+	UpdatedAt        time.Time                `json:"updatedAt"`
+	AvatarURL        *string                  `json:"avatarUrl,omitempty"`
+	Containers       *ContainerConnection     `json:"containers"`
+	TrackedApps      []*TrackedApp            `json:"trackedApps"`
+	Intents          []*Intent                `json:"intents"`
+	DiscordWebhooks  []*DiscordWebhook        `json:"discordWebhooks"`
+	RepositoryTokens []*RepositoryAccessToken `json:"repositoryTokens"`
+	Preferences      *UserPreferences         `json:"preferences"`
+	ContainerCount   int                      `json:"containerCount"`
+	TrackedAppCount  int                      `json:"trackedAppCount"`
 }
 
 type UserPreferences struct {
 	ColorScheme              string `json:"colorScheme"`
-	DisablePortainerPage     bool   `json:"disablePortainerPage"`
 	DisableTrackedAppsPage   bool   `json:"disableTrackedAppsPage"`
 	RefreshingTogglesEnabled bool   `json:"refreshingTogglesEnabled"`
 }
@@ -968,14 +904,6 @@ type ValidateRegistryCredentialsInput struct {
 	Registry Registry `json:"registry"`
 	Username string   `json:"username"`
 	Token    string   `json:"token"`
-}
-
-type ValidateSourceCredentialsInput struct {
-	URL      string   `json:"url"`
-	AuthType AuthType `json:"authType"`
-	APIKey   *string  `json:"apiKey,omitempty"`
-	Username *string  `json:"username,omitempty"`
-	Password *string  `json:"password,omitempty"`
 }
 
 type ValidationResult struct {
@@ -1943,18 +1871,16 @@ func (e RunnerStatus) MarshalJSON() ([]byte, error) {
 type SourceType string
 
 const (
-	SourceTypePortainer SourceType = "PORTAINER"
-	SourceTypeRunner    SourceType = "RUNNER"
+	SourceTypeRunner SourceType = "RUNNER"
 )
 
 var AllSourceType = []SourceType{
-	SourceTypePortainer,
 	SourceTypeRunner,
 }
 
 func (e SourceType) IsValid() bool {
 	switch e {
-	case SourceTypePortainer, SourceTypeRunner:
+	case SourceTypeRunner:
 		return true
 	}
 	return false

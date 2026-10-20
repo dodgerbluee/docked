@@ -265,18 +265,14 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 }
 
 // GetContainerByDockerID resolves a Docker container id within one explicit
-// backend identity. Docker ids are not globally unique across runners and
-// Portainer instances, so both user ownership and backend identity are part of
-// the predicate.
-func GetContainerByDockerID(ctx context.Context, database *sql.DB, userID int64, containerID string, runnerID, sourceInstanceID *int64) (*ContainerRow, error) {
+// runner identity. Docker ids are not globally unique across runners, so both
+// user ownership and backend identity are part of the predicate.
+func GetContainerByDockerID(ctx context.Context, database *sql.DB, userID int64, containerID string, runnerID *int64) (*ContainerRow, error) {
 	predicate := "WHERE c.user_id = ? AND c.container_id = ?"
 	args := []any{userID, containerID}
 	if runnerID != nil {
 		predicate += " AND c.runner_id = ?"
 		args = append(args, *runnerID)
-	} else if sourceInstanceID != nil {
-		predicate += " AND c.source_instance_id = ?"
-		args = append(args, *sourceInstanceID)
 	} else {
 		return nil, fmt.Errorf("container backend identity is required")
 	}

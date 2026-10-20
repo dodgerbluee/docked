@@ -168,13 +168,12 @@ func GetUpgradeHistory(ctx context.Context, database *sql.DB, userID int64, limi
 // are optional; nil means "no constraint". Status must already be a DB domain
 // value (e.g. "success"), not the GraphQL enum.
 type UpgradeHistoryFilter struct {
-	ContainerName    *string
-	Status           *string
-	IntentID         *int64
-	SourceInstanceID *int64
-	RunnerID         *int64
-	From             *time.Time
-	To               *time.Time
+	ContainerName *string
+	Status        *string
+	IntentID      *int64
+	RunnerID      *int64
+	From          *time.Time
+	To            *time.Time
 }
 
 // GetUpgradeHistoryFiltered returns upgrade history matching every set field
@@ -196,10 +195,6 @@ func GetUpgradeHistoryFiltered(ctx context.Context, database *sql.DB, userID int
 		if f.IntentID != nil {
 			where = append(where, "intent_id = ?")
 			args = append(args, *f.IntentID)
-		}
-		if f.SourceInstanceID != nil {
-			where = append(where, "source_instance_id = ?")
-			args = append(args, *f.SourceInstanceID)
 		}
 		if f.RunnerID != nil {
 			where = append(where, "runner_id = ?")

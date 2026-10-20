@@ -121,8 +121,6 @@ func formatContainerDataRow(c *db.ContainerRow) map[string]any {
 		"imageRepo":           jsonString(c.ImageRepo),
 		"status":              jsonString(c.Status),
 		"state":               jsonString(c.State),
-		"portainerUrl":        jsonString(c.SourceURL),
-		"portainerName":       jsonString(c.SourceName),
 		"sourceInstanceId":    jsonInt64(c.SourceInstanceID),
 		"endpointId":          jsonInt64(c.EndpointID),
 		"stackName":           jsonString(c.StackName),
@@ -152,22 +150,13 @@ func formatContainerDataRow(c *db.ContainerRow) map[string]any {
 // viewer can show containers, deployed images and registry versions that
 // belong to the same image. Port of the legacy controller helper.
 func correlateRecordsByImage(raw map[string]any) map[string]any {
-	instances := map[int64]map[string]any{}
-	for _, row := range rawRows(raw["source_instances"]) {
-		if id, ok := asInt64(row["id"]); ok {
-			instances[id] = row
-		}
-	}
-
 	type correlation struct {
 		imageRepo    string
 		imageTag     string
 		containers   []map[string]any
 		deployed     []map[string]any
 		registry     []map[string]any
-		instanceIDs  []int64
 		deployedIDs  []int64
-		instanceSeen map[int64]bool
 		deployedSeen map[int64]bool
 	}
 
@@ -180,7 +169,6 @@ func correlateRecordsByImage(raw map[string]any) map[string]any {
 			group = &correlation{
 				imageRepo:    repo,
 				imageTag:     tag,
-				instanceSeen: map[int64]bool{},
 				deployedSeen: map[int64]bool{},
 			}
 			byImage[key] = group
@@ -195,10 +183,6 @@ func correlateRecordsByImage(raw map[string]any) map[string]any {
 		group := ensure(repo+":"+tag, repo, tag)
 		group.containers = append(group.containers, container)
 
-		if id, ok := asInt64(container["source_instance_id"]); ok && id != 0 && !group.instanceSeen[id] {
-			group.instanceSeen[id] = true
-			group.instanceIDs = append(group.instanceIDs, id)
-		}
 		if id, ok := asInt64(container["deployed_image_id"]); ok && id != 0 && !group.deployedSeen[id] {
 			group.deployedSeen[id] = true
 			group.deployedIDs = append(group.deployedIDs, id)
@@ -271,27 +255,16 @@ func correlateRecordsByImage(raw map[string]any) map[string]any {
 	for _, key := range order {
 		group := byImage[key]
 
-		portainerInstances := make([]any, 0, len(group.instanceIDs))
-		for _, id := range group.instanceIDs {
-			if instance, ok := instances[id]; ok {
-				portainerInstances = append(portainerInstances, instance)
-			} else {
-				portainerInstances = append(portainerInstances, map[string]any{"id": id, "error": "Instance not found"})
-			}
-		}
-
 		correlated[key] = map[string]any{
-			"imageRepo":          group.imageRepo,
-			"imageTag":           group.imageTag,
-			"containers":         group.containers,
-			"deployedImages":     group.deployed,
-			"registryVersions":   group.registry,
-			"portainerInstances": portainerInstances,
+			"imageRepo":        group.imageRepo,
+			"imageTag":         group.imageTag,
+			"containers":       group.containers,
+			"deployedImages":   group.deployed,
+			"registryVersions": group.registry,
 			"summary": map[string]any{
-				"containerCount":         len(group.containers),
-				"deployedImageCount":     len(group.deployed),
-				"registryVersionCount":   len(group.registry),
-				"portainerInstanceCount": len(portainerInstances),
+				"containerCount":       len(group.containers),
+				"deployedImageCount":   len(group.deployed),
+				"registryVersionCount": len(group.registry),
 			},
 		}
 	}

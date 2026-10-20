@@ -1,10 +1,7 @@
 package graph
 
 import (
-	"encoding/json"
 	"testing"
-
-	"github.com/dockedapp/backend/internal/db"
 )
 
 func TestNormalizeImageID(t *testing.T) {
@@ -52,35 +49,5 @@ func TestExtractRepoTagsFromDigests(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("extractRepoTagsFromDigests[%d] = %q, want %q", i, got[i], want[i])
 		}
-	}
-}
-
-func TestCreatedToString(t *testing.T) {
-	cases := []struct {
-		raw  string
-		want string
-	}{
-		{``, ``},
-		{`1704067200`, "2024-01-01T00:00:00Z"},
-		{`"2024-02-02T00:00:00Z"`, "2024-02-02T00:00:00Z"},
-		{`null`, ""},
-	}
-	for _, c := range cases {
-		got := createdToString(json.RawMessage(c.raw))
-		if got != c.want {
-			t.Errorf("createdToString(%s) = %q, want %q", c.raw, got, c.want)
-		}
-	}
-}
-
-func TestInstanceDisplayName(t *testing.T) {
-	if got := instanceDisplayName(db.SourceInstanceRow{Name: "primary", URL: "http://x:9443"}); got != "primary" {
-		t.Errorf("named instance: got %q, want %q", got, "primary")
-	}
-	if got := instanceDisplayName(db.SourceInstanceRow{URL: "https://portainer.lan:9443"}); got != "portainer.lan" {
-		t.Errorf("unnamed instance: got %q, want %q", got, "portainer.lan")
-	}
-	if got := instanceDisplayName(db.SourceInstanceRow{URL: "::not a url::"}); got != "::not a url::" {
-		t.Errorf("unparseable url: got %q, want passthrough", got)
 	}
 }

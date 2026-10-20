@@ -10,7 +10,6 @@ import (
 type SettingsRow struct {
 	UserID                 int64
 	ColorScheme            string
-	DisablePortainerPage   int
 	DisableTrackedAppsPage int
 	RefreshingToggles      int
 }
@@ -33,10 +32,6 @@ func GetUserSettings(ctx context.Context, database *sql.DB, userID int64) (*Sett
 		switch key {
 		case "color_scheme":
 			s.ColorScheme = value
-		case "disablePortainerPage":
-			if value == "true" {
-				s.DisablePortainerPage = 1
-			}
 		case "disableTrackedAppsPage":
 			if value == "true" {
 				s.DisableTrackedAppsPage = 1
@@ -52,7 +47,7 @@ func GetUserSettings(ctx context.Context, database *sql.DB, userID int64) (*Sett
 
 // UpsertUserSettings writes user preferences to the key-value settings table.
 func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
-	colorScheme *string, disablePortainer, disableTrackedApps, refreshingToggles *bool) error {
+	colorScheme *string, disableTrackedApps, refreshingToggles *bool) error {
 
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -70,15 +65,6 @@ func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
 
 	if colorScheme != nil {
 		if err := upsert("color_scheme", *colorScheme); err != nil {
-			return err
-		}
-	}
-	if disablePortainer != nil {
-		v := "false"
-		if *disablePortainer {
-			v = "true"
-		}
-		if err := upsert("disablePortainerPage", v); err != nil {
 			return err
 		}
 	}

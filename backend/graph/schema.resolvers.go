@@ -494,16 +494,13 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, userID string) (*mode
 }
 
 // PullContainers is the resolver for the pullContainers field.
-func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error) {
+func (r *mutationResolver) PullContainers(ctx context.Context, runnerID *string) (*model.Operation, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Portainer source instances are retired; only runner-backed sync exists.
-	if sourceInstanceID != nil && *sourceInstanceID != "" {
-		return nil, fmt.Errorf("source instance sync is not supported")
-	}
+	// Runner-scoped sync; nil runnerID means all runners (global sync).
 	if runnerID != nil && *runnerID != "" {
 		rid, _ := strconv.ParseInt(*runnerID, 10, 64)
 		runnerRow, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
@@ -547,26 +544,17 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		return nil, err
 	}
 
-	// Docker ids are scoped to a backend. Requiring exactly one backend identity
-	// prevents selecting a same-id container on a different runner/instance.
-	if (input.RunnerID == nil) == (input.SourceInstanceID == nil) {
-		return nil, fmt.Errorf("exactly one of runnerId or sourceInstanceId is required")
-	}
-	var runnerID, sourceID *int64
+	// Docker ids are scoped to a backend. The runnerId pins the upgrade to a
+	// specific runner so a same-id container on another runner can't be hit.
+	var runnerID *int64
 	if input.RunnerID != nil {
 		parsed, err := strconv.ParseInt(*input.RunnerID, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid runnerId")
 		}
 		runnerID = &parsed
-	} else {
-		parsed, err := strconv.ParseInt(*input.SourceInstanceID, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid sourceInstanceId")
-		}
-		sourceID = &parsed
 	}
-	container, err := db.GetContainerByDockerID(ctx, r.DB, uid, input.DockerContainerID, runnerID, sourceID)
+	container, err := db.GetContainerByDockerID(ctx, r.DB, uid, input.DockerContainerID, runnerID)
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +570,7 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		}
 	}
 
-	// Determine backend (runner or source instance)
+	// Determine backend (runner)
 	var runnerURL string
 	var runner *db.RunnerRow
 	if container.RunnerID.Valid {
@@ -591,11 +579,9 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 			return nil, fmt.Errorf("runner not found for container")
 		}
 		runnerURL = runner.URL
-	} else if container.SourceInstanceID.Valid {
-		return nil, fmt.Errorf("Portainer-backed upgrades are not supported by the Go API; use the primary server")
 	}
 	opID := "upgrade-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
-	targetKey := containerTargetKey(container.ContainerID, runnerID, nil)
+	targetKey := containerTargetKey(container.ContainerID, runnerID)
 	locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, opID)
 	if err != nil {
 		return nil, fmt.Errorf("acquire upgrade lock: %w", err)
@@ -662,11 +648,8 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		return nil, fmt.Errorf("no containers selected for batch upgrade")
 	}
 	for _, target := range input.Containers {
-		if (target.RunnerID == nil) == (target.SourceInstanceID == nil) {
-			return nil, fmt.Errorf("each container requires exactly one of runnerId or sourceInstanceId")
-		}
-		if target.SourceInstanceID != nil {
-			return nil, fmt.Errorf("Portainer-backed upgrades are not supported by the Go API; use the primary server")
+		if target.RunnerID == nil {
+			return nil, fmt.Errorf("each container requires a runnerId")
 		}
 	}
 	if err := claimIdempotency(ctx, r.DB, uid, "batch-upgrade", input.IdempotencyKey); err != nil {
@@ -697,29 +680,22 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		targetIDs := make(map[string]bool)
 		if input.Containers != nil {
 			for _, target := range input.Containers {
-				var runnerID, sourceID *int64
+				var runnerID *int64
 				if target.RunnerID != nil {
 					if parsed, err := strconv.ParseInt(*target.RunnerID, 10, 64); err == nil {
 						runnerID = &parsed
 					}
 				}
-				if target.SourceInstanceID != nil {
-					if parsed, err := strconv.ParseInt(*target.SourceInstanceID, 10, 64); err == nil {
-						sourceID = &parsed
-					}
-				}
-				targetIDs[containerTargetKey(target.DockerContainerID, runnerID, sourceID)] = true
+				targetIDs[containerTargetKey(target.DockerContainerID, runnerID)] = true
 			}
 		}
 
 		for _, c := range containers {
-			var rowRunnerID, rowSourceID *int64
+			var rowRunnerID *int64
 			if c.RunnerID.Valid {
 				rowRunnerID = &c.RunnerID.Int64
-			} else if c.SourceInstanceID.Valid {
-				rowSourceID = &c.SourceInstanceID.Int64
 			}
-			if len(targetIDs) > 0 && !targetIDs[containerTargetKey(c.ContainerID, rowRunnerID, rowSourceID)] {
+			if len(targetIDs) > 0 && !targetIDs[containerTargetKey(c.ContainerID, rowRunnerID)] {
 				continue
 			}
 			var runnerURL string
@@ -736,7 +712,7 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				continue
 			}
 			attempted++
-			targetKey := containerTargetKey(c.ContainerID, rowRunnerID, nil)
+			targetKey := containerTargetKey(c.ContainerID, rowRunnerID)
 			owner := "batch:" + strconv.FormatInt(batchID, 10)
 			locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
 			if err != nil || !locked {
@@ -832,29 +808,19 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 		return &model.DeleteImagesResult{Success: false, Deleted: 0, Results: []*model.DeleteImageResult{}}, nil
 	}
 
-	// Deduplicate by id+source+endpointId, matching Node's controller.
+	// Deduplicate by id+runnerId (runner-backed deletion only).
 	type dedupeKey struct {
-		id         string
-		source     string
-		endpointID int
+		id       string
+		runnerID string
 	}
 	seen := make(map[dedupeKey]bool)
 	unique := make([]*model.DeleteImageInput, 0, len(images))
 	for _, img := range images {
 		source := ""
-		switch {
-		case img.RunnerID != nil:
+		if img.RunnerID != nil {
 			source = *img.RunnerID
-		case img.PortainerURL != nil:
-			source = *img.PortainerURL
-		case img.SourceURL != nil:
-			source = *img.SourceURL
 		}
-		endpoint := 0
-		if img.EndpointID != nil {
-			endpoint = *img.EndpointID
-		}
-		key := dedupeKey{id: img.ID, source: source, endpointID: endpoint}
+		key := dedupeKey{id: img.ID, runnerID: source}
 		if seen[key] {
 			continue
 		}
@@ -862,17 +828,9 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 		unique = append(unique, img)
 	}
 
-	instances, err := db.GetAllSourceInstances(ctx, r.DB, uid)
-	if err != nil {
-		return nil, err
-	}
 	runners, err := db.GetAllRunners(ctx, r.DB, uid)
 	if err != nil {
 		return nil, err
-	}
-	instanceMap := make(map[string]db.SourceInstanceRow, len(instances))
-	for _, inst := range instances {
-		instanceMap[inst.URL] = inst
 	}
 	runnerMap := make(map[int64]db.RunnerRow, len(runners))
 	for _, rr := range runners {
@@ -885,7 +843,7 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 		wg.Add(1)
 		go func(i int, img *model.DeleteImageInput) {
 			defer wg.Done()
-			outcomes[i] = r.deleteOneImage(ctx, img, instanceMap, runnerMap)
+			outcomes[i] = r.deleteOneImage(ctx, img, runnerMap)
 		}(i, img)
 	}
 	wg.Wait()
@@ -904,159 +862,6 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 		res.Errors = errs
 	}
 	return res, nil
-}
-
-// CreateSourceInstance is the resolver for the createSourceInstance field.
-func (r *mutationResolver) CreateSourceInstance(ctx context.Context, input model.CreateSourceInstanceInput) (*model.SourceInstance, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := db.CreateSourceInstance(ctx, r.DB, uid, input.Name, input.URL, dbEnumValue(string(input.AuthType)),
-		input.Username, input.Password, input.APIKey, input.IPAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	row, _ := db.GetSourceInstanceByID(ctx, r.DB, id, uid)
-	if row == nil {
-		return nil, fmt.Errorf("not found")
-	}
-	return sourceInstanceToModel(row), nil
-}
-
-// UpdateSourceInstance is the resolver for the updateSourceInstance field.
-func (r *mutationResolver) UpdateSourceInstance(ctx context.Context, id string, input model.UpdateSourceInstanceInput) (*model.SourceInstance, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sid, _ := strconv.ParseInt(id, 10, 64)
-
-	var authType *string
-	if input.AuthType != nil {
-		s := dbEnumValue(string(*input.AuthType))
-		authType = &s
-	}
-
-	if err := db.UpdateSourceInstance(ctx, r.DB, sid, uid, input.Name, input.URL, authType,
-		input.Username, input.Password, input.APIKey, input.IPAddress); err != nil {
-		return nil, err
-	}
-
-	row, _ := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
-	if row == nil {
-		return nil, fmt.Errorf("not found")
-	}
-	return sourceInstanceToModel(row), nil
-}
-
-// DeleteSourceInstance is the resolver for the deleteSourceInstance field.
-func (r *mutationResolver) DeleteSourceInstance(ctx context.Context, id string) (*model.SuccessResult, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sid, _ := strconv.ParseInt(id, 10, 64)
-
-	if err := db.DeleteSourceInstance(ctx, r.DB, sid, uid); err != nil {
-		return nil, err
-	}
-	return &model.SuccessResult{Success: true}, nil
-}
-
-// ReorderSourceInstances is the resolver for the reorderSourceInstances field.
-func (r *mutationResolver) ReorderSourceInstances(ctx context.Context, instances []*model.ReorderSourceInput) (*model.SuccessResult, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	orders := make(map[int64]int)
-	for _, inst := range instances {
-		id, _ := strconv.ParseInt(inst.ID, 10, 64)
-		orders[id] = inst.Order
-	}
-
-	if err := db.ReorderSourceInstances(ctx, r.DB, uid, orders); err != nil {
-		return nil, err
-	}
-	return &model.SuccessResult{Success: true}, nil
-}
-
-// ValidateSourceCredentials is the resolver for the validateSourceCredentials field.
-func (r *mutationResolver) ValidateSourceCredentials(ctx context.Context, input model.ValidateSourceCredentialsInput) (*model.ValidationResult, error) {
-	_, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Call Portainer API to validate credentials (apikey: GET /api/endpoints with
-	// X-API-Key; password: POST /api/auth) — mirrors Node's authenticatePortainer.
-	if input.AuthType == model.AuthTypeAPIKey {
-		if input.APIKey == nil || *input.APIKey == "" {
-			return &model.ValidationResult{Valid: false, Message: strPtr("API key is required")}, nil
-		}
-		status, _, err := httpGetWithHeader(input.URL+"/api/endpoints", "X-API-Key", *input.APIKey)
-		if err != nil {
-			return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed: " + err.Error())}, nil
-		}
-		if status == 200 {
-			return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
-		}
-		return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("Auth failed (HTTP %d)", status))}, nil
-	}
-
-	url := input.URL + "/api/auth"
-	payload := map[string]string{"Username": derefStr(input.Username), "Password": derefStr(input.Password)}
-	status, body, err := httpPostJSON(url, payload, "")
-	if err != nil {
-		return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed: " + err.Error())}, nil
-	}
-	if status == 200 {
-		_ = body
-		return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
-	}
-	return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("Auth failed (HTTP %d)", status))}, nil
-}
-
-// CheckSourceInstanceHealth is the resolver for the checkSourceInstanceHealth field.
-func (r *mutationResolver) CheckSourceInstanceHealth(ctx context.Context, id string) (*model.SourceHealthResult, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sid, _ := strconv.ParseInt(id, 10, 64)
-
-	inst, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
-	if err != nil {
-		return nil, err
-	}
-	if inst == nil {
-		return nil, fmt.Errorf("source instance not found")
-	}
-
-	if inst.AuthType == "apikey" && inst.APIKey.Valid && inst.APIKey.String != "" {
-		status, _, err := httpGetWithHeader(inst.URL+"/api/endpoints", "X-API-Key", inst.APIKey.String)
-		if err != nil {
-			return &model.SourceHealthResult{Online: false, Message: strPtr(err.Error())}, nil
-		}
-		if status == 200 {
-			return &model.SourceHealthResult{Online: true}, nil
-		}
-		return &model.SourceHealthResult{Online: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
-	}
-
-	payload := map[string]string{"Username": inst.Username.String, "Password": inst.Password.String}
-	status, _, err := httpPostJSON(inst.URL+"/api/auth", payload, "")
-	if err != nil {
-		return &model.SourceHealthResult{Online: false, Message: strPtr(err.Error())}, nil
-	}
-	if status == 200 {
-		return &model.SourceHealthResult{Online: true}, nil
-	}
-	return &model.SourceHealthResult{Online: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
 }
 
 // CreateRunner is the resolver for the createRunner field.
@@ -1729,7 +1534,7 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 			}
 			if runnerURL != "" {
 				runnerID := c.RunnerID.Int64
-				targetKey := containerTargetKey(c.ContainerID, &runnerID, nil)
+				targetKey := containerTargetKey(c.ContainerID, &runnerID)
 				owner := "intent:" + strconv.FormatInt(execID, 10)
 				locked, lockErr := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
 				if lockErr != nil || !locked {
@@ -2197,7 +2002,7 @@ func (r *mutationResolver) UpdateUserPreferences(ctx context.Context, input mode
 	}
 
 	if err := db.UpsertUserSettings(ctx, r.DB, uid, input.ColorScheme,
-		input.DisablePortainerPage, input.DisableTrackedAppsPage, input.RefreshingTogglesEnabled); err != nil {
+		input.DisableTrackedAppsPage, input.RefreshingTogglesEnabled); err != nil {
 		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
@@ -2709,15 +2514,10 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 		stacks = append(stacks, sg)
 	}
 
-	sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
 	runners, _ := db.GetAllRunners(ctx, r.DB, uid)
 	trackedApps, _ := db.GetAllTrackedApps(ctx, r.DB, uid)
 	unusedImages, _ := db.GetUnusedImages(ctx, r.DB, uid)
 
-	sourceModels := make([]*model.SourceInstance, len(sources))
-	for i, s := range sources {
-		sourceModels[i] = sourceInstanceToModel(&s)
-	}
 	runnerModels := make([]*model.Runner, len(runners))
 	for i, rn := range runners {
 		runnerModels[i] = runnerToModel(&rn)
@@ -2737,13 +2537,11 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 			TotalCount: len(standalone),
 			PageInfo:   buildPageInfo(len(standalone), len(standalone), len(standalone), 0),
 		},
-		Sources:           sourceModels,
 		Runners:           runnerModels,
 		UnusedImagesCount: len(unusedImages),
 		Stats: &model.SummaryStats{
 			TotalContainers:        len(rows),
 			ContainersWithUpdates:  withUpdates,
-			TotalSources:           len(sources),
 			TotalRunners:           len(runners),
 			TotalTrackedApps:       len(trackedApps),
 			TrackedAppsWithUpdates: trackedWithUpdates,
@@ -2802,16 +2600,11 @@ func (r *queryResolver) ContainerData(ctx context.Context) (*model.ContainerData
 	}, nil
 }
 
-// UnusedImages is the resolver for the unusedImages field. Live parity
-// with Node's containerQueryService.getUnusedImages: every Portainer
-// instance and runner host is queried in parallel and the per-source
-// failures are isolated (logged, skipped).
+// UnusedImages is the resolver for the unusedImages field. Every runner
+// host is queried in parallel and per-source failures are isolated
+// (logged, skipped).
 func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage, error) {
 	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	instances, err := db.GetAllSourceInstances(ctx, r.DB, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -2820,20 +2613,13 @@ func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage,
 		return nil, err
 	}
 
-	perSource := make([][]*model.DockerImage, len(instances)+len(runners))
+	perSource := make([][]*model.DockerImage, len(runners))
 	var wg sync.WaitGroup
-	for i, inst := range instances {
-		wg.Add(1)
-		go func(i int, inst db.SourceInstanceRow) {
-			defer wg.Done()
-			perSource[i] = r.unusedFromPortainer(ctx, inst)
-		}(i, inst)
-	}
 	for j, rr := range runners {
 		wg.Add(1)
 		go func(j int, rr db.RunnerRow) {
 			defer wg.Done()
-			perSource[len(instances)+j] = r.unusedFromRunner(ctx, rr)
+			perSource[j] = r.unusedFromRunner(ctx, rr)
 		}(j, rr)
 	}
 	wg.Wait()
@@ -2843,41 +2629,6 @@ func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage,
 		out = append(out, rows...)
 	}
 	return out, nil
-}
-
-// SourceInstances is the resolver for the sourceInstances field.
-func (r *queryResolver) SourceInstances(ctx context.Context) ([]*model.SourceInstance, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.GetAllSourceInstances(ctx, r.DB, uid)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.SourceInstance, len(rows))
-	for i, row := range rows {
-		result[i] = sourceInstanceToModel(&row)
-	}
-	return result, nil
-}
-
-// SourceInstance is the resolver for the sourceInstance field.
-func (r *queryResolver) SourceInstance(ctx context.Context, id string) (*model.SourceInstance, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sid, _ := strconv.ParseInt(id, 10, 64)
-
-	row, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
-	if err != nil {
-		return nil, err
-	}
-	if row == nil {
-		return nil, nil
-	}
-	return sourceInstanceToModel(row), nil
 }
 
 // Runners is the resolver for the runners field.
@@ -3278,12 +3029,11 @@ func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.Upgrad
 	var f *db.UpgradeHistoryFilter
 	if filter != nil {
 		f = &db.UpgradeHistoryFilter{
-			ContainerName:    filter.ContainerName,
-			IntentID:         parseIDPtr(filter.IntentID),
-			SourceInstanceID: parseIDPtr(filter.SourceInstanceID),
-			RunnerID:         parseIDPtr(filter.RunnerID),
-			From:             filter.From,
-			To:               filter.To,
+			ContainerName: filter.ContainerName,
+			IntentID:      parseIDPtr(filter.IntentID),
+			RunnerID:      parseIDPtr(filter.RunnerID),
+			From:          filter.From,
+			To:            filter.To,
 		}
 		if filter.Status != nil {
 			sv := dbEnumValue(string(*filter.Status))
@@ -3508,7 +3258,6 @@ func (r *queryResolver) UserPreferences(ctx context.Context) (*model.UserPrefere
 	}
 	return &model.UserPreferences{
 		ColorScheme:              row.ColorScheme,
-		DisablePortainerPage:     row.DisablePortainerPage == 1,
 		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
 		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
 	}, nil
@@ -3659,9 +3408,8 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 		return nil, err
 	}
 
-	var totalContainers, totalSources, totalRunners, totalTrackedApps int
+	var totalContainers, totalRunners, totalTrackedApps int
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM containers WHERE user_id = ?", uid).Scan(&totalContainers)
-	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM source_instances WHERE user_id = ?", uid).Scan(&totalSources)
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners)
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
 
@@ -3682,7 +3430,6 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	return &model.SummaryStats{
 		TotalContainers:        totalContainers,
 		ContainersWithUpdates:  withUpdates,
-		TotalSources:           totalSources,
 		TotalRunners:           totalRunners,
 		TotalTrackedApps:       totalTrackedApps,
 		TrackedAppsWithUpdates: trackedWithUpdates,
@@ -3740,51 +3487,6 @@ func (r *runnerResolver) UpgradeHistory(ctx context.Context, obj *model.Runner, 
 	rid, _ := strconv.ParseInt(obj.ID, 10, 64)
 
 	rows, total, err := db.GetUpgradeHistoryBy(ctx, r.DB, uid, limit, offset, "runner_id", rid)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]*model.UpgradeRecord, len(rows))
-	for i := range rows {
-		items[i] = upgradeRecordToModel(&rows[i])
-	}
-	return &model.UpgradeRecordConnection{
-		Items:      items,
-		TotalCount: total,
-		PageInfo:   buildPageInfo(len(items), total, limit, offset),
-	}, nil
-}
-
-// Containers is the resolver for the containers field.
-func (r *sourceInstanceResolver) Containers(ctx context.Context, obj *model.SourceInstance, first *int, after *string) (*model.ContainerConnection, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sid, _ := strconv.ParseInt(obj.ID, 10, 64)
-
-	rows, err := db.GetContainers(ctx, r.DB, uid)
-	if err != nil {
-		return nil, err
-	}
-	var matched []*model.Container
-	for i := range rows {
-		if rows[i].SourceInstanceID.Valid && rows[i].SourceInstanceID.Int64 == sid {
-			matched = append(matched, containerRowToModel(&rows[i]))
-		}
-	}
-	return paginateContainers(matched, first, after), nil
-}
-
-// UpgradeHistory is the resolver for the upgradeHistory field.
-func (r *sourceInstanceResolver) UpgradeHistory(ctx context.Context, obj *model.SourceInstance, first *int, after *string) (*model.UpgradeRecordConnection, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	limit, offset := pageArgs(first, after, 50)
-	sid, _ := strconv.ParseInt(obj.ID, 10, 64)
-
-	rows, total, err := db.GetUpgradeHistoryBy(ctx, r.DB, uid, limit, offset, "source_instance_id", sid)
 	if err != nil {
 		return nil, err
 	}
@@ -3986,7 +3688,6 @@ func (r *userResolver) Preferences(ctx context.Context, obj *model.User) (*model
 	}
 	return &model.UserPreferences{
 		ColorScheme:              row.ColorScheme,
-		DisablePortainerPage:     row.DisablePortainerPage == 1,
 		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
 		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
 	}, nil
@@ -3999,15 +3700,6 @@ func (r *userResolver) ContainerCount(ctx context.Context, obj *model.User) (int
 		return 0, err
 	}
 	return stats.Containers, nil
-}
-
-// SourceInstanceCount is the resolver for the sourceInstanceCount field.
-func (r *userResolver) SourceInstanceCount(ctx context.Context, obj *model.User) (int, error) {
-	stats, err := r.userStatsFor(ctx, obj)
-	if err != nil {
-		return 0, err
-	}
-	return stats.SourceInstances, nil
 }
 
 // TrackedAppCount is the resolver for the trackedAppCount field.
@@ -4042,9 +3734,6 @@ func (r *Resolver) RepositoryAccessToken() RepositoryAccessTokenResolver {
 // Runner returns RunnerResolver implementation.
 func (r *Resolver) Runner() RunnerResolver { return &runnerResolver{r} }
 
-// SourceInstance returns SourceInstanceResolver implementation.
-func (r *Resolver) SourceInstance() SourceInstanceResolver { return &sourceInstanceResolver{r} }
-
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
@@ -4062,7 +3751,6 @@ type (
 	queryResolver                 struct{ *Resolver }
 	repositoryAccessTokenResolver struct{ *Resolver }
 	runnerResolver                struct{ *Resolver }
-	sourceInstanceResolver        struct{ *Resolver }
 	subscriptionResolver          struct{ *Resolver }
 	trackedAppResolver            struct{ *Resolver }
 	userResolver                  struct{ *Resolver }

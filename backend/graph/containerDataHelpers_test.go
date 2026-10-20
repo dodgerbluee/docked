@@ -140,8 +140,11 @@ func TestBuildContainerDataEntries(t *testing.T) {
 	if len(containers) != 2 {
 		t.Fatalf("data.containers = %#v", data["containers"])
 	}
-	if containers[0]["portainerName"] != "toybox" || containers[0]["portainerUrl"] != "https://portainer.example" {
-		t.Fatalf("source instance fields not joined: %#v", containers[0])
+	if containers[0]["sourceInstanceId"] != int64(1) {
+		t.Fatalf("sourceInstanceId not carried: %#v", containers[0])
+	}
+	if _, ok := containers[0]["portainerName"]; ok {
+		t.Fatalf("portainerName key should be gone: %#v", containers[0])
 	}
 	if containers[0]["deployedImageId"] != int64(10) {
 		t.Fatalf("deployedImageId = %#v", containers[0]["deployedImageId"])
@@ -188,13 +191,8 @@ func TestCorrelateRecordsByImage(t *testing.T) {
 	if versions, _ := appGroup["registryVersions"].([]map[string]any); len(versions) != 1 {
 		t.Fatalf("registryVersions = %#v", appGroup["registryVersions"])
 	}
-	instances, _ := appGroup["portainerInstances"].([]any)
-	if len(instances) != 1 {
-		t.Fatalf("portainerInstances = %#v", appGroup["portainerInstances"])
-	}
-	instance, _ := instances[0].(map[string]any)
-	if instance["name"] != "toybox" {
-		t.Fatalf("instance not resolved from raw source_instances: %#v", instance)
+	if _, ok := appGroup["portainerInstances"]; ok {
+		t.Fatalf("portainerInstances key should be gone: %#v", appGroup)
 	}
 
 	// registry_image_versions with no matching group fall back to a repo-only entry.

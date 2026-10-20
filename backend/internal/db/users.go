@@ -280,17 +280,12 @@ func VerifyAndClearToken(ctx context.Context, database *sql.DB, username, token 
 
 // UserStats carries per-user counts shown in the admin user detail modal.
 type UserStats struct {
-	SourceInstances int
-	TrackedApps     int
-	Containers      int
+	TrackedApps int
+	Containers  int
 }
 
 func CountUserStats(ctx context.Context, database *sql.DB, userID int64) (*UserStats, error) {
 	var s UserStats
-	if err := database.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM source_instances WHERE user_id = ?", userID).Scan(&s.SourceInstances); err != nil {
-		return nil, fmt.Errorf("count source instances: %w", err)
-	}
 	if err := database.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", userID).Scan(&s.TrackedApps); err != nil {
 		return nil, fmt.Errorf("count tracked apps: %w", err)

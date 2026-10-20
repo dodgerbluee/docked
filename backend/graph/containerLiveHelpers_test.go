@@ -12,11 +12,11 @@ func TestDockerIDMatches(t *testing.T) {
 		want            bool
 	}{
 		{full, full, true},
-		{full, full[:12], true},   // standard 12-char short id
-		{full[:12], full, true},   // reversed direction
-		{full, "0", false},        // the prod footgun: DB PK "0" as docker id
+		{full, full[:12], true},      // standard 12-char short id
+		{full[:12], full, true},      // reversed direction
+		{full, "0", false},           // the prod footgun: DB PK "0" as docker id
 		{full, "0575c211b5e", false}, // 11 chars: below short-id length
-		{"0", full, false},        // degenerate live id
+		{"0", full, false},           // degenerate live id
 		{full, "1abc", false},
 	}
 	for _, c := range cases {
