@@ -498,38 +498,8 @@ router.post("/auth/logout", asyncHandler(authController.logout));
 // Users should run 'docker login' on the server if authentication is needed
 
 // Container routes
-/**
- * @swagger
- * /containers:
- *   get:
- *     summary: Get all containers with update information
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: portainerUrl
- *         schema:
- *           type: string
- *         description: Filter by Portainer instance URL (optional)
- *     responses:
- *       200:
- *         description: List of containers with update information
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 containers:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Container'
- *       401:
- *         description: Unauthorized
- */
-router.get("/containers", appendRunnerContainers, asyncHandler(containerController.getContainers));
+// GET /containers moved to the Go GraphQL backend (user.containers connection,
+// which also live-merges runner containers client-side).
 
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
@@ -562,41 +532,6 @@ router.post(
   destructiveLimiter,
   appendRunnerContainers,
   asyncHandler(containerController.pullContainers)
-);
-
-/**
- * @swagger
- * /containers/data:
- *   get:
- *     summary: Get raw container data for export
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Raw container data
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       401:
- *         description: Unauthorized
- *   delete:
- *     summary: Clear all container data for current user
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Container data cleared successfully
- *       401:
- *         description: Unauthorized
- */
-router.get("/containers/data", asyncHandler(containerController.getContainerData));
-router.delete(
-  "/containers/data",
-  destructiveLimiter,
-  asyncHandler(containerController.clearContainerData)
 );
 
 /**

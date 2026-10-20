@@ -45,14 +45,15 @@ describe("Containers API", () => {
       expect(response.body.error).toBeDefined();
     });
 
-    it("should return containers with valid token", async () => {
+    it("should be retired in favour of the Go GraphQL backend", async () => {
+      // The container list is served by the GraphQL `user.containers` connection
+      // (plus client-side live runner merge); this REST route has been removed.
       const response = await request(app)
         .get("/api/containers")
         .set("Authorization", `Bearer ${authToken}`)
-        .expect(200);
+        .expect(404);
 
       expect(response.body).toBeDefined();
-      // Response structure may vary, but should be defined
     });
   });
 });
