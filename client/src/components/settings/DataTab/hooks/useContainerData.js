@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../../utils/api";
+import { graphqlClient } from "../../../../graphql/client";
+import { CONTAINER_DATA_QUERY } from "../../../../graphql/queries";
 
 /**
  * Hook to fetch and manage container data
@@ -20,16 +20,15 @@ export const useContainerData = () => {
       setError(null);
       setLoading(true);
 
-      const response = await axios.get(`${API_BASE_URL}/api/containers/data`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-      });
+      const result = await graphqlClient.query(CONTAINER_DATA_QUERY, {}).toPromise();
 
-      if (response.data.success) {
-        const entries = response.data.entries || [];
-        const rawDatabaseRecords = response.data.rawDatabaseRecords || {};
-        const correlatedRecords = response.data.correlatedRecords || {};
+      if (result.error) throw result.error;
+
+      const payload = result.data?.containerData;
+      if (payload?.success) {
+        const entries = payload.entries || [];
+        const rawDatabaseRecords = payload.rawDatabaseRecords || {};
+        const correlatedRecords = payload.correlatedRecords || {};
 
         // Attach raw database records and correlated records to the first entry for easy access
         if (entries.length > 0) {
@@ -43,13 +42,11 @@ export const useContainerData = () => {
 
         setDataEntries(entries);
       } else {
-        setError(response.data.error || "Failed to fetch container data");
+        setError(payload?.error || "Failed to fetch container data");
       }
     } catch (err) {
       console.error("Error fetching container data:", err);
-      const errorMessage =
-        err.response?.data?.error || err.message || "Failed to fetch container data";
-      setError(errorMessage);
+      setError(err?.message || "Failed to fetch container data");
     } finally {
       setLoading(false);
     }

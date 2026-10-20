@@ -1142,6 +1142,10 @@ type Query {
   # Single container by canonical ID (source/endpoint resolved server-side)
   container(id: ID!): Container
 
+  # Developer-mode data viewer: cached container rows grouped by image, plus
+  # the raw table records and their image-keyed correlation.
+  containerData: ContainerDataResult!
+
   # ── Images ────────────────────────────────────────────────────────────────
   unusedImages: [DockerImage!]!
 
@@ -1252,6 +1256,16 @@ type LogResult {
   fileSize: Int!
   # True when the file shrank below the requested offset (log rotation)
   rotated: Boolean!
+}
+
+# Developer-mode data viewer payload. The entry and record shapes mirror the
+# legacy REST debug contract (image-grouped entries, raw table rows, and those
+# rows correlated by image) and are intentionally untyped JSON.
+type ContainerDataResult {
+  success: Boolean!
+  entries: [JSON!]!
+  rawDatabaseRecords: JSON
+  correlatedRecords: JSON
 }
 
 # -----------------------------------------------------------------------------

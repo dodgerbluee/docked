@@ -135,6 +135,13 @@ type ComplexityRoot struct {
 		TotalCount func(childComplexity int) int
 	}
 
+	ContainerDataResult struct {
+		CorrelatedRecords  func(childComplexity int) int
+		Entries            func(childComplexity int) int
+		RawDatabaseRecords func(childComplexity int) int
+		Success            func(childComplexity int) int
+	}
+
 	ContainerGroup struct {
 		Runners           func(childComplexity int) int
 		Sources           func(childComplexity int) int
@@ -470,6 +477,7 @@ type ComplexityRoot struct {
 		BatchRun                      func(childComplexity int, id string) int
 		BatchRuns                     func(childComplexity int, jobType *model.BatchJobType, first *int, after *string) int
 		Container                     func(childComplexity int, id string) int
+		ContainerData                 func(childComplexity int) int
 		ContainerGroup                func(childComplexity int) int
 		Containers                    func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
 		DebugEndpointsEnabled         func(childComplexity int) int
@@ -952,6 +960,7 @@ type QueryResolver interface {
 	Containers(ctx context.Context, filter *model.ContainerFilterInput, first *int, after *string) (*model.ContainerConnection, error)
 	ContainerGroup(ctx context.Context) (*model.ContainerGroup, error)
 	Container(ctx context.Context, id string) (*model.Container, error)
+	ContainerData(ctx context.Context) (*model.ContainerDataResult, error)
 	UnusedImages(ctx context.Context) ([]*model.DockerImage, error)
 	SourceInstances(ctx context.Context) ([]*model.SourceInstance, error)
 	SourceInstance(ctx context.Context, id string) (*model.SourceInstance, error)
@@ -1407,6 +1416,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ContainerConnection.TotalCount(childComplexity), true
+
+	case "ContainerDataResult.correlatedRecords":
+		if e.ComplexityRoot.ContainerDataResult.CorrelatedRecords == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ContainerDataResult.CorrelatedRecords(childComplexity), true
+	case "ContainerDataResult.entries":
+		if e.ComplexityRoot.ContainerDataResult.Entries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ContainerDataResult.Entries(childComplexity), true
+	case "ContainerDataResult.rawDatabaseRecords":
+		if e.ComplexityRoot.ContainerDataResult.RawDatabaseRecords == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ContainerDataResult.RawDatabaseRecords(childComplexity), true
+	case "ContainerDataResult.success":
+		if e.ComplexityRoot.ContainerDataResult.Success == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ContainerDataResult.Success(childComplexity), true
 
 	case "ContainerGroup.runners":
 		if e.ComplexityRoot.ContainerGroup.Runners == nil {
@@ -3298,6 +3332,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Container(childComplexity, args["id"].(string)), true
+	case "Query.containerData":
+		if e.ComplexityRoot.Query.ContainerData == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ContainerData(childComplexity), true
 	case "Query.containerGroup":
 		if e.ComplexityRoot.Query.ContainerGroup == nil {
 			break
@@ -6406,6 +6446,10 @@ type Query {
   # Single container by canonical ID (source/endpoint resolved server-side)
   container(id: ID!): Container
 
+  # Developer-mode data viewer: cached container rows grouped by image, plus
+  # the raw table records and their image-keyed correlation.
+  containerData: ContainerDataResult!
+
   # ── Images ────────────────────────────────────────────────────────────────
   unusedImages: [DockerImage!]!
 
@@ -6516,6 +6560,16 @@ type LogResult {
   fileSize: Int!
   # True when the file shrank below the requested offset (log rotation)
   rotated: Boolean!
+}
+
+# Developer-mode data viewer payload. The entry and record shapes mirror the
+# legacy REST debug contract (image-grouped entries, raw table rows, and those
+# rows correlated by image) and are intentionally untyped JSON.
+type ContainerDataResult {
+  success: Boolean!
+  entries: [JSON!]!
+  rawDatabaseRecords: JSON
+  correlatedRecords: JSON
 }
 
 # -----------------------------------------------------------------------------
@@ -6931,6 +6985,20 @@ func (ec *executionContext) childFields_ContainerConnection(ctx context.Context,
 		return ec.fieldContext_ContainerConnection_totalCount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ContainerConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_ContainerDataResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "success":
+		return ec.fieldContext_ContainerDataResult_success(ctx, field)
+	case "entries":
+		return ec.fieldContext_ContainerDataResult_entries(ctx, field)
+	case "rawDatabaseRecords":
+		return ec.fieldContext_ContainerDataResult_rawDatabaseRecords(ctx, field)
+	case "correlatedRecords":
+		return ec.fieldContext_ContainerDataResult_correlatedRecords(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ContainerDataResult", field.Name)
 }
 
 func (ec *executionContext) childFields_ContainerGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11478,6 +11546,98 @@ func (ec *executionContext) _ContainerConnection_totalCount(ctx context.Context,
 }
 func (ec *executionContext) fieldContext_ContainerConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ContainerConnection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ContainerDataResult_success(ctx context.Context, field graphql.CollectedField, obj *model.ContainerDataResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ContainerDataResult_success(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ContainerDataResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ContainerDataResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ContainerDataResult_entries(ctx context.Context, field graphql.CollectedField, obj *model.ContainerDataResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ContainerDataResult_entries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.JSON) graphql.Marshaler {
+			return ec.marshalNJSON2ᚕgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSONᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ContainerDataResult_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ContainerDataResult", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _ContainerDataResult_rawDatabaseRecords(ctx context.Context, field graphql.CollectedField, obj *model.ContainerDataResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ContainerDataResult_rawDatabaseRecords(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RawDatabaseRecords, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.JSON) graphql.Marshaler {
+			return ec.marshalOJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ContainerDataResult_rawDatabaseRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ContainerDataResult", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _ContainerDataResult_correlatedRecords(ctx context.Context, field graphql.CollectedField, obj *model.ContainerDataResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ContainerDataResult_correlatedRecords(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CorrelatedRecords, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.JSON) graphql.Marshaler {
+			return ec.marshalOJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ContainerDataResult_correlatedRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ContainerDataResult", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
 func (ec *executionContext) _ContainerGroup_stacks(ctx context.Context, field graphql.CollectedField, obj *model.ContainerGroup) (ret graphql.Marshaler) {
@@ -19304,6 +19464,38 @@ func (ec *executionContext) fieldContext_Query_container(ctx context.Context, fi
 	if fc.Args, err = ec.field_Query_container_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_containerData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_containerData(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ContainerData(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ContainerDataResult) graphql.Marshaler {
+			return ec.marshalNContainerDataResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerDataResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_containerData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ContainerDataResult(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -30093,6 +30285,59 @@ func (ec *executionContext) _ContainerConnection(ctx context.Context, sel ast.Se
 	return out
 }
 
+var containerDataResultImplementors = []string{"ContainerDataResult"}
+
+func (ec *executionContext) _ContainerDataResult(ctx context.Context, sel ast.SelectionSet, obj *model.ContainerDataResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, containerDataResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ContainerDataResult")
+		case "success":
+			out.Values[i] = ec._ContainerDataResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entries":
+			out.Values[i] = ec._ContainerDataResult_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rawDatabaseRecords":
+			out.Values[i] = ec._ContainerDataResult_rawDatabaseRecords(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "correlatedRecords":
+			out.Values[i] = ec._ContainerDataResult_correlatedRecords(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var containerGroupImplementors = []string{"ContainerGroup"}
 
 func (ec *executionContext) _ContainerGroup(ctx context.Context, sel ast.SelectionSet, obj *model.ContainerGroup) graphql.Marshaler {
@@ -32788,6 +33033,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_container(ctx, field)
 				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "containerData":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_containerData(ctx, field)
+				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -36910,6 +37177,16 @@ func (ec *executionContext) marshalNContainerConnection2ᚖgithubᚗcomᚋdocked
 	return ec._ContainerConnection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNContainerDataResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerDataResult(ctx context.Context, sel ast.SelectionSet, v *model.ContainerDataResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ContainerDataResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNContainerGroup2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerGroup(ctx context.Context, sel ast.SelectionSet, v *model.ContainerGroup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -37381,6 +37658,57 @@ func (ec *executionContext) unmarshalNIntentTriggerType2githubᚗcomᚋdockedapp
 
 func (ec *executionContext) marshalNIntentTriggerType2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐIntentTriggerType(ctx context.Context, sel ast.SelectionSet, v model.IntentTriggerType) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx context.Context, v any) (model.JSON, error) {
+	res, err := model.UnmarshalJSON(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx context.Context, sel ast.SelectionSet, v model.JSON) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	_ = sel
+	res := model.MarshalJSON(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNJSON2ᚕgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSONᚄ(ctx context.Context, v any) ([]model.JSON, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.JSON, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNJSON2ᚕgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSONᚄ(ctx context.Context, sel ast.SelectionSet, v []model.JSON) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNLogLevel2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐLogLevel(ctx context.Context, v any) (model.LogLevel, error) {
@@ -38670,6 +38998,24 @@ func (ec *executionContext) marshalOIntentScheduleType2ᚖgithubᚗcomᚋdockeda
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx context.Context, v any) (model.JSON, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := model.UnmarshalJSON(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx context.Context, sel ast.SelectionSet, v model.JSON) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := model.MarshalJSON(v)
+	return res
 }
 
 func (ec *executionContext) marshalOOIDCDiscovery2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOIDCDiscovery(ctx context.Context, sel ast.SelectionSet, v *model.OIDCDiscovery) graphql.Marshaler {

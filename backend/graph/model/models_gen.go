@@ -124,6 +124,13 @@ type ContainerConnection struct {
 	TotalCount int          `json:"totalCount"`
 }
 
+type ContainerDataResult struct {
+	Success            bool   `json:"success"`
+	Entries            []JSON `json:"entries"`
+	RawDatabaseRecords JSON   `json:"rawDatabaseRecords,omitempty"`
+	CorrelatedRecords  JSON   `json:"correlatedRecords,omitempty"`
+}
+
 type ContainerFilterInput struct {
 	SourceInstanceID *string         `json:"sourceInstanceId,omitempty"`
 	RunnerID         *string         `json:"runnerId,omitempty"`

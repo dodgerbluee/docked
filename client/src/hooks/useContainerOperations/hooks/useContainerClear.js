@@ -3,8 +3,8 @@
  */
 
 import { useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../constants/api";
+import { graphqlClient } from "../../../graphql/client";
+import { CLEAR_CONTAINER_DATA_MUTATION } from "../../../graphql/queries";
 
 /**
  * Hook for container data clearing operations
@@ -41,7 +41,8 @@ export const useContainerClear = ({
         setClearingState(true);
         setError(null);
 
-        const response = await axios.delete(`${API_BASE_URL}/api/containers/data`);
+        const result = await graphqlClient.mutation(CLEAR_CONTAINER_DATA_MUTATION, {}).toPromise();
+        if (result.error) throw result.error;
 
         const clearFrontendState = () => {
           setContainers([]);
@@ -56,50 +57,18 @@ export const useContainerClear = ({
           setError(null);
         };
 
-        if (response.data && response.data.success) {
-          clearFrontendState();
-          try {
-            await fetchContainers(true, null, true);
-          } catch (fetchError) {
-            console.error("Error fetching container data:", fetchError);
-            setError(
-              fetchError.response?.data?.error ||
-                "Failed to fetch container data after clearing cache"
-            );
-          } finally {
-            setClearingState(false);
-          }
-        } else {
-          clearFrontendState();
-          try {
-            await fetchContainers(true, null, true);
-          } catch (fetchError) {
-            console.error("Error fetching container data:", fetchError);
-            setError(
-              fetchError.response?.data?.error ||
-                "Failed to fetch container data after clearing cache"
-            );
-          } finally {
-            setClearingState(false);
-          }
+        clearFrontendState();
+        try {
+          await fetchContainers(true, null, true);
+        } catch (fetchError) {
+          console.error("Error fetching container data:", fetchError);
+          setError(fetchError?.message || "Failed to fetch container data after clearing cache");
+        } finally {
+          setClearingState(false);
         }
       } catch (err) {
-        if (err.response && err.response.status === 404) {
-          // Clear cache endpoint not found (404), clearing frontend state anyway
-          setContainers([]);
-          setStacks([]);
-          setUnusedImagesCount(0);
-          setUnusedImages([]);
-          setSelectedContainers(new Set());
-          setSelectedImages(new Set());
-          setDockerHubDataPulled(false);
-          localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
-          setDataFetched(false);
-          setError(null);
-        } else {
-          console.error("Error clearing cache:", err);
-          setError(err.response?.data?.error || err.message || "Failed to clear cache");
-        }
+        console.error("Error clearing cache:", err);
+        setError(err?.message || "Failed to clear cache");
       } finally {
         setClearingState(false);
       }

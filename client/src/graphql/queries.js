@@ -1523,3 +1523,25 @@ export const VERIFY_INSTANCE_ADMIN_TOKEN_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+// Developer-mode data viewer (legacy GET/DELETE /api/containers/data).
+// Entry and record shapes are opaque JSON because the viewer renders raw records.
+export const CONTAINER_DATA_QUERY = /* GraphQL */ `
+  query ContainerData {
+    containerData {
+      success
+      entries
+      rawDatabaseRecords
+      correlatedRecords
+    }
+  }
+`;
+
+export const CLEAR_CONTAINER_DATA_MUTATION = /* GraphQL */ `
+  mutation ClearContainerData {
+    clearContainerData {
+      success
+      message
+    }
+  }
+`;

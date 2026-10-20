@@ -806,17 +806,20 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 	}, nil
 }
 
-// ClearContainerData is the resolver for the clearContainerData field.
+// ClearContainerData is the resolver for the clearContainerData field. Mirrors
+// the legacy DELETE /api/containers/data: containers, deployed_images and
+// registry_image_versions are cleared in one transaction; tracked apps are not.
 func (r *mutationResolver) ClearContainerData(ctx context.Context) (*model.SuccessResult, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.DB.ExecContext(ctx, "DELETE FROM containers WHERE user_id = ?", uid)
-	if err != nil {
+
+	if err := db.ClearUserContainerData(ctx, r.DB, uid); err != nil {
 		return nil, err
 	}
-	return &model.SuccessResult{Success: true}, nil
+
+	return &model.SuccessResult{Success: true, Message: strPtr("Container data cleared")}, nil
 }
 
 // DeleteImages is the resolver for the deleteImages field.
@@ -2765,6 +2768,38 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 		return nil, nil
 	}
 	return containerRowToModel(row), nil
+}
+
+// ContainerData is the resolver for the containerData field: the developer-mode
+// data viewer behind the legacy REST GET /api/containers/data. Entry and record
+// shapes are opaque JSON because the viewer renders them as raw records.
+func (r *queryResolver) ContainerData(ctx context.Context) (*model.ContainerDataResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := buildContainerDataEntries(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := db.GetRawDatabaseRecords(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonEntries := make([]model.JSON, 0, len(entries))
+	for _, entry := range entries {
+		jsonEntries = append(jsonEntries, model.JSON(entry))
+	}
+
+	return &model.ContainerDataResult{
+		Success:            true,
+		Entries:            jsonEntries,
+		RawDatabaseRecords: model.JSON(raw),
+		CorrelatedRecords:  model.JSON(correlateRecordsByImage(raw)),
+	}, nil
 }
 
 // UnusedImages is the resolver for the unusedImages field. Live parity

@@ -24,6 +24,8 @@ type ContainerRow struct {
 	ProvidesNetwork bool
 	LastSeen        sql.NullString
 	CreatedAt       sql.NullString
+	UpdatedAt       sql.NullString
+	DeployedImageID sql.NullInt64
 
 	// From deployed_images
 	CurrentDigest sql.NullString
@@ -69,6 +71,8 @@ SELECT
     COALESCE(c.provides_network, 0),
     c.last_seen,
     c.created_at,
+    c.updated_at,
+    c.deployed_image_id,
 
 	    di.image_digest          AS current_digest,
 	    di.image_tag,
@@ -178,6 +182,8 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 		&providesNetwork,
 		&row.LastSeen,
 		&row.CreatedAt,
+		&row.UpdatedAt,
+		&row.DeployedImageID,
 		&row.CurrentDigest,
 		&row.ImageTag,
 		&row.RepoDigests,
@@ -239,28 +245,22 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 	// ends with "WHERE c.user_id = ? ORDER BY ...", so appending "AND ..." after
 	// it would land past the ORDER BY and produce invalid SQL).
 	query := strings.Replace(containersQuery, "WHERE c.user_id = ?", "WHERE c.user_id = ? AND c.id = ?", 1)
-	row := database.QueryRowContext(ctx, query, userID, id)
-
-	var r ContainerRow
-	var usesNetworkMode, providesNetwork, noDigest int
-	err := row.Scan(
-		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
-		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
-		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
-		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry, &r.ImageCreatedDate,
-		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
-		&r.Provider, &r.LastChecked, &noDigest,
-		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	rows, err := database.QueryContext(ctx, query, userID, id)
 	if err != nil {
 		return nil, fmt.Errorf("get container by id: %w", err)
 	}
-	r.UsesNetworkMode = usesNetworkMode == 1
-	r.ProvidesNetwork = providesNetwork == 1
-	r.NoDigest = noDigest == 1
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("get container by id: %w", err)
+		}
+		return nil, nil
+	}
+	r, err := scanRow(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get container by id: %w", err)
+	}
 	return &r, nil
 }
 
@@ -281,27 +281,21 @@ func GetContainerByDockerID(ctx context.Context, database *sql.DB, userID int64,
 		return nil, fmt.Errorf("container backend identity is required")
 	}
 	query := strings.Replace(containersQuery, "WHERE c.user_id = ?", predicate, 1)
-	row := database.QueryRowContext(ctx, query, args...)
-
-	var r ContainerRow
-	var usesNetworkMode, providesNetwork, noDigest int
-	err := row.Scan(
-		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
-		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
-		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
-		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry, &r.ImageCreatedDate,
-		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
-		&r.Provider, &r.LastChecked, &noDigest,
-		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get container by docker id: %w", err)
 	}
-	r.UsesNetworkMode = usesNetworkMode == 1
-	r.ProvidesNetwork = providesNetwork == 1
-	r.NoDigest = noDigest == 1
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("get container by docker id: %w", err)
+		}
+		return nil, nil
+	}
+	r, err := scanRow(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get container by docker id: %w", err)
+	}
 	return &r, nil
 }
