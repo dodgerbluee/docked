@@ -67,10 +67,12 @@ func (s *Scheduler) initLastRuns(ctx context.Context) {
 			continue
 		}
 		if run != nil && run.Status == "completed" && run.CompletedAt.Valid && run.CompletedAt.String != "" {
-			if t, err := time.Parse("2006-01-02 15:04:05", run.CompletedAt.String); err == nil {
+			if t, err := db.ParseSQLiteTime(run.CompletedAt.String); err == nil {
 				s.mu.Lock()
 				s.lastRun[fmt.Sprintf("%d:%s", u.ID, run.JobType)] = t.UTC()
 				s.mu.Unlock()
+			} else {
+				slog.Warn("scheduler init: unparseable completed_at", "userId", u.ID, "value", run.CompletedAt.String, "error", err)
 			}
 		}
 	}

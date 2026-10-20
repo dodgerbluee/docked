@@ -4,7 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 )
+
+// ParseSQLiteTime parses timestamp strings read back from SQLite. Values
+// written by CURRENT_TIMESTAMP ("2006-01-02 15:04:05", UTC) come back in
+// that form for TEXT columns, but the modernc driver normalizes
+// DATETIME-affinity columns (batch_runs.started_at/completed_at) to RFC3339
+// ("2006-01-02T15:04:05Z"). Both forms are accepted; the result is UTC.
+func ParseSQLiteTime(s string) (time.Time, error) {
+	s = strings.Replace(s, " ", "T", 1)
+	if !strings.HasSuffix(s, "Z") {
+		s += "Z"
+	}
+	return time.Parse(time.RFC3339, s)
+}
 
 // BatchConfigRow is a row from the batch_config table.
 type BatchConfigRow struct {

@@ -121,14 +121,9 @@ func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) 
 	return runID, s.ExecuteAndComplete(ctx, userID, runID)
 }
 
-// parseSQLiteTime parses SQLite CURRENT_TIMESTAMP values (UTC,
-// "YYYY-MM-DD HH:MM:SS").
+// parseSQLiteTime parses timestamp strings from SQLite (see db.ParseSQLiteTime).
 func parseSQLiteTime(s string) (time.Time, error) {
-	s = strings.Replace(s, " ", "T", 1)
-	if !strings.HasSuffix(s, "Z") {
-		s += "Z"
-	}
-	return time.Parse(time.RFC3339, s)
+	return db.ParseSQLiteTime(s)
 }
 
 // ScanRunnerContainers ports DockerHubPullHandler.scanRunnerContainers.
