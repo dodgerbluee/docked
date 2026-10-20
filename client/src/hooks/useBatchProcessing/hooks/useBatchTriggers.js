@@ -12,6 +12,7 @@ import {
   BATCH_RUNS_QUERY,
   CREATE_BATCH_RUN_MUTATION,
   UPDATE_BATCH_RUN_MUTATION,
+  PULL_CONTAINERS_MUTATION,
 } from "../../../graphql/queries";
 import { mapGraphRunToRow } from "../../batchRunsCache";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
@@ -51,19 +52,12 @@ export const useBatchTriggers = ({
       setPulling(true);
       setError(null);
 
-      // Trigger the batch job using the batch system API
-      const triggerResponse = await axios.post(
-        `${API_BASE_URL}/api/batch/trigger`,
-        {
-          jobType: "docker-hub-pull",
-        },
-        {
-          timeout: 5000, // Short timeout for the trigger call
-        }
-      );
-
-      if (!triggerResponse.data.success) {
-        throw new Error(triggerResponse.data.error || "Failed to trigger batch job");
+      // Kick off the container sync in the Go API. The mutation registers a
+      // 'running' docker-hub-pull batch run before responding, so the poll
+      // below always observes the new run.
+      const triggerResult = await graphqlClient.mutation(PULL_CONTAINERS_MUTATION, {}).toPromise();
+      if (triggerResult.error || !triggerResult.data?.pullContainers) {
+        throw new Error(triggerResult.error?.message || "Failed to trigger container sync");
       }
 
       // Fetch cached data for immediate display (portainerOnly — no need to hit runners here)

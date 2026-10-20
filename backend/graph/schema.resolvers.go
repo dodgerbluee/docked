@@ -515,15 +515,18 @@ func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID 
 		}
 	}
 
-	// Async like Node's manual batch trigger: batch_runs bookkeeping and the
-	// already-running guard live in RunWithLock; the client tracks progress
-	// through batchRuns polling / subscriptions.
+	// Async like Node's manual batch trigger, but the 'running' batch_run row
+	// is created synchronously so clients polling batchRuns immediately see it.
 	if r.Sync == nil {
 		return nil, fmt.Errorf("container sync is unavailable")
 	}
+	runID, err := r.Sync.Acquire(ctx, uid, true)
+	if err != nil {
+		return nil, err
+	}
 	go func() {
-		if _, err := r.Sync.RunWithLock(context.WithoutCancel(ctx), uid, true); err != nil {
-			slog.Error("manual container sync failed", "userId", uid, "error", err)
+		if err := r.Sync.ExecuteAndComplete(context.WithoutCancel(ctx), uid, runID); err != nil {
+			slog.Error("manual container sync failed", "userId", uid, "runId", runID, "error", err)
 		}
 	}()
 

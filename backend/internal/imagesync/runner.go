@@ -45,10 +45,11 @@ func NewService(database *sql.DB, hub *events.Hub) *Service {
 	}
 }
 
-// RunWithLock performs a docker-hub-pull run with the same guard stack as
-// Node's BatchManager.executeJob: in-process flag, DB 'running' row check
-// (with stale-run recovery), batch_runs bookkeeping around the scan.
-func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) (int64, error) {
+// Acquire takes the run guard and creates the 'running' batch_run row,
+// returning its id. Splitting this from the scan lets HTTP resolvers
+// register the run synchronously (so clients polling batchRuns immediately
+// see the new row) and then execute it in the background.
+func (s *Service) Acquire(ctx context.Context, userID int64, isManual bool) (int64, error) {
 	s.mu.Lock()
 	if s.running[userID] {
 		s.mu.Unlock()
@@ -56,27 +57,42 @@ func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) 
 	}
 	s.running[userID] = true
 	s.mu.Unlock()
-	defer func() {
+
+	release := func() {
 		s.mu.Lock()
-		s.running[userID] = false
+		delete(s.running, userID)
 		s.mu.Unlock()
-	}()
+	}
 
 	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, JobType); err != nil {
+		release()
 		return 0, err
 	} else if existing != nil {
 		if startedAt, perr := parseSQLiteTime(existing.StartedAt); perr == nil && time.Since(startedAt) > staleRunThreshold {
 			msg := "Job marked as failed: stale running job detected"
 			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
 		} else {
+			release()
 			return 0, fmt.Errorf("job %s is already running for user %d (run ID: %d)", JobType, userID, existing.ID)
 		}
 	}
 
 	runID, err := db.CreateBatchRun(ctx, s.DB, userID, JobType, isManual)
 	if err != nil {
+		release()
 		return 0, err
 	}
+	return runID, nil
+}
+
+// ExecuteAndComplete performs the scan and finalizes the batch_run row
+// created by Acquire. It always releases the in-process flag.
+func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64) error {
+	defer func() {
+		s.mu.Lock()
+		delete(s.running, userID)
+		s.mu.Unlock()
+	}()
 
 	checked, updated, runErr := s.RunDockerHubPull(ctx, userID)
 
@@ -86,12 +102,23 @@ func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) 
 		if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "failed", checked, updated, &msg); cerr != nil {
 			slog.Error("failed to mark batch run failed", "runId", runID, "error", cerr)
 		}
-		return runID, runErr
+		return runErr
 	}
 	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
 		slog.Error("failed to mark batch run completed", "runId", runID, "error", cerr)
 	}
-	return runID, nil
+	return nil
+}
+
+// RunWithLock performs a docker-hub-pull run with the same guard stack as
+// Node's BatchManager.executeJob: in-process flag, DB 'running' row check
+// (with stale-run recovery), batch_runs bookkeeping around the scan.
+func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) (int64, error) {
+	runID, err := s.Acquire(ctx, userID, isManual)
+	if err != nil {
+		return 0, err
+	}
+	return runID, s.ExecuteAndComplete(ctx, userID, runID)
 }
 
 // parseSQLiteTime parses SQLite CURRENT_TIMESTAMP values (UTC,
