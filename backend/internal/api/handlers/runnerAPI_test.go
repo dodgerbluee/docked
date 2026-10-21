@@ -44,6 +44,7 @@ func newRunnerTestDB(t *testing.T) *sql.DB {
 			username TEXT, password_hash TEXT, role TEXT,
 			password_changed INTEGER DEFAULT 0, instance_admin INTEGER DEFAULT 0,
 			email TEXT, last_login TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,

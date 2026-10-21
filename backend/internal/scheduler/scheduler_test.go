@@ -26,7 +26,8 @@ func newTestDB(t *testing.T) *sql.DB {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			username TEXT, password_hash TEXT, role TEXT,
 			password_changed INTEGER DEFAULT 0, instance_admin INTEGER DEFAULT 0,
-			email TEXT, last_login TEXT, created_at TEXT, updated_at TEXT
+			email TEXT, last_login TEXT, created_at TEXT, updated_at TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT
 		)`,
 		`CREATE TABLE batch_config (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

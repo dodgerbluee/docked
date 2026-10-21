@@ -232,6 +232,8 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	agentLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
 	writeLimiter := apimiddleware.NewRateLimiter(30, 15*time.Minute, 10000)
 	destructiveLimiter := apimiddleware.NewRateLimiter(10, time.Minute, 10000)
+	authLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
+	avatarLimiter := apimiddleware.NewRateLimiter(100, 15*time.Minute, 10000)
 
 	r.Route("/api", func(r chi.Router) {
 		// Agent endpoints: unauthenticated (dockhand authenticates via
@@ -243,6 +245,15 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database, poller))
 			r.Post("/runners/re-enroll", handlers.ReEnrollRunner(database))
 		})
+
+		// Public auth endpoints (Node keeps the edge limiter and proxies).
+		// /auth/verify is deliberately unthrottled, matching Node's route
+		// table where no limiter is registered for it.
+		r.With(apimiddleware.RateLimit(authLimiter, apimiddleware.RESTTooManyRequests)).
+			Post("/auth/login", handlers.Login(database))
+		r.With(apimiddleware.RateLimit(authLimiter, apimiddleware.RESTTooManyRequests)).
+			Post("/auth/create-user-with-config", handlers.CreateUserWithConfig(database, cfg.JWTSecret))
+		r.Get("/auth/verify", handlers.VerifyToken(database, cfg.JWTSecret))
 
 		// Browser-facing enrollment endpoints behind the strict auth twin of
 		// Node's authenticate (signature + user exists + not revoked), plus
@@ -264,6 +275,21 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 				Post("/runners/{runnerId}/apps/{appName}/operations/{opName}/run", handlers.RunRunnerAppOperation(database))
 			r.With(apimiddleware.RateLimit(destructiveLimiter, apimiddleware.RESTTooManyRequests)).
 				Post("/runners/{runnerId}/containers/{containerId}/upgrade", handlers.RunnerUpgradeStream(database))
+
+			// Config export + logout (Node mounts these after authenticate,
+			// with no per-route limiter).
+			r.Get("/auth/export-users", handlers.ExportUsers(database))
+			r.Get("/user/export-config", handlers.ExportUserConfig(database))
+			r.Post("/auth/logout", handlers.Logout(database, cfg.JWTSecret))
+
+			// Avatar serving routes (limiter after auth, like Node).
+			r.Group(func(r chi.Router) {
+				r.Use(apimiddleware.RateLimit(avatarLimiter, apimiddleware.RESTTooManyRequests))
+				r.Get("/avatars", handlers.GetAvatar(database))
+				r.Get("/avatars/user/{userId}", handlers.GetAvatarByUserId(database))
+				r.Get("/avatars/recent", handlers.GetRecentAvatars(database))
+				r.Get("/avatars/recent/{filename}", handlers.GetRecentAvatar(database))
+			})
 		})
 	})
 

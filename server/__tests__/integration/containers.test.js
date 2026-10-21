@@ -30,17 +30,11 @@ describe("Containers API", () => {
       }
     }
 
-    // Get auth token
-    const loginResponse = await request(app).post("/api/auth/login").send({
-      username: testUsername,
-      password: testPassword,
-    });
-
-    if (loginResponse.status !== 200) {
-      throw new Error(`Login failed: ${JSON.stringify(loginResponse.body)}`);
-    }
-
-    authToken = loginResponse.body.token;
+    // Get auth token. Login now lives in the Go backend, so mint the token
+    // directly with the shared JWT util (authenticate only verifies it).
+    const { generateToken } = require("../../utils/jwt");
+    const user = await getUserByUsername(testUsername);
+    authToken = generateToken({ userId: user.id, username: user.username, role: user.role });
   });
 
   describe("GET /api/containers", () => {

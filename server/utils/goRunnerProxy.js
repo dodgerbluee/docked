@@ -9,6 +9,8 @@
  * Headers:
  *  - Authorization is forwarded verbatim (Go re-validates with the shared
  *    JWT secret; the revocation + user-existence checks run on both sides).
+ *  - Cookie is forwarded verbatim (OAuth state cookies on the SSO callback
+ *    and link flow).
  *  - X-Forwarded-For is OVERWRITTEN with the validated client IP — a
  *    client-supplied prefix is spoofable and would mint fresh buckets in
  *    Go's per-IP rate limiter.
@@ -28,6 +30,10 @@ function createGoRunnerProxy() {
 
     const headers = {
       ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      // Cookies are forwarded for the OAuth/SSO flows (state cookies ride on
+      // the callback and link requests). Harmless elsewhere: these routes
+      // authenticate via Authorization.
+      ...(req.headers.cookie ? { Cookie: req.headers.cookie } : {}),
       "X-Forwarded-For": req.ip,
       "X-Forwarded-Proto": req.protocol,
       "X-Forwarded-Host": req.get("host"),

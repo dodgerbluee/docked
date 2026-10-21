@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-// UserRow is the raw user data from the database.
+// UserRow is the raw user data from the database. The oauth_provider columns
+// come from migration 0003; REST login needs oauth_provider to reject
+// password sign-in for SSO-only accounts (no password_hash).
 type UserRow struct {
 	ID              int64
 	Username        string
@@ -20,9 +22,11 @@ type UserRow struct {
 	LastLogin       sql.NullString
 	CreatedAt       string
 	UpdatedAt       string
+	OAuthProvider   sql.NullString
+	OAuthProviderID sql.NullString
 }
 
-const userCols = `id, username, password_hash, role, password_changed, instance_admin, email, last_login, created_at, updated_at`
+const userCols = `id, username, password_hash, role, password_changed, instance_admin, email, last_login, created_at, updated_at, oauth_provider, oauth_provider_id`
 
 // GetUserByID fetches a single user by primary key.
 func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, error) {
@@ -31,7 +35,8 @@ func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, err
 
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt)
+		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
+		&u.OAuthProvider, &u.OAuthProviderID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -48,7 +53,8 @@ func GetUserByUsername(ctx context.Context, database *sql.DB, username string) (
 
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt)
+		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
+		&u.OAuthProvider, &u.OAuthProviderID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -71,7 +77,8 @@ func GetAllUsers(ctx context.Context, database *sql.DB) ([]UserRow, error) {
 	for rows.Next() {
 		var u UserRow
 		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-			&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
+			&u.OAuthProvider, &u.OAuthProviderID); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
 		users = append(users, u)
@@ -248,6 +255,49 @@ func GetUserCount(ctx context.Context, database *sql.DB) (int, error) {
 	var count int
 	err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	return count, err
+}
+
+// InstanceAdminExists reports whether any user holds the instance-admin flag
+// (Node's instanceAdminExists). A missing users table reads as false.
+func InstanceAdminExists(ctx context.Context, database *sql.DB) (bool, error) {
+	var one int
+	err := database.QueryRowContext(ctx,
+		"SELECT 1 FROM users WHERE instance_admin = 1 LIMIT 1").Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		if isNoSuchTable(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("instance admin exists: %w", err)
+	}
+	return true, nil
+}
+
+// UpdateLastLogin stamps the login timestamp (Node's updateLastLogin).
+// Missing users are silently ignored, matching Node's fire-and-forget call.
+func UpdateLastLogin(ctx context.Context, database *sql.DB, username string) error {
+	_, err := database.ExecContext(ctx,
+		"UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?", username)
+	if err != nil {
+		return fmt.Errorf("update last login: %w", err)
+	}
+	return nil
+}
+
+// CreateUserFull inserts a user with the full column set Node's createUser
+// writes: email plus password_changed = 1.
+func CreateUserFull(ctx context.Context, database *sql.DB, username, passwordHash string,
+	email *string, role string, instanceAdmin int) (int64, error) {
+	result, err := database.ExecContext(ctx,
+		`INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin)
+		 VALUES (?, ?, ?, ?, 1, ?)`,
+		username, passwordHash, email, role, instanceAdmin)
+	if err != nil {
+		return 0, fmt.Errorf("create user full: %w", err)
+	}
+	return result.LastInsertId()
 }
 
 // UpdateVerificationToken stores a one-time instance-admin verification

@@ -32,8 +32,6 @@
 
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const authController = require("../controllers/authController");
-const avatarController = require("../controllers/avatarController");
 
 const versionController = require("../controllers/versionController");
 const oauthController = require("../controllers/oauthController");
@@ -197,12 +195,13 @@ router.get("/version", publicLimiter, versionController.getVersion);
 // First-user registration (registration code + register) is served by the graph
 // (registrationCodeStatus query; generateRegistrationCode, verifyRegistrationCode,
 // register mutations).
-router.post("/auth/login", authLimiter, asyncHandler(authController.login));
-router.post(
-  "/auth/create-user-with-config",
-  authLimiter,
-  asyncHandler(authController.createUserWithConfig)
-);
+// Auth REST routes are served by the Go backend (internal/api/handlers/auth.go);
+// Node keeps the edge limiters and streams the responses through. The
+// controller files stay on disk for rollback.
+const goRunnerProxy = createGoRunnerProxy();
+
+router.post("/auth/login", authLimiter, goRunnerProxy);
+router.post("/auth/create-user-with-config", authLimiter, goRunnerProxy);
 
 // OAuth/SSO routes (public - always registered; providers checked at runtime)
 router.get("/auth/oauth/providers", publicLimiter, asyncHandler(oauthController.getProviders));
@@ -224,13 +223,12 @@ router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.compl
  *       401:
  *         description: Invalid or expired token
  */
-router.get("/auth/verify", asyncHandler(authController.verifyToken));
+router.get("/auth/verify", goRunnerProxy);
 
 // Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
 // Migrated to the Go backend; Node keeps the edge limiters and streams the
 // responses through (see utils/goRunnerProxy.js). The version poller also
 // lives in Go now, so heartbeat URL-change backoff happens in-process there.
-const goRunnerProxy = createGoRunnerProxy();
 
 router.get("/runners/install/:token", publicLimiter, goRunnerProxy);
 router.post("/runners/register", publicLimiter, goRunnerProxy);
@@ -250,13 +248,15 @@ router.use(authenticate);
 // testSSOProvider, setSSOSettings mutations).
 
 // User management routes: served by the graph (user query, deleteUser mutation).
-router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
-router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
+// Config export + logout: served by the Go backend (proxied; authenticate
+// still runs at the edge above, Go re-checks revocation + user existence).
+router.get("/auth/export-users", goRunnerProxy);
+router.get("/user/export-config", goRunnerProxy);
 
 // Logout: revokes the presented token in the shared revoked_tokens table so it
 // cannot be replayed before its exp. The graph exposes the same behavior as the
 // logout mutation; both share the table.
-router.post("/auth/logout", asyncHandler(authController.logout));
+router.post("/auth/logout", goRunnerProxy);
 
 // Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
 // Users should run 'docker login' on the server if authentication is needed
@@ -270,19 +270,13 @@ router.post("/auth/logout", asyncHandler(authController.logout));
 // Upgrade history routes: served by the graph (upgradeHistoryStats,
 // trackedAppUpgradeHistory, trackedAppUpgradeHistoryStats).
 
-// Avatar routes
-router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));
-router.get(
-  "/avatars/user/:userId",
-  avatarLimiter,
-  asyncHandler(avatarController.getAvatarByUserId)
-);
-router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
-router.get(
-  "/avatars/recent/:filename",
-  avatarLimiter,
-  asyncHandler(avatarController.getRecentAvatar)
-);
+// Avatar routes: served by the Go backend (proxied; same $DATA_DIR/avatars
+// layout). Go answers 404 JSON when a file is missing — the client maps
+// that to its own bundled default avatar, so the UI is unchanged.
+router.get("/avatars", avatarLimiter, goRunnerProxy);
+router.get("/avatars/user/:userId", avatarLimiter, goRunnerProxy);
+router.get("/avatars/recent", avatarLimiter, goRunnerProxy);
+router.get("/avatars/recent/:filename", avatarLimiter, goRunnerProxy);
 
 // Intent routes
 // IMPORTANT: Specific/static routes must come before parameterized routes

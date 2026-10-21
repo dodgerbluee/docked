@@ -18,6 +18,8 @@ CREATE TABLE users (
   password_changed INTEGER DEFAULT 0,
   instance_admin INTEGER DEFAULT 0,
   verification_token TEXT,
+  last_login TEXT,
+  oauth_provider TEXT, oauth_provider_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

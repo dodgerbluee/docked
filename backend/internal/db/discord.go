@@ -81,6 +81,26 @@ func CreateDiscordWebhook(ctx context.Context, database *sql.DB, userID int64, w
 	return result.LastInsertId()
 }
 
+// CreateDiscordWebhookFull inserts every column Node's createDiscordWebhook
+// writes (used by the config-import path, which carries name/avatar/guild/
+// channel metadata the GraphQL mutation does not accept).
+func CreateDiscordWebhookFull(ctx context.Context, database *sql.DB, userID int64, webhookURL string,
+	serverName, channelName, name, avatarURL, guildID, channelID *string, enabled bool) (int64, error) {
+
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
+	result, err := database.ExecContext(ctx,
+		`INSERT INTO discord_webhooks (user_id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		userID, webhookURL, serverName, channelName, name, avatarURL, guildID, channelID, enabledInt)
+	if err != nil {
+		return 0, fmt.Errorf("create discord webhook full: %w", err)
+	}
+	return result.LastInsertId()
+}
+
 func UpdateDiscordWebhook(ctx context.Context, database *sql.DB, id, userID int64,
 	webhookURL, serverName, channelName *string, enabled *bool) error {
 

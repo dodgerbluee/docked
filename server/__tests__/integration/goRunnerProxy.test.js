@@ -3,7 +3,8 @@
  *
  * The dockhand agent protocol and enrollment endpoints moved to the Go
  * backend; Node keeps the edge limiters and forwards. These tests pin the
- * forwarding contract: original URL, Authorization passthrough, XFF
+ * forwarding contract: original URL, Authorization passthrough, Cookie
+ * passthrough (OAuth state cookies), XFF
  * overwrite (never append), X-Forwarded-Proto/Host for Go's URL builder,
  * JSON body re-serialization, streaming response passthrough, upstream
  * teardown on client disconnect, and the 502 envelope when the Go backend
@@ -82,6 +83,7 @@ describe("goRunnerProxy bridge", () => {
     app.post("/api/runners/register", plain);
     app.post("/api/runners/heartbeat", plain);
     app.post("/api/runners/:runnerId/containers/:containerId/upgrade", plain);
+    app.get("/api/avatars", plain);
   });
 
   it("forwards GET with query string, Authorization, and safe forwarding headers", async () => {
@@ -103,6 +105,14 @@ describe("goRunnerProxy bridge", () => {
     expect(fwd.headers["x-forwarded-proto"]).toBe("http");
     expect(fwd.headers["x-forwarded-host"]).toBeTruthy();
     expect(fwd.body).toBe("");
+  });
+
+  it("forwards the Cookie header (OAuth state cookies ride the SSO flows)", async () => {
+    await request(app)
+      .get("/api/avatars")
+      .set("Cookie", "oauth_state=xyz; other=1")
+      .expect(200);
+    expect(seen[0].headers.cookie).toBe("oauth_state=xyz; other=1");
   });
 
   it("re-serializes the parsed JSON body for POSTs", async () => {
