@@ -987,66 +987,9 @@ func pruneRecentAvatars(dir string) {
 	}
 }
 
-// runTrackedAppsCheck refreshes tracked-app versions from registries and
-// returns (checked, updated). Shared by checkTrackedAppUpdate-all flows and
-// triggerBatchJob(TRACKED_APPS_CHECK).
-func (r *Resolver) runTrackedAppsCheck(ctx context.Context, uid int64) (checked, updated int) {
-	apps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
-	if err != nil {
-		return 0, 0
-	}
-	for _, app := range apps {
-		if app.ImageName.Valid && app.ImageName.String != "" {
-			// Check Docker Hub / GHCR for latest tag
-			latest, digest := checkRegistryForImage(app.ImageName.String)
-			if latest != "" && latest != nullStrDefault(app.CurrentVersion) {
-				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
-				updated++
-			}
-		}
-	}
-	return len(apps), updated
-}
+// runTrackedAppsCheck and checkRegistryForImage were removed in phase 5a:
+// tracked-app checks now run through the full imagesync.Service pipeline.
 
-func checkRegistryForImage(imageName string) (string, string) {
-	// Parse image name to get repo and tag
-	parts := strings.Split(imageName, ":")
-	repo := parts[0]
-	tag := "latest"
-	if len(parts) > 1 {
-		tag = parts[1]
-	}
-
-	// Determine registry
-	var url string
-	if strings.Contains(repo, "ghcr.io") || strings.Contains(repo, "ghcr.") {
-		url = fmt.Sprintf("https://ghcr.io/v2/%s/manifests/%s", repo, tag)
-	} else if strings.Contains(repo, "quay.io") {
-		url = fmt.Sprintf("https://quay.io/v2/%s/manifests/%s", repo, tag)
-	} else {
-		// Docker Hub
-		hubRepo := repo
-		if !strings.Contains(hubRepo, "/") {
-			hubRepo = "library/" + hubRepo
-		}
-		url = fmt.Sprintf("https://hub.docker.com/v2/repositories/%s/tags/%s", hubRepo, tag)
-	}
-
-	status, body, err := httpGet(url)
-	if err != nil || status != 200 {
-		return "", ""
-	}
-
-	var result struct {
-		Name   string `json:"name"`
-		Digest string `json:"digest"`
-	}
-	json.Unmarshal(body, &result)
-	if result.Digest != "" {
-		return tag, result.Digest
-	}
-	return tag, ""
-}
 func getDataDir() string {
 	if d := os.Getenv("DATA_DIR"); d != "" {
 		return d

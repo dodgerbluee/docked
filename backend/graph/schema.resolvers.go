@@ -1275,7 +1275,13 @@ func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.T
 	if err != nil {
 		return nil, err
 	}
-	checked, updated := r.runTrackedAppsCheck(ctx, uid)
+	if r.Sync == nil {
+		return nil, fmt.Errorf("tracked-app checks are unavailable")
+	}
+	checked, updated, err := r.Sync.CheckAllTrackedApps(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
 	return &model.TrackedAppCheckResult{
 		Success: true,
 		Checked: &checked,
@@ -1295,26 +1301,23 @@ func (r *mutationResolver) CheckTrackedAppUpdate(ctx context.Context, id string)
 	if err != nil || app == nil {
 		return nil, fmt.Errorf("tracked app not found")
 	}
-
-	var hasUpdate bool
-	var currentVer, latestVer *string
-	if app.ImageName.Valid && app.ImageName.String != "" {
-		latest, digest := checkRegistryForImage(app.ImageName.String)
-		currentVer = nullStrPtr(app.CurrentVersion)
-		if latest != "" {
-			latestVer = &latest
-			hasUpdate = latest != nullStrDefault(app.CurrentVersion)
-			if hasUpdate {
-				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
-			}
-		}
+	if r.Sync == nil {
+		return nil, fmt.Errorf("tracked-app checks are unavailable")
 	}
 
+	res, err := r.Sync.CheckTrackedApp(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+
+	hasUpdate := res.HasUpdate
+	currentVer := res.CurrentVersion
+	latestVer := res.LatestVersion
 	return &model.TrackedAppCheckResult{
 		Success:        true,
 		HasUpdate:      &hasUpdate,
-		CurrentVersion: currentVer,
-		LatestVersion:  latestVer,
+		CurrentVersion: &currentVer,
+		LatestVersion:  &latestVer,
 	}, nil
 }
 
@@ -1684,25 +1687,30 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 		jt = dbEnumValue(string(*jobType))
 	}
 	// Only tracked-apps-check is implemented here; container inventory sync
-	// (docker-hub-pull) and the remaining job types live in the Node backend.
+	// (docker-hub-pull) goes through pullContainers and the remaining job
+	// types live in the Node backend.
 	if jt != "tracked-apps-check" {
 		return nil, fmt.Errorf("batch job %s is not supported by the Go API; use the primary server", jt)
+	}
+	if r.Sync == nil {
+		return nil, fmt.Errorf("tracked-app checks are unavailable")
 	}
 	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
 		return nil, err
 	}
 
-	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, jt, true)
+	// Same guard stack as Node's BatchManager.executeJob: the 'running'
+	// batch_run row is created synchronously, the scan runs async.
+	batchID, err := r.Sync.TrackedAcquire(ctx, uid, true)
 	if err != nil {
 		releaseIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey)
-		return nil, fmt.Errorf("create batch run: %w", err)
+		return nil, err
 	}
 
-	// Fire-and-forget: check every tracked app for a newer version.
 	go func() {
-		ctx := context.Background()
-		checked, updated := r.runTrackedAppsCheck(ctx, uid)
-		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", checked, updated, nil)
+		if err := r.Sync.TrackedExecuteAndComplete(context.WithoutCancel(ctx), uid, batchID); err != nil {
+			slog.Error("manual tracked-apps scan failed", "userId", uid, "runId", batchID, "error", err)
+		}
 	}()
 
 	return &model.BatchRun{

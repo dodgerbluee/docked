@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 )
 
 // TrackedAppRow is a row from the tracked_apps table.
@@ -24,18 +25,22 @@ type TrackedAppRow struct {
 	LastChecked               sql.NullString
 	CreatedAt                 string
 	UpdatedAt                 string
+	RepositoryTokenID         sql.NullInt64
+	GitlabToken               sql.NullString
 }
 
 const trackedAppCols = `id, user_id, name, image_name, github_repo, source_type,
 	current_version, current_digest, latest_version, latest_digest, has_update,
-	current_version_publish_date, latest_version_publish_date, last_checked, created_at, updated_at`
+	current_version_publish_date, latest_version_publish_date, last_checked, created_at, updated_at,
+	repository_token_id, gitlab_token`
 
 func scanTrackedApp(row interface{ Scan(...any) error }) (TrackedAppRow, error) {
 	var r TrackedAppRow
 	err := row.Scan(&r.ID, &r.UserID, &r.Name, &r.ImageName, &r.GithubRepo,
 		&r.SourceType, &r.CurrentVersion, &r.CurrentDigest, &r.LatestVersion, &r.LatestDigest,
 		&r.HasUpdate, &r.CurrentVersionPublishDate, &r.LatestVersionPublishDate,
-		&r.LastChecked, &r.CreatedAt, &r.UpdatedAt)
+		&r.LastChecked, &r.CreatedAt, &r.UpdatedAt,
+		&r.RepositoryTokenID, &r.GitlabToken)
 	return r, err
 }
 
@@ -152,14 +157,33 @@ func DeleteTrackedApp(ctx context.Context, database *sql.DB, id, userID int64) e
 	return err
 }
 
-func UpdateTrackedAppVersion(ctx context.Context, database *sql.DB, id int64, latestVersion, latestDigest string) error {
-	hasUpdate := 0
-	if latestVersion != "" {
-		hasUpdate = 1
+// UpdateTrackedAppFields applies the dynamic column updates produced by the
+// tracked-apps check pipeline, mirroring Node's updateTrackedApp: map keys
+// are column names, a nil value writes SQL NULL, and absent keys are left
+// untouched. Keys come from this package's fixed allow-list, never user input.
+func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID int64, sets map[string]any) error {
+	if len(sets) == 0 {
+		return nil
 	}
-	_, err := database.ExecContext(ctx,
-		`UPDATE tracked_apps SET latest_version=?, latest_digest=?, has_update=?, last_checked=CURRENT_TIMESTAMP WHERE id=?`,
-		latestVersion, latestDigest, hasUpdate, id)
+
+	cols := make([]string, 0, len(sets))
+	for k := range sets {
+		cols = append(cols, k)
+	}
+	sort.Strings(cols)
+
+	assigns := make([]string, 0, len(cols))
+	args := make([]any, 0, len(cols)+2)
+	for _, c := range cols {
+		assigns = append(assigns, c+" = ?")
+		args = append(args, sets[c])
+	}
+	assigns = append(assigns, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, id, userID)
+
+	query := fmt.Sprintf("UPDATE tracked_apps SET %s WHERE id = ? AND user_id = ?",
+		joinStrings(assigns, ", "))
+	_, err := database.ExecContext(ctx, query, args...)
 	return err
 }
 

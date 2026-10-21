@@ -225,7 +225,9 @@ CREATE TABLE tracked_apps (
   latest_version_publish_date TEXT,
   last_checked TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  repository_token_id INTEGER,
+  gitlab_token TEXT
 );
 CREATE TABLE discord_webhooks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

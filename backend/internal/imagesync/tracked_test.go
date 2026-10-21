@@ -1,0 +1,714 @@
+package imagesync
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/dockedapp/backend/internal/db"
+)
+
+// newTrackedTestDB creates the tables the tracked-apps pipeline touches
+// (Node-created schema shapes).
+func newTrackedTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	database, err := db.Open(filepath.Join(t.TempDir(), "tracked-test.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	stmts := []string{
+		`CREATE TABLE tracked_apps (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			image_name TEXT,
+			github_repo TEXT,
+			source_type TEXT DEFAULT 'docker',
+			gitlab_token TEXT,
+			current_version TEXT,
+			current_digest TEXT,
+			latest_version TEXT,
+			latest_digest TEXT,
+			has_update INTEGER DEFAULT 0,
+			current_version_publish_date TEXT,
+			latest_version_publish_date TEXT,
+			last_checked DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			repository_token_id INTEGER,
+			UNIQUE(user_id, image_name, github_repo)
+		)`,
+		`CREATE TABLE batch_runs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			job_type TEXT DEFAULT 'docker-hub-pull',
+			status TEXT NOT NULL,
+			is_manual INTEGER DEFAULT 0,
+			started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			completed_at DATETIME,
+			duration_ms INTEGER,
+			containers_checked INTEGER DEFAULT 0,
+			containers_updated INTEGER DEFAULT 0,
+			error_message TEXT,
+			logs TEXT
+		)`,
+		`CREATE TABLE discord_webhooks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL, webhook_url TEXT NOT NULL,
+			server_name TEXT, channel_name TEXT, name TEXT,
+			enabled INTEGER DEFAULT 1, avatar_url TEXT, guild_id TEXT, channel_id TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE discord_notifications_sent (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL, deduplication_key TEXT NOT NULL,
+			notification_type TEXT, sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user_id, deduplication_key)
+		)`,
+	}
+	for _, s := range stmts {
+		if _, err := database.Exec(s); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	return database
+}
+
+func newTrackedTestService(t *testing.T) *Service {
+	t.Helper()
+	ClearReleaseCache()
+	t.Cleanup(ClearReleaseCache)
+	dockerRateLimitDelay = 0
+	t.Cleanup(func() { dockerRateLimitDelay = time.Second })
+	return NewService(newTrackedTestDB(t), nil)
+}
+
+func insertTrackedApp(t *testing.T, database *sql.DB, values map[string]any) *db.TrackedAppRow {
+	t.Helper()
+	cols := []string{"user_id", "name"}
+	args := []any{1, values["name"]}
+	for _, c := range []string{"image_name", "github_repo", "source_type", "current_version",
+		"current_digest", "latest_version", "latest_digest", "has_update",
+		"current_version_publish_date", "latest_version_publish_date", "gitlab_token",
+		"repository_token_id"} {
+		if v, ok := values[c]; ok {
+			cols = append(cols, c)
+			args = append(args, v)
+		}
+	}
+	q := fmt.Sprintf("INSERT INTO tracked_apps (%s) VALUES (%s)",
+		join(cols, ", "), placeholders(len(cols)))
+	res, err := database.Exec(q, args...)
+	if err != nil {
+		t.Fatalf("insert tracked app: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	app, err := db.GetTrackedAppByID(context.Background(), database, id, 1)
+	if err != nil || app == nil {
+		t.Fatalf("reload tracked app: %v", err)
+	}
+	return app
+}
+
+func join(parts []string, sep string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += sep
+		}
+		out += p
+	}
+	return out
+}
+
+func placeholders(n int) string {
+	out := ""
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			out += ", "
+		}
+		out += "?"
+	}
+	return out
+}
+
+func nullStr(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: true}
+}
+
+// ---------- pure helpers ----------
+
+func TestNormalizeVersion(t *testing.T) {
+	cases := map[string]string{
+		"v1.2.3":   "1.2.3",
+		"V1.2.3":   "1.2.3",
+		" 1.2.3 ":  "1.2.3",
+		"latest":   "latest",
+		"":         "",
+		"v":        "",
+		"1.0-beta": "1.0-beta",
+	}
+	for in, want := range cases {
+		if got := normalizeVersion(in); got != want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestNormalizeDigestForComparison(t *testing.T) {
+	if got := normalizeDigestForComparison("SHA256:ABC"); got != "abc" {
+		t.Errorf("got %q", got)
+	}
+	if got := normalizeDigestForComparison(""); got != "" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestFormatDigest(t *testing.T) {
+	if formatDigest("") != nil {
+		t.Error("empty digest should be nil")
+	}
+	got := formatDigest("sha256:0123456789abcdef0123")
+	if got == nil || *got != "0123456789ab" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestJsStoreableString(t *testing.T) {
+	for _, bad := range []string{"", " ", "null", "undefined"} {
+		if jsStoreableString(bad) != "" {
+			t.Errorf("jsStoreableString(%q) should be empty", bad)
+		}
+	}
+	if jsStoreableString(" 1.2.3 ") != "1.2.3" {
+		t.Error("should trim valid values")
+	}
+}
+
+func TestNewlyDetectedDocker(t *testing.T) {
+	app := &db.TrackedAppRow{HasUpdate: 0}
+	if !newlyDetectedDocker(true, app, nil, nil) {
+		t.Error("first-time update must be newly detected")
+	}
+	if newlyDetectedDocker(false, app, nil, nil) {
+		t.Error("no update -> not newly detected")
+	}
+
+	app = &db.TrackedAppRow{HasUpdate: 1,
+		LatestDigest: nullStr("sha256:aaa"), LatestVersion: nullStr("1.0")}
+	if !newlyDetectedDocker(true, app, strPtr("sha256:bbb"), nil) {
+		t.Error("different digest must re-trigger")
+	}
+	if newlyDetectedDocker(true, app, strPtr("sha256:aaa"), strPtr("1.0")) {
+		t.Error("same digest+version must not re-trigger")
+	}
+	app = &db.TrackedAppRow{HasUpdate: 1, LatestVersion: nullStr("1.0")}
+	if !newlyDetectedDocker(true, app, nil, strPtr("v2.0")) {
+		t.Error("different version must re-trigger")
+	}
+}
+
+func TestNewlyDetectedVersion(t *testing.T) {
+	app := &db.TrackedAppRow{HasUpdate: 1, LatestVersion: nullStr("1.0")}
+	if newlyDetectedVersion(true, app, strPtr("V1.0")) {
+		t.Error("normalized match must not re-trigger")
+	}
+	if !newlyDetectedVersion(true, app, strPtr("2.0")) {
+		t.Error("different version must re-trigger")
+	}
+}
+
+func TestCreateTrackedImageKey(t *testing.T) {
+	d := trackedNotification{Name: "n", ImageName: "img:latest", LatestDigest: strPtr("sha256:ABC")}
+	if got := createTrackedImageKey(7, d); got != "7:img:latest:abc" {
+		t.Errorf("got %q", got)
+	}
+	d = trackedNotification{Name: "n", GithubRepo: "o/r", LatestVersion: "1.2"}
+	if got := createTrackedImageKey(7, d); got != "7:o/r:1.2" {
+		t.Errorf("got %q", got)
+	}
+	d = trackedNotification{Name: "only-name"}
+	if got := createTrackedImageKey(7, d); got != "7:only-name:" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestFormatTrackedAppNotification(t *testing.T) {
+	embeds := formatTrackedAppNotification(trackedNotification{
+		Name: "Immich", ImageName: "ghcr.io/image/immich", SourceType: "docker",
+		CurrentVersion: "v1.0", LatestVersion: "v1.1",
+		LatestVersionPublishDate: strPtr("2026-01-02T03:04:05.000Z"),
+	})["embeds"].([]any)[0].(map[string]any)
+
+	if embeds["title"] != trackedEmbedTitle {
+		t.Errorf("title = %v", embeds["title"])
+	}
+	fields := embeds["fields"].([]map[string]any)
+	if len(fields) != 4 {
+		t.Fatalf("want 4 fields, got %d", len(fields))
+	}
+	if fields[0]["name"] != "Latest Version" || fields[1]["name"] != "Release Date" ||
+		fields[2]["name"] != "Source" || fields[3]["name"] != "Current Version" {
+		t.Errorf("field order = %v %v %v %v", fields[0]["name"], fields[1]["name"],
+			fields[2]["name"], fields[3]["name"])
+	}
+	// Non-hub image still gets a hub.docker.com link (faithful Node quirk:
+	// getDockerHubRepoUrl only strips docker.io/ prefixes).
+	if fields[2]["value"] != "[Docker: ghcr.io/image/immich](https://hub.docker.com/r/ghcr.io/image/immich)" {
+		t.Errorf("source = %v", fields[2]["value"])
+	}
+
+	// GitHub source + release link.
+	embeds = formatTrackedAppNotification(trackedNotification{
+		Name: "App", GithubRepo: "owner/repo", SourceType: "github",
+		CurrentVersion: "1.0", LatestVersion: "2.0", ReleaseURL: strPtr("https://github.com/owner/repo/releases/tag/2.0"),
+	})["embeds"].([]any)[0].(map[string]any)
+	fields = embeds["fields"].([]map[string]any)
+	if fields[0]["value"] != "[2.0](https://github.com/owner/repo/releases/tag/2.0)" {
+		t.Errorf("latest display = %v", fields[0]["value"])
+	}
+	if fields[1]["name"] != "Source" {
+		t.Error("no publish date -> no Release Date field")
+	}
+	if fields[1]["value"] != "[GitHub: owner/repo](https://github.com/owner/repo)" {
+		t.Errorf("source = %v", fields[1]["value"])
+	}
+
+	// gitlab apps fall to the Docker-Unknown source branch (faithful to Node).
+	embeds = formatTrackedAppNotification(trackedNotification{
+		Name: "App", GithubRepo: "group/proj", SourceType: "gitlab",
+		CurrentVersion: "1.0", LatestVersion: "2.0",
+	})["embeds"].([]any)[0].(map[string]any)
+	fields = embeds["fields"].([]map[string]any)
+	if fields[1]["value"] != "Docker: Unknown" {
+		t.Errorf("gitlab source branch = %v", fields[1]["value"])
+	}
+}
+
+func TestParseGitHubRepo(t *testing.T) {
+	cases := []struct {
+		in          string
+		owner, repo string
+		ok          bool
+	}{
+		{"owner/repo", "owner", "repo", true},
+		{"https://github.com/owner/repo", "owner", "repo", true},
+		{"https://github.com/owner/repo.git", "owner", "repo", true},
+		{"git@github.com:owner/repo.git", "owner", "repo.git", true}, // faithful: JS only strips .git in other branches
+		{"justowner", "", "", false},
+		{"", "", "", false},
+	}
+	for _, c := range cases {
+		o, r, ok := parseGitHubRepo(c.in)
+		if ok != c.ok || o != c.owner || r != c.repo {
+			t.Errorf("parseGitHubRepo(%q) = %q,%q,%v want %q,%q,%v", c.in, o, r, ok, c.owner, c.repo, c.ok)
+		}
+	}
+}
+
+func TestParseGitLabRepo(t *testing.T) {
+	o, r, b, ok := parseGitLabRepo("group/sub/project")
+	if !ok || o != "group" || r != "sub/project" || b != gitlabComBase {
+		t.Errorf("owner/repo form = %q %q %q %v", o, r, b, ok)
+	}
+	o, r, b, ok = parseGitLabRepo("https://gitlab.example.com/group/proj.git")
+	if !ok || o != "group" || r != "proj" || b != "https://gitlab.example.com" {
+		t.Errorf("https form = %q %q %q %v", o, r, b, ok)
+	}
+	o, r, b, ok = parseGitLabRepo("git@gitlab.com:group/proj.git")
+	if !ok || o != "group" || r != "proj" || b != "https://gitlab.com" {
+		t.Errorf("ssh form = %q %q %q %v", o, r, b, ok)
+	}
+}
+
+// ---------- DB layer ----------
+
+func TestUpdateTrackedAppFields(t *testing.T) {
+	database := newTrackedTestDB(t)
+	ctx := context.Background()
+
+	app := insertTrackedApp(t, database, map[string]any{
+		"name": "keep", "image_name": "img",
+		"latest_version": "old", "latest_digest": "sha256:old",
+	})
+
+	// absent key = untouched, nil value = NULL.
+	if err := db.UpdateTrackedAppFields(ctx, database, app.ID, 1, map[string]any{
+		"has_update":     1,
+		"latest_digest":  nil,
+		"latest_version": "new",
+	}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	got, err := db.GetTrackedAppByID(ctx, database, app.ID, 1)
+	if err != nil || got == nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.HasUpdate != 1 || got.LatestVersion.String != "new" || got.LatestDigest.Valid {
+		t.Errorf("got has_update=%d latest_version=%q latest_digest.valid=%v",
+			got.HasUpdate, got.LatestVersion.String, got.LatestDigest.Valid)
+	}
+	if got.ImageName.String != "img" {
+		t.Error("image_name must be untouched")
+	}
+
+	// Wrong user must not match.
+	if err := db.UpdateTrackedAppFields(ctx, database, app.ID, 999, map[string]any{"has_update": 0}); err != nil {
+		t.Fatalf("update wrong user: %v", err)
+	}
+	got, _ = db.GetTrackedAppByID(ctx, database, app.ID, 1)
+	if got.HasUpdate != 1 {
+		t.Error("wrong-user update must not apply")
+	}
+}
+
+// ---------- Docker Hub tags flow ----------
+
+func hubTagsServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	old := dockerHubTagsBase
+	dockerHubTagsBase = srv.URL
+	t.Cleanup(func() { dockerHubTagsBase = old })
+	return srv
+}
+
+func TestGetLatestVersionFromDockerHubTags(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("429 aborts", func(t *testing.T) {
+		hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+		_, err := getLatestVersionFromDockerHubTags(ctx, "library/nginx")
+		if !errors.Is(err, ErrRateLimited) {
+			t.Errorf("want ErrRateLimited, got %v", err)
+		}
+	})
+
+	t.Run("non-200 returns nil", func(t *testing.T) {
+		hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		info, err := getLatestVersionFromDockerHubTags(ctx, "no/suchrepo")
+		if err != nil || info != nil {
+			t.Errorf("want nil,nil got %v,%v", info, err)
+		}
+	})
+
+	t.Run("latest tag resolves version by digest match", func(t *testing.T) {
+		hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/v2/repositories/library/nginx/tags/" {
+				t.Errorf("unexpected path %q", r.URL.Path)
+			}
+			json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					{"name": "latest", "digest": "sha256:aaa", "tag_last_pushed": "2026-01-02T03:04:05Z"},
+					{"name": "1.25.3", "digest": "sha256:aaa", "tag_last_pushed": "2026-01-02T03:04:05Z"},
+					{"name": "1.25.2", "digest": "sha256:bbb", "tag_last_pushed": "2025-12-01T00:00:00Z"},
+				},
+			})
+		})
+		info, err := getLatestVersionFromDockerHubTags(ctx, "nginx")
+		if err != nil || info == nil {
+			t.Fatalf("got %v, %v", info, err)
+		}
+		if info.latestVersion != "1.25.3" {
+			t.Errorf("latestVersion = %q", info.latestVersion)
+		}
+		if info.latestDigest != "sha256:aaa" {
+			t.Errorf("latestDigest = %q", info.latestDigest)
+		}
+		if info.latestPublishDate != "2026-01-02T03:04:05Z" {
+			t.Errorf("publishDate = %q", info.latestPublishDate)
+		}
+	})
+}
+
+func TestCheckDockerTrackedAppFirstCheckBackfills(t *testing.T) {
+	svc := newTrackedTestService(t)
+	hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"name": "latest", "digest": "sha256:aaa", "tag_last_pushed": "2026-01-02T03:04:05Z"},
+				{"name": "1.2.3", "digest": "sha256:aaa", "tag_last_pushed": "2026-01-02T03:04:05Z"},
+			},
+		})
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "backfill", "image_name": "nginx", "source_type": "docker",
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if res.HasUpdate {
+		t.Error("first check must not report an update")
+	}
+	if res.CurrentVersion != "1.2.3" {
+		t.Errorf("display current = %q", res.CurrentVersion)
+	}
+
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.CurrentVersion.String != "1.2.3" || got.CurrentDigest.String != "sha256:aaa" {
+		t.Errorf("backfill failed: current_version=%q current_digest=%q",
+			got.CurrentVersion.String, got.CurrentDigest.String)
+	}
+	if got.LatestVersion.String != "1.2.3" || got.LatestDigest.String != "sha256:aaa" {
+		t.Errorf("latest not stored: %q %q", got.LatestVersion.String, got.LatestDigest.String)
+	}
+	if !got.LastChecked.Valid || got.LastChecked.String == "" {
+		t.Error("last_checked not written")
+	}
+}
+
+func TestCheckDockerTrackedAppDigestMismatch(t *testing.T) {
+	svc := newTrackedTestService(t)
+	hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"name": "latest", "digest": "sha256:new", "tag_last_pushed": "2026-02-02T00:00:00Z"},
+				{"name": "2.0", "digest": "sha256:new", "tag_last_pushed": "2026-02-02T00:00:00Z"},
+			},
+		})
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "mismatch", "image_name": "nginx", "source_type": "docker",
+		"current_version": "1.0", "current_digest": "sha256:old",
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !res.HasUpdate {
+		t.Fatal("digest mismatch must set hasUpdate")
+	}
+	if res.LatestVersion != "2.0" {
+		t.Errorf("latest = %q", res.LatestVersion)
+	}
+
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "2.0" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+	if got.LatestVersionPublishDate.String != "2026-02-02T00:00:00Z" {
+		t.Errorf("latest publish date = %q", got.LatestVersionPublishDate.String)
+	}
+	// current_version must NOT be backfilled when a real current exists.
+	if got.CurrentVersion.String != "1.0" {
+		t.Errorf("current_version overwritten: %q", got.CurrentVersion.String)
+	}
+}
+
+func TestCheckAllTrackedAppsAbortsOnRateLimit(t *testing.T) {
+	svc := newTrackedTestService(t)
+	hubTagsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	insertTrackedApp(t, svc.DB, map[string]any{"name": "a", "image_name": "nginx"})
+
+	checked, updated, err := svc.CheckAllTrackedApps(context.Background(), 1)
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("want ErrRateLimited, got %v", err)
+	}
+	if checked != 0 || updated != 0 {
+		t.Errorf("checked=%d updated=%d", checked, updated)
+	}
+}
+
+// ---------- GitHub flow ----------
+
+func githubServer(t *testing.T, handler http.HandlerFunc) {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	old := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = old })
+}
+
+func TestCheckGitHubTrackedAppUpdate(t *testing.T) {
+	svc := newTrackedTestService(t)
+	githubServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/repo/releases/latest":
+			json.NewEncoder(w).Encode(map[string]any{
+				"tag_name": "2.0", "published_at": "2026-02-02T00:00:00Z",
+				"html_url": "https://github.com/owner/repo/releases/tag/2.0",
+			})
+		case "/repos/owner/repo/releases":
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"tag_name": "2.0", "published_at": "2026-02-02T00:00:00Z"},
+				{"tag_name": "1.0", "published_at": "2026-01-01T00:00:00Z"},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gh", "github_repo": "owner/repo", "source_type": "github",
+		"current_version": "1.0",
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !res.HasUpdate || res.LatestVersion != "2.0" || res.CurrentVersion != "1.0" {
+		t.Errorf("res = %+v", res)
+	}
+	if res.CurrentVersionPublishDate == nil || *res.CurrentVersionPublishDate != "2026-01-01T00:00:00Z" {
+		t.Errorf("current publish date = %v", res.CurrentVersionPublishDate)
+	}
+
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "2.0" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+	if got.LatestVersionPublishDate.String != "2026-02-02T00:00:00Z" {
+		t.Errorf("latest publish date = %q", got.LatestVersionPublishDate.String)
+	}
+}
+
+func TestCheckGitHubTrackedAppNotFoundKeepsLatest(t *testing.T) {
+	svc := newTrackedTestService(t)
+	githubServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gh404", "github_repo": "owner/repo", "source_type": "github",
+		"current_version": "1.0", "latest_version": "keep-me", "has_update": 1,
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if res.HasUpdate {
+		t.Error("404 must not report an update")
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.LatestVersion.String != "keep-me" {
+		t.Errorf("github path must never clear latest_version, got %q", got.LatestVersion.String)
+	}
+	if got.HasUpdate != 0 {
+		t.Errorf("has_update should reset to 0, got %d", got.HasUpdate)
+	}
+}
+
+// ---------- GitLab flow ----------
+
+func gitlabServer(t *testing.T, handler http.HandlerFunc) {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	old := gitlabComBase
+	gitlabComBase = srv.URL
+	t.Cleanup(func() { gitlabComBase = old })
+}
+
+func TestCheckGitLabTrackedAppUpdate(t *testing.T) {
+	svc := newTrackedTestService(t)
+	gitlabServer(t, func(w http.ResponseWriter, r *http.Request) {
+		// r.URL.Path is percent-decoded: %2F arrives as "/".
+		if r.URL.Path == "/api/v4/projects/group/proj/releases" {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"tag_name": "3.1", "name": "Release 3.1", "released_at": "2026-03-03T00:00:00Z",
+					"_links": map[string]string{"self": "https://gitlab.com/group/proj/-/releases/3.1"}},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gl", "github_repo": "group/proj", "source_type": "gitlab",
+		"current_version": "3.0",
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !res.HasUpdate || res.LatestVersion != "3.1" {
+		t.Errorf("res = %+v", res)
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "3.1" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+}
+
+func TestCheckGitLabTrackedAppNoReleaseClearsLatest(t *testing.T) {
+	svc := newTrackedTestService(t)
+	gitlabServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]any{}) // empty releases
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gl-clear", "github_repo": "group/proj", "source_type": "gitlab",
+		"current_version": "3.0", "latest_version": "stale",
+	})
+
+	if _, err := svc.CheckTrackedApp(context.Background(), app); err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.LatestVersion.Valid {
+		t.Errorf("gitlab path clears latest_version when no release and no update, got %q",
+			got.LatestVersion.String)
+	}
+}
+
+// ---------- batch lifecycle ----------
+
+func TestTrackedBatchLifecycle(t *testing.T) {
+	svc := newTrackedTestService(t)
+	ctx := context.Background()
+
+	runID, err := svc.TrackedAcquire(ctx, 1, true)
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	if _, err := svc.TrackedAcquire(ctx, 1, true); err == nil {
+		t.Error("second acquire must fail while running")
+	}
+
+	if err := svc.TrackedExecuteAndComplete(ctx, 1, runID); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	row, err := db.GetLatestBatchRunByJobType(ctx, svc.DB, 1, TrackedJobType)
+	if err != nil || row == nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if row.Status != "completed" {
+		t.Errorf("status = %q", row.Status)
+	}
+
+	// Guard released: a fresh acquire works.
+	runID2, err := svc.TrackedAcquire(ctx, 1, false)
+	if err != nil {
+		t.Fatalf("re-acquire: %v", err)
+	}
+	_ = svc.TrackedExecuteAndComplete(ctx, 1, runID2)
+}
+
+func strPtr(s string) *string { return &s }

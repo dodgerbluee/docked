@@ -24,8 +24,9 @@ type Service struct {
 	Hub      *events.Hub
 	notifier *notifier
 
-	mu      sync.Mutex
-	running map[int64]bool // userID -> in-process run flag
+	mu             sync.Mutex
+	running        map[int64]bool // userID -> in-process docker-hub-pull run flag
+	runningTracked map[int64]bool // userID -> in-process tracked-apps-check run flag
 }
 
 // JobType is the batch job this service executes.
@@ -37,11 +38,12 @@ const staleRunThreshold = 5 * time.Minute
 
 func NewService(database *sql.DB, hub *events.Hub) *Service {
 	return &Service{
-		DB:       database,
-		Registry: registry.NewManager(database),
-		Hub:      hub,
-		notifier: newNotifier(database),
-		running:  make(map[int64]bool),
+		DB:             database,
+		Registry:       registry.NewManager(database),
+		Hub:            hub,
+		notifier:       newNotifier(database),
+		running:        make(map[int64]bool),
+		runningTracked: make(map[int64]bool),
 	}
 }
 

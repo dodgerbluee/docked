@@ -16,6 +16,12 @@ class TrackedAppsCheckHandler extends JobHandler {
     return "Repo Version Scan";
   }
 
+  // Scheduling moved to the Go API (internal/scheduler) with the phase-5a
+  // migration; this process keeps the handler only for manual triggers.
+  getScheduled() {
+    return false;
+  }
+
   getDefaultConfig() {
     return {
       enabled: false,

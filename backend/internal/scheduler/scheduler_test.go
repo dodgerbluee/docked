@@ -157,3 +157,36 @@ func TestDueJobFires(t *testing.T) {
 	}
 	t.Fatalf("scheduled job did not fire")
 }
+
+// Phase 5a: tracked-apps-check configs are scheduled too. With no prior
+// runs, the tick must create a tracked-apps-check batch_run (the scan
+// itself no-ops: no tracked_apps table rows / missing table fails the
+// scan, which still proves the job type is driven by the Go scheduler).
+func TestTrackedAppsJobFires(t *testing.T) {
+	database := newTestDB(t)
+	ctx := context.Background()
+
+	if _, err := database.Exec(
+		`INSERT INTO batch_config (user_id, job_type, enabled, interval_minutes, created_at, updated_at)
+		 VALUES (1, 'tracked-apps-check', 1, 60, datetime('now'), datetime('now'))`); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	s := New(imagesync.NewService(database, nil))
+	s.initLastRuns(ctx)
+	s.tick(ctx)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var n int
+		if err := database.QueryRow(
+			`SELECT COUNT(*) FROM batch_runs WHERE job_type = 'tracked-apps-check'`).Scan(&n); err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		if n == 1 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("tracked-apps-check job did not fire")
+}
