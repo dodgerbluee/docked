@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 )
 
 // AcquireUpgradeLock atomically claims a target across every process sharing
@@ -27,6 +29,31 @@ func ReleaseUpgradeLock(ctx context.Context, database *sql.DB, targetKey, owner 
 	_, err := database.ExecContext(ctx,
 		"DELETE FROM upgrade_locks WHERE target_key = ? AND owner = ?", targetKey, owner)
 	return err
+}
+
+// RefreshUpgradeLock extends a held lock's expiry. Mirrors the 60s heartbeat
+// in Node's upgradeLockManager: only the holder (owner token) can extend it.
+func RefreshUpgradeLock(ctx context.Context, database *sql.DB, targetKey, owner string) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE upgrade_locks SET expires_at = datetime('now', '+10 minutes')
+		 WHERE target_key = ? AND owner = ?`, targetKey, owner)
+	return err
+}
+
+// GetActiveUpgradeLockOwner returns the owner token of a non-expired lock,
+// if one exists. Used to name the current holder in 409 conflict messages.
+func GetActiveUpgradeLockOwner(ctx context.Context, database *sql.DB, targetKey string) (string, bool, error) {
+	var owner string
+	err := database.QueryRowContext(ctx,
+		`SELECT owner FROM upgrade_locks WHERE target_key = ? AND expires_at > CURRENT_TIMESTAMP`,
+		targetKey).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("get upgrade lock owner: %w", err)
+	}
+	return owner, true, nil
 }
 
 // ClaimIdempotencyKey accepts a client key once per user and operation type.

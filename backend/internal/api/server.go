@@ -203,9 +203,11 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// transition; qbit-proxy points straight at Go once Node retires.
 	// Limiter budgets mirror Node's express-rate-limit placement:
 	// publicLimiter (20/15min) on the unauthenticated agent endpoints,
-	// writeLimiter (30/15min) on enrollment creation.
+	// writeLimiter (30/15min) on enrollment creation and the operation-run
+	// streams, destructiveLimiter (10/min) on container upgrades.
 	agentLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
 	writeLimiter := apimiddleware.NewRateLimiter(30, 15*time.Minute, 10000)
+	destructiveLimiter := apimiddleware.NewRateLimiter(10, time.Minute, 10000)
 
 	r.Route("/api", func(r chi.Router) {
 		// Agent endpoints: unauthenticated (dockhand authenticates via
@@ -219,12 +221,25 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		})
 
 		// Browser-facing enrollment endpoints behind the strict auth twin of
-		// Node's authenticate (signature + user exists + not revoked).
+		// Node's authenticate (signature + user exists + not revoked), plus
+		// the commit-B runner proxy routes (operations/apps listings, app
+		// history, and the upgrade/operation-run/app-run SSE streams).
+		// Limiter placement mirrors Node's express-rate-limit registration.
 		r.Group(func(r chi.Router) {
 			r.Use(auth.StrictMiddleware(cfg.JWTSecret, database))
 			r.With(apimiddleware.RateLimit(writeLimiter, apimiddleware.RESTTooManyRequests)).
 				Post("/runners/enrollment", handlers.CreateEnrollment(database, cfg.DockedURL))
 			r.Get("/runners/enrollment-status", handlers.EnrollmentStatus(database))
+
+			r.Get("/runners/{runnerId}/operations", handlers.RunnerOperations(database))
+			r.With(apimiddleware.RateLimit(writeLimiter, apimiddleware.RESTTooManyRequests)).
+				Post("/runners/{runnerId}/operations/{name}/run", handlers.RunRunnerOperation(database))
+			r.Get("/runners/{runnerId}/apps", handlers.RunnerApps(database))
+			r.Get("/runners/{runnerId}/apps/history", handlers.RunnerAppsHistory(database))
+			r.With(apimiddleware.RateLimit(writeLimiter, apimiddleware.RESTTooManyRequests)).
+				Post("/runners/{runnerId}/apps/{appName}/operations/{opName}/run", handlers.RunRunnerAppOperation(database))
+			r.With(apimiddleware.RateLimit(destructiveLimiter, apimiddleware.RESTTooManyRequests)).
+				Post("/runners/{runnerId}/containers/{containerId}/upgrade", handlers.RunnerUpgradeStream(database))
 		})
 	})
 

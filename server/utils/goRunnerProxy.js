@@ -56,7 +56,14 @@ function createGoRunnerProxy({ preflight, onUpstream2xx } = {}) {
 
     const proxyReq = http.request(targetUrl, { method: req.method, headers }, (proxyRes) => {
       res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res); // streams install scripts (and later SSE) untouched
+      proxyRes.pipe(res); // streams install scripts and SSE untouched
+      // SSE routes need the browser-disconnect path wired through: when the
+      // client drops, tear down the upstream so Go's request context cancels
+      // and long-lived streams (and their upgrade locks) end promptly.
+      res.on("close", () => {
+        proxyRes.destroy();
+        proxyReq.destroy();
+      });
       if (onUpstream2xx && proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
         try {
           onUpstream2xx(req, proxyRes, bridgeData);

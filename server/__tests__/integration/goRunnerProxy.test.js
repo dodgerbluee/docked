@@ -19,7 +19,8 @@ describe("goRunnerProxy bridge", () => {
   let upstream;
   let upstreamPort;
   let seen; // captured requests: { method, url, headers, body }
-  let upstreamMode; // "ok" | "script" | "fail"
+  let upstreamMode; // "ok" | "script" | "fail" | "sse"
+  let upstreamClosed; // set when an SSE-mode upstream stream ends prematurely
 
   beforeAll(async () => {
     upstream = http.createServer((req, res) => {
@@ -42,6 +43,16 @@ describe("goRunnerProxy bridge", () => {
           res.end("#!/usr/bin/env bash\necho hi\n");
           return;
         }
+        if (upstreamMode === "sse") {
+          res.writeHead(200, { "Content-Type": "text/event-stream" });
+          res.write("event: tick\ndata: {}\n\n");
+          const timer = setInterval(() => res.write(": keepalive\n\n"), 50);
+          res.on("close", () => {
+            clearInterval(timer);
+            if (!res.writableEnded) upstreamClosed = true;
+          });
+          return;
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, echo: seen[seen.length - 1].body }));
       });
@@ -61,6 +72,7 @@ describe("goRunnerProxy bridge", () => {
   beforeEach(() => {
     seen = [];
     upstreamMode = "ok";
+    upstreamClosed = false;
     bridgeEvents = [];
 
     const plain = createGoRunnerProxy();
@@ -76,6 +88,7 @@ describe("goRunnerProxy bridge", () => {
     app.get("/api/runners/enrollment-status", plain);
     app.post("/api/runners/register", plain);
     app.post("/api/runners/heartbeat", heartbeat);
+    app.post("/api/runners/:runnerId/containers/:containerId/upgrade", plain);
   });
 
   it("forwards GET with query string, Authorization, and safe forwarding headers", async () => {
@@ -166,6 +179,44 @@ describe("goRunnerProxy bridge", () => {
       expect(res.body.error).toBe("Go backend unavailable");
     } finally {
       process.env.GRAPHQL_BACKEND = prev;
+    }
+  });
+
+  it("destroys the upstream stream when the browser disconnects mid-SSE", async () => {
+    // The upgrade SSE route holds a cross-process lock for the stream's
+    // lifetime; Go only releases it when its request context cancels, which
+    // requires the bridge to tear the upstream down on client disconnect.
+    upstreamMode = "sse";
+
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    try {
+      const client = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            host: "127.0.0.1",
+            port: server.address().port,
+            path: "/api/runners/1/containers/abc/upgrade",
+            method: "POST",
+          },
+          (res) => {
+            res.once("data", () => resolve(req));
+            res.on("error", reject);
+          }
+        );
+        req.on("error", () => {}); // expected once we destroy mid-stream
+        req.end();
+      });
+
+      client.destroy(); // the browser hangs up mid-stream
+
+      const deadline = Date.now() + 3000;
+      while (!upstreamClosed && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(upstreamClosed).toBe(true);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
     }
   });
 });

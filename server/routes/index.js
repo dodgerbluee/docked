@@ -37,7 +37,6 @@ const avatarController = require("../controllers/avatarController");
 
 const versionController = require("../controllers/versionController");
 const oauthController = require("../controllers/oauthController");
-const runnerController = require("../controllers/runnerController");
 const { createGoRunnerProxy } = require("../utils/goRunnerProxy");
 const { getRunnerByApiKey } = require("../db/runners");
 const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
@@ -315,32 +314,24 @@ router.get(
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes
-// Enrollment endpoints are served by the Go backend (proxied through Node to
-// keep the writeLimiter budget and authenticate check at the edge).
+// All runner REST routes are served by the Go backend (proxied through Node
+// to keep the rate limiters and authenticate check at the edge).
 router.post("/runners/enrollment", writeLimiter, goRunnerProxy);
 router.get("/runners/enrollment-status", goRunnerProxy);
 // Runner container SSE proxy routes
 router.post(
   "/runners/:runnerId/containers/:containerId/upgrade",
   destructiveLimiter,
-  asyncHandler(runnerController.upgradeRunnerContainer)
+  goRunnerProxy
 );
 // Runner operation routes
-router.get("/runners/:runnerId/operations", asyncHandler(runnerController.getRunnerOperations));
-router.post(
-  "/runners/:runnerId/operations/:name/run",
-  writeLimiter,
-  asyncHandler(runnerController.runRunnerOperation)
-);
+router.get("/runners/:runnerId/operations", goRunnerProxy);
+router.post("/runners/:runnerId/operations/:name/run", writeLimiter, goRunnerProxy);
 
 // Runner app routes — static paths before parameterized ones
-router.get("/runners/:runnerId/apps", asyncHandler(runnerController.getRunnerApps));
-router.get("/runners/:runnerId/apps/history", asyncHandler(runnerController.getRunnerAppsHistory));
-router.post(
-  "/runners/:runnerId/apps/:appName/operations/:opName/run",
-  writeLimiter,
-  asyncHandler(runnerController.runRunnerAppOperation)
-);
+router.get("/runners/:runnerId/apps", goRunnerProxy);
+router.get("/runners/:runnerId/apps/history", goRunnerProxy);
+router.post("/runners/:runnerId/apps/:appName/operations/:opName/run", writeLimiter, goRunnerProxy);
 
 // Debug routes (admin-only introspection, mounted after authenticate middleware)
 router.use("/debug", debugRouter);

@@ -8,6 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/go-containerregistry v0.22.1
+	github.com/google/uuid v1.6.0
 	github.com/vektah/gqlparser/v2 v2.5.63
 	golang.org/x/crypto v0.58.0
 	modernc.org/sqlite v1.31.1
@@ -20,7 +21,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
