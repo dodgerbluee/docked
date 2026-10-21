@@ -103,7 +103,10 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	// Trusted-proxy-aware replacement for middleware.RealIP (which believed
+	// any X-Forwarded-For from any peer). cfg.TrustedProxies defaults to
+	// loopback+private ranges; TRUSTED_PROXIES overrides the list.
+	r.Use(apimiddleware.RealIPFrom(cfg.TrustedProxies))
 	r.Use(apimiddleware.Logger)
 	r.Use(middleware.Recoverer)
 
@@ -243,8 +246,9 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// routes. Sensitive public operations additionally enforce their own
 	// per-operation budget inside the resolvers (see graph.publicOpLimiter),
 	// which closes the aliasing and authenticated-exemption bypasses.
-	// Identity comes from ClientKeyFromRequest: the rightmost X-Forwarded-For
-	// entry (the one the Node proxy controls), never client-supplied prefixes.
+	// Identity comes from ClientKeyFromRequest: the peer address as
+	// sanitized by RealIPFrom (forwarding headers honored only from
+	// trusted proxy networks).
 	publicLimiter := apimiddleware.NewRateLimiter(60, time.Minute, 10000)
 	graphqlAuth := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

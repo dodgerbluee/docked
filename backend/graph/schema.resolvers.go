@@ -471,6 +471,11 @@ func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role 
 	newInstanceAdmin := target.InstanceAdmin == 1
 	if instanceAdmin != nil {
 		newInstanceAdmin = *instanceAdmin
+	} else if dbRole == "Member" {
+		// requireAdmin gates on the flag alone, so demoting to Member must
+		// clear it even when the caller omits instanceAdmin — otherwise the
+		// "demoted" user keeps every admin capability.
+		newInstanceAdmin = false
 	}
 	if err := db.SetUserRole(ctx, r.DB, uid, dbRole, newInstanceAdmin); err != nil {
 		return nil, err

@@ -93,8 +93,7 @@ func RESTTooManyRequests(w http.ResponseWriter) {
 }
 
 // RateLimit adapts a RateLimiter to chi middleware, keying on
-// ClientKeyFromRequest (rightmost XFF entry — the identity the front proxy
-// controls).
+// ClientKeyFromRequest (the peer address as sanitized by RealIPFrom).
 func RateLimit(l *RateLimiter, tooManyRequests func(http.ResponseWriter)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,19 +106,52 @@ func RateLimit(l *RateLimiter, tooManyRequests func(http.ResponseWriter)) func(h
 	}
 }
 
-// ClientKeyFromRequest derives the rate-limit identity for a request. It uses
-// the RIGHTMOST X-Forwarded-For entry, which is the only one a trusted front
-// proxy (the Node server) controls: everything to its left is client-supplied
-// and spoofable. With no forwarding header it falls back to the peer IP with
-// the port stripped, so WS upgrades from a local bridge share one bucket per
-// IP instead of getting a fresh key per ephemeral port.
-func ClientKeyFromRequest(req *http.Request) string {
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if ip := strings.TrimSpace(parts[len(parts)-1]); ip != "" {
-			return ip
+// RealIPFrom replaces chi's unconditional middleware.RealIP: it folds the
+// forwarding headers into r.RemoteAddr ONLY when the socket peer belongs to
+// one of the trusted proxy networks. With an untrusted peer the
+// attacker-controlled X-Forwarded-For / X-Real-IP headers are ignored and the
+// true peer address is kept, so a directly-exposed instance cannot be
+// spoofed into fresh rate-limit buckets.
+func RealIPFrom(trusted []*net.IPNet) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			peer, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				peer = r.RemoteAddr
+			}
+			if ip := net.ParseIP(peer); ip != nil && ipInNetworks(ip, trusted) {
+				candidate := ""
+				if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+					parts := strings.Split(xff, ",")
+					candidate = strings.TrimSpace(parts[len(parts)-1])
+				} else if xr := r.Header.Get("X-Real-IP"); xr != "" {
+					candidate = strings.TrimSpace(xr)
+				}
+				if cip := net.ParseIP(candidate); cip != nil {
+					r.RemoteAddr = net.JoinHostPort(cip.String(), "0")
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func ipInNetworks(ip net.IP, nets []*net.IPNet) bool {
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
 		}
 	}
+	return false
+}
+
+// ClientKeyFromRequest derives the rate-limit identity from the peer
+// address. X-Forwarded-For is deliberately NOT consulted here: RealIPFrom
+// has already folded the trusted-proxy view into RemoteAddr, and anything
+// still in the header is client-supplied and spoofable. The port is
+// stripped so WS upgrades from one client share a bucket instead of getting
+// a fresh key per ephemeral port.
+func ClientKeyFromRequest(req *http.Request) string {
 	host, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		return req.RemoteAddr

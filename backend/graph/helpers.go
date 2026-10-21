@@ -703,6 +703,10 @@ func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 		switch strings.ToLower(c.Provider.String) {
 		case "ghcr":
 			registry = model.RegistryGhcr
+		case "gitlab":
+			registry = model.RegistryGitlab
+		case "gcr":
+			registry = model.RegistryGcr
 		case "quay":
 			registry = model.RegistryQuay
 		case "lscr":
@@ -955,21 +959,21 @@ func httpPostJSON(url string, payload any, bearerToken string) (int, []byte, err
 	if bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+bearerToken)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxExternalBody))
 	return resp.StatusCode, data, nil
 }
 func httpGet(url string) (int, []byte, error) {
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxExternalBody))
 	return resp.StatusCode, data, nil
 }
 
@@ -1031,7 +1035,7 @@ func httpGetWithHeader(url, header, value string) (int, []byte, error) {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxExternalBody))
 	return resp.StatusCode, data, nil
 }
 
@@ -1046,13 +1050,17 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxExternalBody))
 	return resp.StatusCode, data, nil
 }
 
 // httpClient bounds transport time for runner calls so a hung
 // upstream cannot wedge a fire-and-forget goroutine forever.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
+
+// maxExternalBody caps how much of an upstream response any helper reads,
+// so a hostile or broken endpoint cannot pin resolver memory.
+const maxExternalBody = 8 << 20
 
 func runnerPost(baseURL, apiKey, path string, payload any) error {
 	body, _ := json.Marshal(payload)

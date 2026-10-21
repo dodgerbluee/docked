@@ -348,7 +348,7 @@ func newTestEnv(t *testing.T, seed bool) *testEnv {
 		}
 	}
 
-	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0"}
+	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0", TrustedProxies: config.DefaultTrustedProxies()}
 	hub := events.NewHub()
 	env.ts = httptest.NewServer(NewServer(cfg, database, hub, imagesync.NewService(database, hub), nil).Handler)
 	t.Cleanup(func() {
@@ -524,6 +524,33 @@ func TestSetUserRoleAuthzAndPersistence(t *testing.T) {
 		map[string]any{"id": target, "role": "MEMBER"})
 	if got := dbRole(t, env.database, env.memberID); got != "Member" {
 		t.Fatalf("DB role after demote = %q, want Member", got)
+	}
+}
+
+// requireAdmin gates on instance_admin alone, so demoting an instance admin
+// to Member without an explicit instanceAdmin input must clear the flag —
+// otherwise the "demoted" user keeps every admin capability.
+func TestSetUserDemotionClearsInstanceAdmin(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	// A second admin user with the flag set.
+	ah, _ := auth.HashPassword("x")
+	second, err := db.CreateUser(context.Background(), env.database, "dememe", ah, "Administrator", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if r := env.gql(t, admin, `mutation($id: ID!, $role: Role!){ setUserRole(userId: $id, role: $role){ success } }`,
+		map[string]any{"id": strconv.FormatInt(second, 10), "role": "MEMBER"}); len(r.Errors) != 0 {
+		t.Fatalf("demote errored: %+v", r.Errors)
+	}
+	var flag int
+	if err := env.database.QueryRow(`SELECT instance_admin FROM users WHERE id=?`, second).Scan(&flag); err != nil {
+		t.Fatal(err)
+	}
+	if flag != 0 {
+		t.Fatalf("instance_admin after demotion = %d, want 0", flag)
 	}
 }
 

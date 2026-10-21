@@ -1,7 +1,12 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"log"
+	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -24,6 +29,13 @@ type Config struct {
 
 	// Debug enables verbose debug logging (set DEBUG=true).
 	Debug bool
+
+	// TrustedProxies are the socket-peer networks whose X-Forwarded-For /
+	// X-Real-IP headers we believe (TRUSTED_PROXIES, comma-separated CIDRs
+	// or plain IPs). Requests from anywhere else keep their true peer
+	// address for rate-limit identity, so a directly-exposed instance
+	// cannot be spoofed with forged forwarding headers.
+	TrustedProxies []*net.IPNet
 
 	// OAuth holds the env-var SSO provider fallback (parity with Node's
 	// config.oauth). DB-configured providers take precedence; these values
@@ -91,11 +103,12 @@ type OAuthConfig struct {
 func Load() *Config {
 	loadDotenv()
 	return &Config{
-		Addr:      addr(),
-		DBPath:    dbPath(),
-		JWTSecret: env("JWT_SECRET", "change-this-secret-in-production-use-strong-random-string"),
-		DockedURL: env("DOCKED_URL", ""),
-		Debug:     os.Getenv("DEBUG") == "true",
+		Addr:           addr(),
+		DBPath:         dbPath(),
+		JWTSecret:      jwtSecret(),
+		DockedURL:      env("DOCKED_URL", ""),
+		Debug:          os.Getenv("DEBUG") == "true",
+		TrustedProxies: trustedProxies(),
 		OAuth: OAuthConfig{
 			Enabled:      os.Getenv("OAUTH_PROVIDER") != "",
 			Provider:     os.Getenv("OAUTH_PROVIDER"),
@@ -182,6 +195,90 @@ func envOr(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+// jwtSecret resolves the HS256 signing secret. The Node-era public fallback
+// string is gone: a deployment that forgot JWT_SECRET was forgeable-admin by
+// default. When the env var is absent we generate a strong random secret once
+// and persist it next to the database (0600) so tokens survive restarts.
+func jwtSecret() string {
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		return v
+	}
+	path := filepath.Join(filepath.Dir(dbPath()), "jwt_secret")
+	if b, err := os.ReadFile(path); err == nil {
+		if s := strings.TrimSpace(string(b)); s != "" {
+			return s
+		}
+	}
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		log.Fatalf("cannot generate JWT secret: %v", err)
+	}
+	secret := hex.EncodeToString(buf)
+	if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
+		// Non-fatal: a per-process random secret is still strictly safer
+		// than a public one; sessions just reset on restart.
+		log.Printf("WARNING: JWT_SECRET not set and generated secret could not be persisted to %s (%v); tokens will not survive restarts", path, err)
+	} else {
+		log.Printf("WARNING: JWT_SECRET not set; generated a new signing secret at %s", path)
+	}
+	return secret
+}
+
+// trustedProxies parses TRUSTED_PROXIES (comma-separated CIDRs or plain IPs).
+// Default when unset: loopback + RFC1918 + link-local + ULA, which covers the
+// usual sidecar/LAN reverse-proxy topology while internet-routable peers
+// (the spoofable, directly-exposed case) never get their XFF honored.
+func trustedProxies() []*net.IPNet {
+	var out []*net.IPNet
+	if raw := os.Getenv("TRUSTED_PROXIES"); raw != "" {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			if !strings.Contains(s, "/") {
+				if ip := net.ParseIP(s); ip != nil {
+					out = append(out, singleIPNet(ip))
+					continue
+				}
+			} else if _, n, err := net.ParseCIDR(s); err == nil {
+				out = append(out, n)
+				continue
+			}
+			log.Printf("WARNING: ignoring invalid TRUSTED_PROXIES entry %q", s)
+		}
+	}
+	if len(out) == 0 {
+		out = DefaultTrustedProxies()
+	}
+	return out
+}
+
+// DefaultTrustedProxies: loopback + RFC1918 + link-local + ULA — the usual
+// sidecar/LAN reverse-proxy topology. Internet-routable peers (the
+// spoofable, directly-exposed case) are never included.
+func DefaultTrustedProxies() []*net.IPNet {
+	var out []*net.IPNet
+	for _, c := range []string{
+		"127.0.0.0/8", "::1/128",
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"169.254.0.0/16", "fe80::/10", "fc00::/7",
+	} {
+		if _, n, err := net.ParseCIDR(c); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func singleIPNet(ip net.IP) *net.IPNet {
+	bits := 32
+	if ip.To4() == nil {
+		bits = 128
+	}
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}
 }
 
 // dbPath mirrors the Node backend (server/db/connection.js): an explicit

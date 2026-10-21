@@ -293,7 +293,10 @@ func addPreservedConfigFields(out, config map[string]any) {
 	if ss := jStr(config, "StopSignal"); ss != "" {
 		out["StopSignal"] = ss
 	}
-	if st, ok := config["StopTimeout"].(float64); ok && st > 0 {
+	// Docker reports an explicit --stop-timeout 0 as the number 0 and an
+	// unset one as null; keep the explicit zero (it means "use the default"
+	// but was deliberately set) and skip only null.
+	if st, ok := config["StopTimeout"].(float64); ok && st >= 0 {
 		out["StopTimeout"] = int(st)
 	}
 	for _, b := range []string{"Tty", "OpenStdin", "StdinOnce"} {

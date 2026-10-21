@@ -96,3 +96,51 @@ func TestStackGroupKeySeparatesSources(t *testing.T) {
 		t.Errorf("sourceless key = %q, want web", stackGroupKey(&plain))
 	}
 }
+
+// The provider enum layer used to collapse gitlab/gcr onto DOCKER_HUB,
+// mislabeling the registry badge and any client-side registry logic.
+func TestImageInfoRegistryEnumMapping(t *testing.T) {
+	cases := map[string]model.Registry{
+		"":          model.RegistryDockerHub,
+		"dockerhub": model.RegistryDockerHub,
+		"ghcr":      model.RegistryGhcr,
+		"GHCR":      model.RegistryGhcr,
+		"gitlab":    model.RegistryGitlab,
+		"gcr":       model.RegistryGcr,
+		"quay":      model.RegistryQuay,
+		"lscr":      model.RegistryOther,
+	}
+	for provider, want := range cases {
+		row := db.ContainerRow{ID: 1,
+			ImageRepo: sql.NullString{String: "ns/repo", Valid: true},
+			LatestTag: sql.NullString{String: "1.0", Valid: true},
+			Provider:  sql.NullString{String: provider, Valid: provider != ""}}
+		info := imageInfoFromRow(&row)
+		if info == nil {
+			t.Fatalf("provider %q: imageInfoFromRow returned nil", provider)
+		}
+		if info.Registry != want {
+			t.Errorf("provider %q mapped to %q, want %q", provider, info.Registry, want)
+		}
+	}
+}
+
+// Docker reports an explicit --stop-timeout 0 as the number 0 and an unset
+// one as null; the explicit zero must survive recreate.
+func TestAddPreservedConfigFieldsStopTimeout(t *testing.T) {
+	out := map[string]any{}
+	addPreservedConfigFields(out, map[string]any{"StopTimeout": float64(0)})
+	if v, ok := out["StopTimeout"].(int); !ok || v != 0 {
+		t.Errorf("explicit zero StopTimeout = %#v, want int 0", out["StopTimeout"])
+	}
+	out = map[string]any{}
+	addPreservedConfigFields(out, map[string]any{"StopTimeout": nil})
+	if _, ok := out["StopTimeout"]; ok {
+		t.Error("null StopTimeout must be skipped")
+	}
+	out = map[string]any{}
+	addPreservedConfigFields(out, map[string]any{"StopTimeout": float64(30)})
+	if v := out["StopTimeout"]; v != 30 {
+		t.Errorf("StopTimeout = %#v, want 30", v)
+	}
+}

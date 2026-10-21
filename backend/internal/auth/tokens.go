@@ -123,14 +123,16 @@ func VerifyRefreshToken(tokenString string) (*RefreshClaims, error) {
 	return claims, nil
 }
 
-// getSecret reads the JWT secret from the environment.
-// In production this is set via JWT_SECRET env var.
+// getSecret returns the secret installed by SetSecret at startup. The old
+// public fallback string is gone: config.Load always yields a real secret
+// (env var or generated+persisted), so reaching this empty means a wiring
+// bug, and silently signing with a known key is exactly the failure we are
+// eliminating.
 func getSecret() string {
-	s := jwtSecret
-	if s == "" {
-		return "change-this-secret-in-production-use-strong-random-string"
+	if jwtSecret == "" {
+		panic("auth: JWT secret not configured — call auth.SetSecret at startup")
 	}
-	return s
+	return jwtSecret
 }
 
 // getRefreshSecret mirrors the Node backend's refresh-secret derivation:
