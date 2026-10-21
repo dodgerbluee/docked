@@ -138,7 +138,12 @@ func formatTrackedAppNotification(d trackedNotification) map[string]any {
 
 // queueTrackedNotification ports queueNotification for the tracked-app half:
 // webhook lookup, dedup (in-memory + DB), format once, deliver sequentially.
+// Delivery runs on a detached context: Node's queueNotification is
+// fire-and-forget, so a client disconnecting from the sync check mutations
+// must not strand notifications whose update state is already persisted.
 func (n *notifier) queueTrackedNotification(ctx context.Context, d trackedNotification, userID int64) {
+	ctx = context.WithoutCancel(ctx)
+
 	webhooks, err := db.GetEnabledDiscordWebhooks(ctx, n.db, userID)
 	if err != nil || len(webhooks) == 0 {
 		if err != nil {

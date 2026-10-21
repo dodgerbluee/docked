@@ -397,6 +397,10 @@ func validateWebhookURL(webhookURL string) (string, error) {
 
 // sendWithRetry ports sendNotificationWithRetry: 4 attempts total, 429 waits
 // retry-after, other 4xx fail fast, 5xx/network retry with backoff.
+// webhookTransport is a test seam for the discord delivery client
+// (nil = http.DefaultTransport).
+var webhookTransport http.RoundTripper
+
 func sendWithRetry(ctx context.Context, webhookURL string, payload map[string]any) error {
 	safeURL, err := validateWebhookURL(webhookURL)
 	if err != nil {
@@ -408,7 +412,7 @@ func sendWithRetry(ctx context.Context, webhookURL string, payload map[string]an
 		return err
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second, Transport: webhookTransport}
 	for attempt := 0; attempt <= maxSendRetries; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, safeURL, bytes.NewReader(body))
 		if err != nil {

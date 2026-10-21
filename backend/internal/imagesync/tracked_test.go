@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +68,8 @@ func newTrackedTestDB(t *testing.T) *sql.DB {
 			user_id INTEGER NOT NULL, webhook_url TEXT NOT NULL,
 			server_name TEXT, channel_name TEXT, name TEXT,
 			enabled INTEGER DEFAULT 1, avatar_url TEXT, guild_id TEXT, channel_id TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE discord_notifications_sent (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,6 +159,7 @@ func TestNormalizeVersion(t *testing.T) {
 		"":         "",
 		"v":        "",
 		"1.0-beta": "1.0-beta",
+		" v1.2.3":  "v1.2.3", // faithful: ^v is anchored pre-trim (Node quirk)
 	}
 	for in, want := range cases {
 		if got := normalizeVersion(in); got != want {
@@ -303,7 +307,7 @@ func TestParseGitHubRepo(t *testing.T) {
 		{"owner/repo", "owner", "repo", true},
 		{"https://github.com/owner/repo", "owner", "repo", true},
 		{"https://github.com/owner/repo.git", "owner", "repo", true},
-		{"git@github.com:owner/repo.git", "owner", "repo.git", true}, // faithful: JS only strips .git in other branches
+		{"git@github.com:owner/repo.git", "owner", "repo", true}, // Node strips .git pre-split
 		{"justowner", "", "", false},
 		{"", "", "", false},
 	}
@@ -610,6 +614,77 @@ func TestCheckGitHubTrackedAppNotFoundKeepsLatest(t *testing.T) {
 	}
 	if got.HasUpdate != 0 {
 		t.Errorf("has_update should reset to 0, got %d", got.HasUpdate)
+	}
+}
+
+// Negative cache must short-circuit repeat lookups: second call issues zero
+// HTTP requests (approved fix over Node's dead falsy-cache check).
+func TestFindReleaseByTagNegativeCache(t *testing.T) {
+	newTrackedTestService(t) // resets release cache + seams
+	var hits int
+	githubServer(t, func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if r.URL.Path == "/repos/owner/repo/releases" {
+			json.NewEncoder(w).Encode([]any{})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	ctx := context.Background()
+	rel, err := ghFindReleaseByTag(ctx, "owner/repo", "1.0")
+	if err != nil || rel != nil {
+		t.Fatalf("first lookup = %v, %v", rel, err)
+	}
+	first := hits
+	if first == 0 {
+		t.Fatal("first lookup issued no requests")
+	}
+
+	rel, err = ghFindReleaseByTag(ctx, "owner/repo", "1.0")
+	if err != nil || rel != nil {
+		t.Fatalf("second lookup = %v, %v", rel, err)
+	}
+	if hits != first {
+		t.Errorf("repeat lookup issued %d extra requests, want 0", hits-first)
+	}
+}
+
+// Delivery must survive caller cancellation (Node's queueNotification is
+// fire-and-forget): a cancelled sync-mutation ctx must not strand a
+// notification whose update state is already persisted.
+type recordingRoundTripper struct{ hits int }
+
+func (rt *recordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.hits++
+	return &http.Response{
+		StatusCode: http.StatusNoContent,
+		Body:       io.NopCloser(strings.NewReader("")),
+		Request:    req,
+	}, nil
+}
+
+func TestTrackedNotificationSurvivesCancel(t *testing.T) {
+	svc := newTrackedTestService(t)
+	rt := &recordingRoundTripper{}
+	webhookTransport = rt
+	t.Cleanup(func() { webhookTransport = nil })
+
+	if _, err := svc.notifier.db.Exec(
+		"INSERT INTO discord_webhooks (user_id, webhook_url, enabled) VALUES (1, ?, 1)",
+		"https://discord.com/api/webhooks/123456789/AbC-_9xY"); err != nil {
+		t.Fatalf("seed webhook: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // client already gone when the check finishes
+
+	svc.notifier.queueTrackedNotification(ctx, trackedNotification{
+		Name: "app", ImageName: "img", SourceType: "docker", LatestVersion: "2.0",
+	}, 1)
+
+	if rt.hits != 1 {
+		t.Fatalf("delivery after ctx cancel: got %d webhook posts, want 1", rt.hits)
 	}
 }
 

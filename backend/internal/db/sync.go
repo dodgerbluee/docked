@@ -260,10 +260,10 @@ func RecordDiscordNotificationSent(ctx context.Context, database *sql.DB, userID
 }
 
 // GetEnabledDiscordWebhooks returns only enabled webhooks for a user.
+// NOTE: must select the full webhookCols list - scanWebhook scans all 12.
 func GetEnabledDiscordWebhooks(ctx context.Context, database *sql.DB, userID int64) ([]DiscordWebhookRow, error) {
 	rows, err := database.QueryContext(ctx,
-		`SELECT id, user_id, webhook_url, server_name, channel_name, name, enabled, avatar_url, guild_id, channel_id
-		 FROM discord_webhooks WHERE user_id = ? AND enabled = 1 ORDER BY created_at DESC`, userID)
+		"SELECT "+webhookCols+" FROM discord_webhooks WHERE user_id = ? AND enabled = 1 ORDER BY created_at DESC", userID)
 	if err != nil {
 		return nil, err
 	}

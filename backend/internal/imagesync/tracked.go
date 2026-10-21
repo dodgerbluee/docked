@@ -402,8 +402,10 @@ func newlyDetectedVersion(hasUpdate bool, app *db.TrackedAppRow, latestVersion *
 }
 
 // normalizeVersion ports the repeated `(v) => String(v).replace(/^v/i, "").trim().toLowerCase()`.
+// Faithful order: the v-strip is anchored on the UNTRIMMED string, so a
+// leading space protects the v (Node quirk preserved).
 func normalizeVersion(v string) string {
-	s := strings.TrimSpace(v)
+	s := v
 	if len(s) > 0 && (s[0] == 'v' || s[0] == 'V') {
 		s = s[1:]
 	}

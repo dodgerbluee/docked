@@ -84,7 +84,10 @@ func parseGitHubRepo(repoInput string) (owner, repo string, ok bool) {
 			owner, repo = kept[0], strings.Replace(kept[1], ".git", "", 1)
 		}
 	case strings.HasPrefix(trimmed, "git@github.com:"):
-		parts := strings.Split(strings.Replace(trimmed, "git@github.com:", "", 1), "/")
+		// Faithful: Node strips ".git" from the whole remainder BEFORE
+		// splitting (first occurrence anywhere), not from the repo part.
+		rest := strings.Replace(strings.Replace(trimmed, "git@github.com:", "", 1), ".git", "", 1)
+		parts := strings.Split(rest, "/")
 		if len(parts) >= 2 {
 			owner, repo = parts[0], parts[1]
 		}
@@ -326,7 +329,9 @@ func ghFindReleaseByTag(ctx context.Context, repoInput, tagName string) (*ghRele
 
 	for _, variant := range []string{normalizedTarget, withV, withoutV} {
 		if cached, ok := cacheGet(fmt.Sprintf("github:%s/%s:%s", owner, repo, variant)); ok {
-			if rel, ok := cached.(*ghRelease); ok && rel != nil {
+			// Typed-nil entries are negative hits (approved fix over Node's
+			// dead `if (cached)` falsy check): short-circuit without HTTP.
+			if rel, isRel := cached.(*ghRelease); isRel {
 				return rel, nil
 			}
 		}
@@ -360,7 +365,10 @@ func ghFindReleaseByTag(ctx context.Context, repoInput, tagName string) (*ghRele
 		return nil, err
 	}
 	if rel == nil {
-		cacheSet(fmt.Sprintf("github:%s/%s:%s", owner, repo, tagName), (*ghRelease)(nil))
+		// Negative cache under every variant key so repeat lookups short-circuit.
+		for _, variant := range []string{normalizedTarget, withV, withoutV} {
+			cacheSet(fmt.Sprintf("github:%s/%s:%s", owner, repo, variant), (*ghRelease)(nil))
+		}
 	}
 	return rel, nil
 }
