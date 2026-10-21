@@ -319,8 +319,55 @@ func prepareContainerConfig(details map[string]any, newImage, containerName stri
 		}
 	}
 	cleanHC, shared := cleanHostConfigForCreate(jObj(details, "HostConfig"), containerName)
+	preserveAnonymousVolumes(details, cleanHC)
 	netCfg := prepareNetworkingConfig(details, shared)
 	return buildUpgradeConfig(details, newImage, cleanHC, netCfg, shared), shared, stackName
+}
+
+// preserveAnonymousVolumes re-attaches image-declared anonymous volumes to a
+// recreated container. Anonymous volumes show up in inspect Mounts (type
+// "volume") but NOT in HostConfig.Binds; without re-adding them as explicit
+// binds the recreate silently gets a brand-new empty volume and the old data
+// is orphaned (databases that declare VOLUME /data lose everything on
+// upgrade).
+func preserveAnonymousVolumes(details map[string]any, cleanHC map[string]any) {
+	mounts, _ := details["Mounts"].([]any)
+	if len(mounts) == 0 {
+		return
+	}
+	binds, _ := cleanHC["Binds"].([]any)
+	covered := map[string]bool{}
+	for _, b := range binds {
+		s, ok := b.(string)
+		if !ok {
+			continue
+		}
+		// bind format src:dst[:mode]; named volumes appear here, anonymous
+		// ones never do.
+		if parts := strings.SplitN(s, ":", 3); len(parts) >= 2 {
+			covered[parts[0]] = true
+			covered[parts[1]] = true
+		}
+	}
+	for _, m := range mounts {
+		mm, ok := m.(map[string]any)
+		if !ok || jStr(mm, "Type") != "volume" {
+			continue
+		}
+		src, dst := jStr(mm, "Source"), jStr(mm, "Destination")
+		if src == "" || dst == "" || covered[dst] || covered[src] {
+			continue
+		}
+		bind := src + ":" + dst
+		if mode := jStr(mm, "Mode"); mode != "" {
+			bind += ":" + mode
+		}
+		binds = append(binds, bind)
+		covered[dst] = true
+	}
+	if len(binds) > 0 {
+		cleanHC["Binds"] = binds
+	}
 }
 
 // ── Readiness (containerReadinessService port) ──────────────────────────────
@@ -446,6 +493,9 @@ func waitForContainerReady(ctx context.Context, rr db.RunnerRow, containerID, co
 type depContainer struct {
 	ID   string
 	Name string
+	// Details is the inspect document captured BEFORE the dependent was
+	// removed; it is the only way back if the pipeline fails midway.
+	Details map[string]any
 }
 
 // findDependentContainers lists containers whose network_mode references the
@@ -467,7 +517,7 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 		}
 		nm := jStr(jObj(details, "HostConfig"), "NetworkMode")
 		if networkModeRef(nm) == cleanName && restartStatus(details) == "running" {
-			deps = append(deps, depContainer{ID: c.ID, Name: c.Name})
+			deps = append(deps, depContainer{ID: c.ID, Name: c.Name, Details: details})
 		}
 	}
 	return deps
@@ -485,6 +535,50 @@ func stopAndRemoveDependentContainers(ctx context.Context, rr db.RunnerRow, deps
 		}
 	}
 	time.Sleep(3 * time.Second)
+}
+
+// restoreRemovedDependents recreates up-front-removed dependents after the
+// pipeline fails midway. Without this they are gone for good: their provider
+// may already be removed too, and the post-upgrade restart path never runs
+// on a failed pipeline. Best-effort: every step logs and continues.
+func restoreRemovedDependents(ctx context.Context, rr db.RunnerRow, deps []depContainer, cleanName string, providerDetails map[string]any) {
+	ctx = context.WithoutCancel(ctx)
+	originalImage := jStr(jObj(providerDetails, "Config"), "Image")
+
+	// Dependents reference the provider container; make sure one exists
+	// under the original name (the pipeline may have failed after removing
+	// it) and learn its current ID.
+	providerID := ""
+	if list, err := runner.FetchContainers(ctx, rr); err == nil {
+		for _, c := range list {
+			if strings.TrimPrefix(c.Name, "/") == cleanName {
+				providerID = c.ID
+				break
+			}
+		}
+	}
+	if providerID == "" {
+		cfg, _, _ := prepareContainerConfig(providerDetails, originalImage, "/"+cleanName)
+		id, err := runner.CreateContainer(ctx, rr, cfg, "/"+cleanName)
+		if err != nil {
+			log.Printf("upgrade rollback: could not recreate provider %s: %v", cleanName, err)
+			return
+		}
+		providerID = id
+		if err := runner.StartContainer(ctx, rr, providerID); err != nil {
+			log.Printf("upgrade rollback: provider %s recreated but failed to start: %v", cleanName, err)
+		}
+	}
+
+	for _, d := range deps {
+		if d.Details == nil {
+			log.Printf("upgrade rollback: no snapshot for dependent %s, cannot restore", d.Name)
+			continue
+		}
+		if err := recreateNetworkModeContainer(ctx, rr, depAfter{ID: d.ID, Name: d.Name}, d.Details, providerID); err != nil {
+			log.Printf("upgrade rollback: could not recreate dependent %s: %v", d.Name, err)
+		}
+	}
 }
 
 // ── Post-upgrade dependents (dependentContainerRestartService port) ─────────
@@ -826,6 +920,7 @@ func recreateNetworkModeContainer(ctx context.Context, rr db.RunnerRow, dep depA
 		originalHC = map[string]any{}
 	}
 	cleanHC := buildRecreateHostConfig(originalHC, prefix, newID)
+	preserveAnonymousVolumes(details, cleanHC)
 
 	updatedNM := jStr(cleanHC, "NetworkMode")
 	updatedShared := isSharedNetworkMode(updatedNM)
@@ -1082,19 +1177,29 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	if len(deps) > 0 {
 		stopAndRemoveDependentContainers(ctx, *rr, deps)
 	}
+	// From here the dependents are already gone: any failure below must
+	// put them back or they are orphaned permanently.
+	restore := func() {
+		if len(deps) > 0 {
+			restoreRemovedDependents(ctx, *rr, deps, cleanName, details)
+		}
+	}
 
 	setPhase(phase, model.UpgradePhaseStopping)
 	if err := runner.StopContainer(ctx, *rr, container.ContainerID); err != nil {
+		restore()
 		return fmt.Errorf("stop container: %w", err)
 	}
 	waitForContainerStop(ctx, *rr, container.ContainerID, cleanName)
 
 	setPhase(phase, model.UpgradePhasePulling)
 	if err := runner.PullImage(ctx, *rr, newImage); err != nil {
+		restore()
 		return fmt.Errorf("pull image %s: %w", newImage, err)
 	}
 
 	if err := runner.RemoveContainer(ctx, *rr, container.ContainerID, false); err != nil {
+		restore()
 		return fmt.Errorf("remove container: %w", err)
 	}
 
@@ -1102,17 +1207,21 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	config, shared, stackName := prepareContainerConfig(details, newImage, originalName)
 	newID, err := runner.CreateContainer(ctx, *rr, config, originalName)
 	if err != nil {
+		restore()
 		return fmt.Errorf("create container: %w", err)
 	}
 	if newID == "" {
+		restore()
 		return fmt.Errorf("runner create returned no container id")
 	}
 
 	setPhase(phase, model.UpgradePhaseStarting)
 	if err := runner.StartContainer(ctx, *rr, newID); err != nil {
+		restore()
 		return fmt.Errorf("start container: %w", err)
 	}
 	if err := waitForContainerReady(ctx, *rr, newID, cleanName, imageName); err != nil {
+		restore()
 		return err
 	}
 

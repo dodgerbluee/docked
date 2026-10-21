@@ -368,3 +368,38 @@ func TestUpgradeConfigJSONRoundTrip(t *testing.T) {
 		t.Errorf("Image lost in round-trip")
 	}
 }
+
+// Anonymous volumes (image VOLUME declarations) appear in inspect Mounts but
+// never in HostConfig.Binds; the recreate must re-attach them as explicit
+// binds or the container silently gets a fresh empty volume.
+func TestPreserveAnonymousVolumes(t *testing.T) {
+	details := map[string]any{
+		"Mounts": []any{
+			map[string]any{"Type": "bind", "Source": "/host", "Destination": "/cfg", "Mode": "rw"},
+			map[string]any{"Type": "volume", "Source": "namedvol", "Destination": "/named", "Mode": "rw"},
+			map[string]any{"Type": "volume", "Source": "anon123", "Destination": "/data", "Mode": "rw"},
+			map[string]any{"Type": "tmpfs", "Source": "", "Destination": "/tmpfs"},
+			map[string]any{"Type": "volume", "Source": "", "Destination": "/broken"},
+		},
+	}
+	hc := map[string]any{"Binds": []any{"/host:/cfg:ro", "namedvol:/named"}}
+	preserveAnonymousVolumes(details, hc)
+
+	binds, _ := hc["Binds"].([]any)
+	if len(binds) != 3 {
+		t.Fatalf("binds = %v, want the original two plus the anonymous volume", binds)
+	}
+	if binds[2] != "anon123:/data:rw" {
+		t.Errorf("anonymous bind = %v, want anon123:/data:rw", binds[2])
+	}
+
+	// No Binds at all: every volume from Mounts is re-attached (named
+	// volumes normally appear in Binds; if they do not, this is the
+	// safety net that keeps the data attached).
+	hc2 := map[string]any{}
+	preserveAnonymousVolumes(details, hc2)
+	b2, _ := hc2["Binds"].([]any)
+	if len(b2) != 2 || b2[0] != "namedvol:/named:rw" || b2[1] != "anon123:/data:rw" {
+		t.Errorf("binds without pre-existing entries = %v, want namedvol + anon123 re-attached", b2)
+	}
+}
