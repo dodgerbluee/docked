@@ -5,7 +5,9 @@
 package events
 
 import (
+	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dockedapp/backend/graph/model"
 )
@@ -35,13 +37,49 @@ type subscriber struct {
 // Sends are non-blocking: a slow consumer drops events rather than
 // stalling the publisher (clients also refetch on (re)load).
 type Hub struct {
-	mu   sync.Mutex
-	next int
-	subs map[int]*subscriber
+	mu      sync.Mutex
+	next    int
+	subs    map[int]*subscriber
+	dropped atomic.Uint64
 }
 
 func NewHub() *Hub {
 	return &Hub{subs: map[int]*subscriber{}}
+}
+
+// Dropped returns the total number of events dropped because a subscriber's
+// buffer was full (since process start).
+func (h *Hub) Dropped() uint64 { return h.dropped.Load() }
+
+// noteDrop records a dropped event. Non-blocking delivery is deliberate (a
+// slow consumer must never stall a publisher), but the drop must not be
+// invisible: it is counted and logged with sampling — the first drop and
+// every 100th — so a permanently wedged subscriber is loud enough to
+// diagnose without being able to spam the log.
+func (h *Hub) noteDrop(t topic) {
+	n := h.dropped.Add(1)
+	if n == 1 || n%100 == 0 {
+		slog.Warn("event hub: subscriber buffer full, event dropped",
+			"topic", topicName(t), "totalDropped", n)
+	}
+}
+
+func topicName(t topic) string {
+	switch t {
+	case topicContainersUpdated:
+		return "containersUpdated"
+	case topicUpgradeProgress:
+		return "upgradeProgress"
+	case topicBatchJob:
+		return "batchJob"
+	case topicIntentExecution:
+		return "intentExecution"
+	case topicRunnerStatus:
+		return "runnerStatus"
+	case topicOperation:
+		return "operation"
+	}
+	return "unknown"
 }
 
 func (h *Hub) add(userID int64, t topic, ch any) int {
@@ -90,6 +128,7 @@ func (h *Hub) PublishContainersUpdated(userID int64, ev model.ContainersUpdatedE
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicContainersUpdated)
 		}
 	})
 }
@@ -106,6 +145,7 @@ func (h *Hub) PublishUpgradeProgress(userID int64, ev model.UpgradeProgressEvent
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicUpgradeProgress)
 		}
 	})
 }
@@ -122,6 +162,7 @@ func (h *Hub) PublishBatchJob(userID int64, ev model.BatchRun) {
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicBatchJob)
 		}
 	})
 }
@@ -138,6 +179,7 @@ func (h *Hub) PublishIntentExecution(userID int64, ev model.IntentExecution) {
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicIntentExecution)
 		}
 	})
 }
@@ -154,6 +196,7 @@ func (h *Hub) PublishRunnerStatus(userID int64, ev model.RunnerStatusEvent) {
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicRunnerStatus)
 		}
 	})
 }
@@ -170,6 +213,7 @@ func (h *Hub) PublishOperation(userID int64, ev model.Operation) {
 		select {
 		case c <- ev:
 		default:
+			h.noteDrop(topicOperation)
 		}
 	})
 }

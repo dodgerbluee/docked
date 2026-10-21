@@ -94,6 +94,57 @@ describe("graphql WS upgrade proxy", () => {
     expect(response).toContain("FRAME-FROM-UPSTREAM");
   });
 
+  it("replays client head bytes to the upstream (first WS frame not lost)", async () => {
+    // A graphql-ws client that sends connection_init immediately after the
+    // upgrade request gets those frame bytes buffered into `head` on the
+    // upgrade event. They are consumed from the socket, so the bridge must
+    // write them to the upstream BEFORE piping — otherwise the Go transport
+    // never sees the first frame and the connection stalls until a timeout.
+    let upstreamReceived = "";
+    upstream = http.createServer();
+    upstream.on("upgrade", (req, socket) => {
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n"
+      );
+      socket.on("data", (c) => {
+        upstreamReceived += c.toString("latin1");
+      });
+      socket.on("end", () => socket.destroy());
+    });
+    const upstreamPort = await listen(upstream);
+
+    proxy = http.createServer();
+    attachGraphqlWsProxy(proxy, {
+      backendUrl: `http://127.0.0.1:${upstreamPort}`,
+      trustProxy: false,
+    });
+    const proxyPort = await listen(proxy);
+
+    // Headers + payload in ONE write: the payload lands in `head`.
+    const client = net.connect(proxyPort, "127.0.0.1");
+    client.write(
+      `GET /graphql HTTP/1.1\r\nhost: x\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\nCONNECTION_INIT_FRAME`
+    );
+    const handshake = await new Promise((resolve, reject) => {
+      const chunks = [];
+      client.on("data", (c) => {
+        chunks.push(c);
+        const text = Buffer.concat(chunks).toString("latin1");
+        if (text.includes("101 Switching Protocols")) resolve(text);
+      });
+      client.on("error", reject);
+    });
+    expect(handshake).toContain("101 Switching Protocols");
+
+    // Give the replayed frame time to reach the upstream, then send another
+    // frame over the piped connection to prove ordering does not break.
+    await new Promise((r) => setTimeout(r, 100));
+    client.write("LATER_FRAME");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(upstreamReceived).toBe("CONNECTION_INIT_FRAMELATER_FRAME");
+    client.destroy();
+  });
+
   it("relays a rejected upgrade with its full Content-Length body and overwrites XFF", async () => {
     let seenXff;
     upstream = http.createServer((req, res) => {

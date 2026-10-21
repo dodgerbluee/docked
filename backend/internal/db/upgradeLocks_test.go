@@ -43,4 +43,29 @@ func TestUpgradeLocksAndIdempotencyAreAtomic(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("same key for another user should be independent: %v, %v", claimed, err)
 	}
+
+	// A claim released after a failed mutation must free the key for retry
+	// instead of stranding it until the 24h expiry.
+	if err := ReleaseIdempotencyKey(ctx, database, 7, "trigger-intent:4", key); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = ClaimIdempotencyKey(ctx, database, 7, "trigger-intent:4", &key)
+	if err != nil || !claimed {
+		t.Fatalf("claim after release = %v, %v; want true", claimed, err)
+	}
+	// Release is scoped: wrong op type or key must not free the live claim.
+	if err := ReleaseIdempotencyKey(ctx, database, 7, "other-op", key); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReleaseIdempotencyKey(ctx, database, 7, "trigger-intent:4", "different-key"); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = ClaimIdempotencyKey(ctx, database, 7, "trigger-intent:4", &key)
+	if err != nil || claimed {
+		t.Fatalf("claim after scoped non-release = %v, %v; want false", claimed, err)
+	}
+	// Empty key release is a no-op and must not error.
+	if err := ReleaseIdempotencyKey(ctx, database, 7, "trigger-intent:4", ""); err != nil {
+		t.Fatal(err)
+	}
 }

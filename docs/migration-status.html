@@ -117,8 +117,8 @@
       const DATA = {
         updated: "2026-10-21",
         prodVersion: "3.26.1-dev",
-        nodeLoc: 29035, // server/ JS excl. tests+migrations
-        goLoc: 58564,   // backend/ Go excl. generated
+        nodeLoc: 29041, // server/ JS excl. tests+migrations
+        goLoc: 58852,   // backend/ Go excl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -168,13 +168,13 @@
           { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
         ],
         punch: [
-          { done: false, text: "Runner containers N+1 (schema.resolvers.go)" },
-          { done: false, text: "Login resolver lacks throttle" },
-          { done: false, text: "WS proxy drops upgrade head bytes" },
-          { done: false, text: "Event hub silently drops on full buffers" },
-          { done: false, text: "Idempotency claim consumed before insert can strand retries 24h" },
-          { done: false, text: "Go dotenv keeps inline # comments Node strips" },
-          { done: false, text: "Wire PruneExpiredRevoked into periodic cleanup" },
+          { done: true, text: "Runner containers N+1 (schema.resolvers.go)" },
+          { done: true, text: "Login resolver lacks throttle" },
+          { done: true, text: "WS proxy drops upgrade head bytes" },
+          { done: true, text: "Event hub silently drops on full buffers" },
+          { done: true, text: "Idempotency claim consumed before insert can strand retries 24h" },
+          { done: true, text: "Go dotenv keeps inline # comments Node strips" },
+          { done: true, text: "Wire PruneExpiredRevoked into periodic cleanup" },
           { done: false, text: "Dependency vulns (npm-audit/snyk) — batch 2c" },
         ],
       };

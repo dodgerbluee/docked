@@ -9,7 +9,7 @@ import (
 func TestLoadDotenv(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, ".env")
-	content := "# comment line\n\nJWT_SECRET=from-dotenv\nexport DATA_DIR=\"/var/lib/docked\"\nQUOTED='single quoted value'\nNOEQUALSIGN\nADDR=\":4100\"\n"
+	content := "# comment line\n\nJWT_SECRET=from-dotenv\nexport DATA_DIR=\"/var/lib/docked\"\nQUOTED='single quoted value'\nNOEQUALSIGN\nADDR=\":4100\"\nINLINE=value # trailing comment\nHASHY=a#b\nHASHQUOTED=\"keep # inside\"\nEMPTYQ=\"\" # after quote\n"
 	if err := os.WriteFile(envFile, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +34,19 @@ func TestLoadDotenv(t *testing.T) {
 	}
 	if _, ok := os.LookupEnv("NOEQUALSIGN"); ok {
 		t.Error("line without = must be skipped")
+	}
+	// dotenv v16 inline-comment semantics (Node parity).
+	if got := os.Getenv("INLINE"); got != "value" {
+		t.Errorf("INLINE = %q, want value (unquoted inline comment stripped)", got)
+	}
+	if got := os.Getenv("HASHY"); got != "a" {
+		t.Errorf("HASHY = %q, want a (unquoted value ends at first #)", got)
+	}
+	if got := os.Getenv("HASHQUOTED"); got != "keep # inside" {
+		t.Errorf("HASHQUOTED = %q, want 'keep # inside' (# inside quotes preserved)", got)
+	}
+	if got, ok := os.LookupEnv("EMPTYQ"); !ok || got != "" {
+		t.Errorf("EMPTYQ = %q (set=%v), want empty string set", got, ok)
 	}
 }
 

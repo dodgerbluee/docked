@@ -141,6 +141,12 @@ func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.Int
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error) {
+	// Same 20/15min per-IP budget Node's authLimiter enforces on
+	// POST /api/auth/login; without it the GraphQL login mutation is an
+	// unthrottled password-guessing oracle.
+	if !allowPublicOp(ctx, "login") {
+		return nil, fmt.Errorf(tooManyRequestsMsg)
+	}
 	user, err := db.GetUserByUsername(ctx, r.DB, input.Username)
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
@@ -661,6 +667,7 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 	// an invalid BATCH_UPGRADE enum on read.
 	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, "upgrade-containers", true)
 	if err != nil {
+		releaseIdempotency(ctx, r.DB, uid, "batch-upgrade", input.IdempotencyKey)
 		return nil, fmt.Errorf("create batch run: %w", err)
 	}
 
@@ -1484,6 +1491,7 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 
 	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
 	if err != nil {
+		releaseIdempotency(ctx, r.DB, uid, "trigger-intent:"+id, idempotencyKey)
 		return nil, fmt.Errorf("create execution: %w", err)
 	}
 
@@ -1682,6 +1690,7 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 
 	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, jt, true)
 	if err != nil {
+		releaseIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey)
 		return nil, fmt.Errorf("create batch run: %w", err)
 	}
 
@@ -3464,15 +3473,13 @@ func (r *runnerResolver) Containers(ctx context.Context, obj *model.Runner, firs
 	}
 	rid, _ := strconv.ParseInt(obj.ID, 10, 64)
 
-	rows, err := db.GetContainers(ctx, r.DB, uid)
+	rows, err := db.GetContainersByRunner(ctx, r.DB, uid, rid)
 	if err != nil {
 		return nil, err
 	}
 	var matched []*model.Container
 	for i := range rows {
-		if rows[i].RunnerID.Valid && rows[i].RunnerID.Int64 == rid {
-			matched = append(matched, containerRowToModel(&rows[i]))
-		}
+		matched = append(matched, containerRowToModel(&rows[i]))
 	}
 	return paginateContainers(matched, first, after), nil
 }

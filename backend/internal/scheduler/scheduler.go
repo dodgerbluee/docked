@@ -41,8 +41,17 @@ func (s *Scheduler) Start(ctx context.Context) {
 	s.initLastRuns(ctx)
 	s.tick(ctx)
 
+	// Revoked-token cleanup is shared by both stacks (same SQLite table):
+	// Node never wired its prune, so the Go scheduler owns it. Run once at
+	// startup, then daily.
+	if err := db.PruneExpiredRevoked(ctx, s.svc.DB); err != nil {
+		slog.Warn("failed to prune expired revoked tokens on startup", "error", err)
+	}
+
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
+	pruneTicker := time.NewTicker(24 * time.Hour)
+	defer pruneTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -50,6 +59,10 @@ func (s *Scheduler) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.tick(ctx)
+		case <-pruneTicker.C:
+			if err := db.PruneExpiredRevoked(ctx, s.svc.DB); err != nil {
+				slog.Warn("failed to prune expired revoked tokens", "error", err)
+			}
 		}
 	}
 }

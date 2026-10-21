@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -204,6 +205,19 @@ func claimIdempotency(ctx context.Context, database *sql.DB, userID int64, opera
 		return fmt.Errorf("duplicate idempotency key")
 	}
 	return nil
+}
+
+// releaseIdempotency undoes a claim when the mutation fails before any work
+// was recorded, so the client's retry with the same key is not stranded as a
+// "duplicate" for 24 hours. Best-effort: a failed release only degrades back
+// to the old stranding behavior.
+func releaseIdempotency(ctx context.Context, database *sql.DB, userID int64, operationType string, key *string) {
+	if key == nil || *key == "" {
+		return
+	}
+	if err := db.ReleaseIdempotencyKey(ctx, database, userID, operationType, *key); err != nil {
+		slog.Warn("failed to release idempotency claim", "userId", userID, "op", operationType, "error", err)
+	}
 }
 
 // requireAdmin returns the caller's user id only if that user is an INSTANCE

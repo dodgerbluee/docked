@@ -53,6 +53,12 @@ function attachGraphqlWsProxy(server, { backendUrl, trustProxy, logger }) {
         }
         socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headerLines.join("\r\n")}\r\n\r\n`);
         if (proxyHead && proxyHead.length) socket.write(proxyHead);
+        // Bytes the client already sent after the upgrade headers (e.g. a
+        // graphql-ws connection_init frame sent immediately on connect) were
+        // buffered into `head` and consumed from the socket — they must be
+        // replayed to the upstream BEFORE piping, or they are lost and the
+        // Go transport never sees the first frame.
+        if (head && head.length) proxySocket.write(head);
         proxySocket.pipe(socket);
         socket.pipe(proxySocket);
         const destroy = () => {

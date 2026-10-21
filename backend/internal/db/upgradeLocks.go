@@ -48,3 +48,18 @@ func ClaimIdempotencyKey(ctx context.Context, database *sql.DB, userID int64, op
 	changed, err := result.RowsAffected()
 	return changed == 1, err
 }
+
+// ReleaseIdempotencyKey undoes a claim. Callers that claim a key and then
+// fail BEFORE any work was recorded (e.g. the batch-run insert errors out)
+// must release it, otherwise a legitimate retry with the same key is
+// rejected as a duplicate for the full 24h expiry window.
+func ReleaseIdempotencyKey(ctx context.Context, database *sql.DB, userID int64, operationType string, key string) error {
+	if key == "" {
+		return nil
+	}
+	_, err := database.ExecContext(ctx, `
+		DELETE FROM idempotency_claims
+		WHERE user_id = ? AND operation_type = ? AND idempotency_key = ?`,
+		userID, operationType, key)
+	return err
+}

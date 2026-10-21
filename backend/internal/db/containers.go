@@ -146,7 +146,24 @@ func GetContainers(ctx context.Context, database *sql.DB, userID int64) ([]Conta
 		return nil, fmt.Errorf("query containers: %w", err)
 	}
 	defer rows.Close()
+	return scanContainerRows(rows)
+}
 
+// GetContainersByRunner returns the containers owned by a single runner.
+// The Runner.containers GraphQL field uses this instead of re-fetching the
+// user's entire container list once per runner (N+1 full scans on pages
+// that render several runners).
+func GetContainersByRunner(ctx context.Context, database *sql.DB, userID, runnerID int64) ([]ContainerRow, error) {
+	q := strings.Replace(containersQuery, "WHERE c.user_id = ?", "WHERE c.user_id = ? AND c.runner_id = ?", 1)
+	rows, err := database.QueryContext(ctx, q, userID, runnerID)
+	if err != nil {
+		return nil, fmt.Errorf("query containers by runner: %w", err)
+	}
+	defer rows.Close()
+	return scanContainerRows(rows)
+}
+
+func scanContainerRows(rows *sql.Rows) ([]ContainerRow, error) {
 	var result []ContainerRow
 	for rows.Next() {
 		row, err := scanRow(rows)
@@ -155,7 +172,6 @@ func GetContainers(ctx context.Context, database *sql.DB, userID int64) ([]Conta
 		}
 		result = append(result, row)
 	}
-
 	return result, rows.Err()
 }
 

@@ -13,9 +13,12 @@ import (
 // through .env instead of real environment variables.
 //
 // Dotenv semantics kept minimal and compatible: blank lines and #-comments
-// are skipped, an optional "export " prefix is stripped, surrounding single
-// or double quotes are removed, and existing environment variables always
-// win (dotenv does not override the real env).
+// are skipped, an optional "export " prefix is stripped, and existing
+// environment variables always win (dotenv does not override the real env).
+// Value parsing mirrors dotenv v16: a value starting with a quote (' " or `)
+// ends at the matching close quote and everything after it (including #) is
+// ignored; an unquoted value ends at the first # (inline comments like
+// KEY=value # note yield "value", matching Node).
 func loadDotenv() {
 	path := os.Getenv("ENV_FILE")
 	if path == "" {
@@ -43,10 +46,15 @@ func loadDotenv() {
 			continue
 		}
 		val = strings.TrimSpace(val)
-		if len(val) >= 2 {
-			if (val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'') {
-				val = val[1 : len(val)-1]
+		if val != "" && (val[0] == '"' || val[0] == '\'' || val[0] == '`') {
+			q := val[0]
+			if end := strings.IndexByte(val[1:], q); end >= 0 {
+				val = val[1 : 1+end]
+			} else {
+				val = strings.TrimPrefix(val[1:], string(q)) // unterminated quote
 			}
+		} else if i := strings.IndexByte(val, '#'); i >= 0 {
+			val = strings.TrimSpace(val[:i])
 		}
 		if os.Getenv(key) == "" {
 			os.Setenv(key, val)
