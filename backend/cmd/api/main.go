@@ -61,9 +61,23 @@ func main() {
 	// twin of Node runnerController's startup cleanup + 30-minute interval.
 	go handlers.StartEnrollmentMaintenance(ctx, database)
 
+	// Mark intent executions interrupted by a restart as failed (Node's
+	// cleanupStaleIntentExecutions in BatchManager.start). Runs before the
+	// evaluator starts so stale rows never shadow fresh executions.
+	if n, err := db.CleanupStaleIntentExecutions(ctx, database); err != nil {
+		slog.Error("failed to clean up stale intent executions", "error", err)
+	} else if n > 0 {
+		slog.Info("marked interrupted intent executions as failed", "count", n)
+	}
+
+	// Intent evaluator: 60s scheduled sweep + immediate-intent hook (wired
+	// into syncSvc by NewServer). Node's evaluator is opted out while Go owns it.
+	apiServer := api.NewServer(cfg, database, hub, syncSvc, versionPoller)
+	go apiServer.Intents.Start(ctx)
+
 	srv := &http.Server{
 		Addr:         cfg.Addr,
-		Handler:      api.NewServer(cfg, database, hub, syncSvc, versionPoller),
+		Handler:      apiServer.Handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

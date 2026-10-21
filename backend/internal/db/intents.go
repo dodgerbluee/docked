@@ -141,6 +141,44 @@ func TouchIntentLastEvaluated(ctx context.Context, database *sql.DB, intentID, u
 	return err
 }
 
+// GetEnabledIntents returns every enabled intent for a user (Node's
+// db/intents.js getEnabledIntents), used by the intent evaluator loops.
+func GetEnabledIntents(ctx context.Context, database *sql.DB, userID int64) ([]IntentRow, error) {
+	rows, err := database.QueryContext(ctx,
+		"SELECT "+intentCols+" FROM intents WHERE user_id = ? AND enabled = 1", userID)
+	if err != nil {
+		return nil, fmt.Errorf("get enabled intents: %w", err)
+	}
+	defer rows.Close()
+
+	var results []IntentRow
+	for rows.Next() {
+		r, err := scanIntent(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan enabled intent: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+// SetIntentLastEvaluatedAt anchors an intent's last_evaluated_at to an exact
+// timestamp (Node writes the cron trigger time as an ISO string, never
+// wall-clock, so a cron point can only fire once). executionID < 0 leaves
+// last_execution_id untouched (the evaluator's pre-mark step).
+func SetIntentLastEvaluatedAt(ctx context.Context, database *sql.DB, intentID, userID int64, evaluatedAt string, executionID int64) error {
+	if executionID < 0 {
+		_, err := database.ExecContext(ctx,
+			`UPDATE intents SET last_evaluated_at = ? WHERE id = ? AND user_id = ?`,
+			evaluatedAt, intentID, userID)
+		return err
+	}
+	_, err := database.ExecContext(ctx,
+		`UPDATE intents SET last_evaluated_at = ?, last_execution_id = ? WHERE id = ? AND user_id = ?`,
+		evaluatedAt, executionID, intentID, userID)
+	return err
+}
+
 // UnmarshalStringArr decodes a JSON array string from the DB into a []string.
 func UnmarshalStringArr(s sql.NullString) []string {
 	if !s.Valid || s.String == "" {

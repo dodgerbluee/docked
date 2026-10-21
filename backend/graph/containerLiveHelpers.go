@@ -8,11 +8,9 @@ package graph
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"log"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/domain"
@@ -70,55 +68,10 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 }
 
 // runnerContainerToRow converts a live runner container into the DB-row shape
-// consumed by containerRowToModel/imageInfoFromRow, joining registry data from
-// registry_image_versions the same way the SQL containersQuery does.
+// consumed by containerRowToModel/imageInfoFromRow. The conversion itself
+// lives in internal/runner (shared with the intents matching engine).
 func (r *Resolver) runnerContainerToRow(ctx context.Context, uid int64, rr db.RunnerRow, c domain.Container) db.ContainerRow {
-	repo, tag := splitImageRepoTag(c.Image)
-
-	row := db.ContainerRow{
-		ContainerID:     c.ID,
-		ContainerName:   c.Name,
-		ImageName:       sqlNullStr(c.Image),
-		ImageRepo:       sqlNullStr(repo),
-		ImageTag:        sqlNullStr(tag),
-		Status:          sqlNullStr(c.Status),
-		State:           sqlNullStr(c.State),
-		StackName:       sqlNullStrPtr(c.StackName),
-		RunnerID:        sql.NullInt64{Int64: rr.ID, Valid: true},
-		RunnerName:      sqlNullStr(rr.Name),
-		RunnerURL:       sqlNullStr(rr.URL),
-		UsesNetworkMode: c.UsesNetworkMode,
-		ProvidesNetwork: c.ProvidesNetwork,
-		CurrentDigest:   sqlNullStrPtr(c.CurrentDigest),
-		NoDigest:        c.NoDigest,
-	}
-	if len(c.RepoDigests) > 0 {
-		if encoded, err := json.Marshal(c.RepoDigests); err == nil {
-			row.RepoDigests = sql.NullString{String: string(encoded), Valid: true}
-		}
-	}
-	if c.ImageCreated > 0 {
-		row.ImageCreatedDate = sql.NullString{
-			String: time.Unix(c.ImageCreated, 0).UTC().Format("2006-01-02 15:04:05"),
-			Valid:  true,
-		}
-	}
-	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	row.LastSeen = sql.NullString{String: now, Valid: true}
-	row.CreatedAt = row.LastSeen
-
-	registryData, err := db.GetRegistryData(ctx, r.DB, uid, repo, tag)
-	if err != nil {
-		log.Printf("live runner registry lookup failed (image %s): %v", c.Image, err)
-		return row
-	}
-	row.LatestDigest = registryData.LatestDigest
-	row.LatestVersion = registryData.LatestVersion
-	row.LatestTag = registryData.LatestTag
-	row.LatestPublishDate = registryData.LatestPublishDate
-	row.Provider = registryData.Provider
-	row.LastChecked = registryData.LastChecked
-	return row
+	return runner.ContainerToRow(ctx, r.DB, uid, rr, c)
 }
 
 // liveRunnerContainer resolves a container directly from a runner when the

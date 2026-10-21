@@ -106,13 +106,46 @@ func GetIntentLastExecution(ctx context.Context, database *sql.DB, intentID, use
 }
 
 func CreateIntentExecution(ctx context.Context, database *sql.DB, intentID, userID int64, triggerType string) (int64, error) {
+	return CreateIntentExecutionStatus(ctx, database, intentID, userID, triggerType, "pending")
+}
+
+// CreateIntentExecutionStatus creates an execution record with an explicit
+// initial status (Node's executor creates 'running' directly).
+func CreateIntentExecutionStatus(ctx context.Context, database *sql.DB, intentID, userID int64, triggerType, status string) (int64, error) {
 	res, err := database.ExecContext(ctx,
-		"INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, 'pending', ?)",
-		intentID, userID, triggerType)
+		"INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, ?, ?)",
+		intentID, userID, status, triggerType)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+// MarkIntentExecutionFailed records only status/error/duration, preserving
+// any partial counters already on the row (Node's updateIntentExecution
+// COALESCEs the counts).
+func MarkIntentExecutionFailed(ctx context.Context, database *sql.DB, id int64, errMsg string) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE intent_executions SET status='failed', error_message=?,
+		 completed_at=CURRENT_TIMESTAMP,
+		 duration_ms=CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER)
+		 WHERE id=?`, errMsg, id)
+	return err
+}
+
+// CleanupStaleIntentExecutions marks interrupted executions failed on
+// startup (Node's cleanupStaleIntentExecutions).
+func CleanupStaleIntentExecutions(ctx context.Context, database *sql.DB) (int64, error) {
+	res, err := database.ExecContext(ctx,
+		`UPDATE intent_executions
+		 SET status = 'failed',
+		     completed_at = CURRENT_TIMESTAMP,
+		     error_message = 'Execution was interrupted (server restart detected)'
+		 WHERE status IN ('pending', 'running') AND completed_at IS NULL`)
+	if err != nil {
+		return 0, fmt.Errorf("cleanup stale intent executions: %w", err)
+	}
+	return res.RowsAffected()
 }
 
 func UpdateIntentExecution(ctx context.Context, database *sql.DB, id int64, status string, matched, upgraded, failed, skipped int, errMsg *string) error {
@@ -145,16 +178,34 @@ type IntentExecutionContainerRow struct {
 	CreatedAt        string
 }
 
+// IntentExecContainerInsert is one per-container result row for an intent
+// execution (Node's addIntentExecutionContainer payload).
+type IntentExecContainerInsert struct {
+	ExecutionID      int64
+	ContainerID      string
+	ContainerName    string
+	ImageName        string
+	SourceInstanceID *int64
+	RunnerID         *int64
+	Status           string
+	OldImage         *string
+	NewImage         *string
+	OldDigest        *string
+	NewDigest        *string
+	ErrorMessage     *string
+	DurationMs       *int64
+}
+
 // InsertIntentExecutionContainer records a per-container result row for an
 // intent execution, mirroring Node's addIntentExecutionContainer.
-func InsertIntentExecutionContainer(ctx context.Context, database *sql.DB, executionID int64,
-	containerID, containerName, imageName, status string,
-	sourceInstanceID, runnerID *int64, oldImage, errorMessage *string, durationMs *int64) error {
+func InsertIntentExecutionContainer(ctx context.Context, database *sql.DB, in IntentExecContainerInsert) error {
 	_, err := database.ExecContext(ctx,
 		`INSERT INTO intent_execution_containers
-		 (execution_id, container_id, container_name, image_name, source_instance_id, runner_id, status, old_image, error_message, duration_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		executionID, containerID, containerName, imageName, sourceInstanceID, runnerID, status, oldImage, errorMessage, durationMs)
+		 (execution_id, container_id, container_name, image_name, source_instance_id, runner_id, status,
+		  old_image, new_image, old_digest, new_digest, error_message, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.ExecutionID, in.ContainerID, in.ContainerName, in.ImageName, in.SourceInstanceID, in.RunnerID, in.Status,
+		in.OldImage, in.NewImage, in.OldDigest, in.NewDigest, in.ErrorMessage, in.DurationMs)
 	return err
 }
 

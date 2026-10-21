@@ -411,8 +411,18 @@ func recordIntentExecContainer(ctx context.Context, database *sql.DB, execID int
 	if c.RunnerID.Valid {
 		rID = &c.RunnerID.Int64
 	}
-	_ = db.InsertIntentExecutionContainer(ctx, database, execID, c.ContainerID, c.ContainerName,
-		nullStrDefault(c.ImageName), status, siID, rID, nullStrPtr(c.ImageName), errMsg, durationMs)
+	_ = db.InsertIntentExecutionContainer(ctx, database, db.IntentExecContainerInsert{
+		ExecutionID:      execID,
+		ContainerID:      c.ContainerID,
+		ContainerName:    c.ContainerName,
+		ImageName:        nullStrDefault(c.ImageName),
+		SourceInstanceID: siID,
+		RunnerID:         rID,
+		Status:           status,
+		OldImage:         nullStrPtr(c.ImageName),
+		ErrorMessage:     errMsg,
+		DurationMs:       durationMs,
+	})
 }
 func runnerToModel(r *db.RunnerRow) *model.Runner {
 	if r == nil {

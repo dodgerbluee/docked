@@ -24,6 +24,11 @@ type Service struct {
 	Hub      *events.Hub
 	notifier *notifier
 
+	// OnScanComplete mirrors Node's BatchManager post-scan hook: after a
+	// batch job completes and found updates, evaluate immediate intents.
+	// Wired by main.go to the intents evaluator.
+	OnScanComplete func(ctx context.Context, userID int64, itemsUpdated int)
+
 	mu             sync.Mutex
 	running        map[int64]bool // userID -> in-process docker-hub-pull run flag
 	runningTracked map[int64]bool // userID -> in-process tracked-apps-check run flag
@@ -109,7 +114,24 @@ func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64) e
 	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
 		slog.Error("failed to mark batch run completed", "runId", runID, "error", cerr)
 	}
+	s.fireScanComplete(ctx, userID, updated)
 	return nil
+}
+
+// fireScanComplete dispatches the post-scan immediate-intents hook
+// fire-and-forget (Node's BatchManager does the same after updateBatchRun).
+func (s *Service) fireScanComplete(ctx context.Context, userID int64, itemsUpdated int) {
+	if s.OnScanComplete == nil || itemsUpdated <= 0 {
+		return
+	}
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("panic in scan-complete hook", "recover", rec)
+			}
+		}()
+		s.OnScanComplete(context.WithoutCancel(ctx), userID, itemsUpdated)
+	}()
 }
 
 // RunWithLock performs a docker-hub-pull run with the same guard stack as

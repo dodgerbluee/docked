@@ -114,6 +114,7 @@ func (s *Service) TrackedExecuteAndComplete(ctx context.Context, userID, runID i
 	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
 		slog.Error("failed to mark tracked-apps batch run completed", "runId", runID, "error", cerr)
 	}
+	s.fireScanComplete(ctx, userID, updated)
 	return nil
 }
 

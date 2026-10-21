@@ -201,17 +201,20 @@ class BatchManager {
         // Don't fail startup if cleanup fails
       }
 
-      // Clean up any stale intent executions from previous server instance
-      try {
-        const cleanedIntents = await cleanupStaleIntentExecutions();
-        if (cleanedIntents > 0) {
-          logger.info(`Cleaned up ${cleanedIntents} stale intent execution(s) on startup`);
-        }
-      } catch (cleanupErr) {
-        logger.warn("Failed to cleanup stale intent executions on startup (non-fatal):", {
-          error: cleanupErr.message,
-        });
-      }
+      // Clean up any stale intent executions from previous server instance.
+      // DISABLED: the Go backend owns this cleanup on its own startup
+      // (cmd/api/main.go). A blanket cleanup here would mark the Go engine's
+      // in-flight executions failed every time Node restarts.
+      // try {
+      //   const cleanedIntents = await cleanupStaleIntentExecutions();
+      //   if (cleanedIntents > 0) {
+      //     logger.info(`Cleaned up ${cleanedIntents} stale intent execution(s) on startup`);
+      //   }
+      // } catch (cleanupErr) {
+      //   logger.warn("Failed to cleanup stale intent executions on startup (non-fatal):", {
+      //     error: cleanupErr.message,
+      //   });
+      // }
 
       await this.scheduler.start();
 

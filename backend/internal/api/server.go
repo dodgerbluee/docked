@@ -26,8 +26,19 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
 	"github.com/dockedapp/backend/internal/imagesync"
+	"github.com/dockedapp/backend/internal/intents"
 	runnerpkg "github.com/dockedapp/backend/internal/runner"
 )
+
+// Server bundles the HTTP handler with the background services the process
+// owner (main.go) must start alongside it.
+type Server struct {
+	Handler http.Handler
+
+	// Intents is the scheduled/immediate intent evaluator. The caller owns
+	// its lifecycle: go Server.Intents.Start(ctx).
+	Intents *intents.Evaluator
+}
 
 // NewServer builds the chi router with all middleware and routes registered.
 // The GraphQL endpoint is mounted at /graphql; the playground at /playground.
@@ -35,7 +46,7 @@ import (
 // syncSvc drives the docker-hub-pull container sync (may be nil, in which
 // case pullContainers reports it as unavailable). poller backs the runner
 // version poller; heartbeat URL changes reset its per-runner backoff.
-func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *imagesync.Service, poller *runnerpkg.VersionPoller) http.Handler {
+func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *imagesync.Service, poller *runnerpkg.VersionPoller) *Server {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -52,6 +63,17 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// on a WS handshake. The returned context flows into every subscription
 	// operation on that connection.
 	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc}
+	// Intent engine: one shared executor (resolver-bound upgrade/publish/
+	// notify) adopted by the evaluator AND the manual trigger resolvers, so
+	// all execution paths use the same live matcher and lock semantics. The
+	// sync service's post-scan hook fires immediate intents (Node's
+	// BatchManager hook).
+	intentExec := resolver.BuildIntentExecutor()
+	intentEval := intents.NewEvaluator(database, intentExec)
+	resolver.Intents = intentEval
+	if syncSvc != nil {
+		syncSvc.OnScanComplete = intentEval.EvaluateImmediateIntents
+	}
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	srv.AddTransport(transport.Websocket{
 		// Auth is the JWT in connectionParams (see InitFunc), not cookies, so
@@ -246,7 +268,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	})
 
 	slog.Info("GraphQL server ready", "endpoint", "/graphql", "playground", "/playground")
-	return r
+	return &Server{Handler: r, Intents: intentEval}
 }
 
 func bearerToken(r *http.Request) (string, bool) {

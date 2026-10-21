@@ -23,6 +23,7 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/intents"
 	runnerclient "github.com/dockedapp/backend/internal/runner"
 )
 
@@ -1496,109 +1497,27 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		return nil, err
 	}
 
+	// Pre-create the 'pending' row so the client gets the execution id
+	// synchronously; the intent executor adopts it (the evaluator path lets
+	// the executor create its own 'running' row instead).
 	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
 	if err != nil {
 		releaseIdempotency(ctx, r.DB, uid, "trigger-intent:"+id, idempotencyKey)
 		return nil, fmt.Errorf("create execution: %w", err)
 	}
 
-	// Fire-and-forget: match containers and upgrade via runner
+	// Fire-and-forget through the shared intents engine: live matching,
+	// stack-aware concurrency, upgrade locks, Discord notification.
+	exec := r.intentsExecutor()
+	execIDA := execID
+	intentCopy := *intent
 	go func() {
-		ctx := context.Background()
-		matchC := db.UnmarshalStringArr(intent.MatchContainers)
-		matchI := db.UnmarshalStringArr(intent.MatchImages)
-		matchS := db.UnmarshalStringArr(intent.MatchSources)
-		matchSt := db.UnmarshalStringArr(intent.MatchStacks)
-		matchR := db.UnmarshalStringArr(intent.MatchRegistries)
-		exC := db.UnmarshalStringArr(intent.ExcludeContainers)
-		exI := db.UnmarshalStringArr(intent.ExcludeImages)
-		exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
-		exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
-
-		matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
-			matchC, matchI, matchS, matchSt, matchR, exC, exI, exSt, exR, 0, 0)
-		if err != nil {
-			message := err.Error()
-			_ = db.UpdateIntentExecution(ctx, r.DB, execID, "failed", 0, 0, 0, 0, &message)
-			return
-		}
-
-		// A dry-run is an evaluation only. It must never make an upstream
-		// mutation request; record every match as a dry_run row instead.
-		if intent.DryRun == 1 {
-			for i := range matched {
-				recordIntentExecContainer(ctx, r.DB, execID, &matched[i], "dry_run", nil, nil)
-			}
-			_ = db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil)
-			_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
-			return
-		}
-
-		upgraded := 0
-		failed := 0
-		skipped := 0
-		for i := range matched {
-			c := &matched[i]
-			var runnerURL string
-			var runner *db.RunnerRow
-			if c.RunnerID.Valid {
-				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
-				if runner != nil {
-					runnerURL = runner.URL
-				}
-			}
-			if runnerURL != "" {
-				runnerID := c.RunnerID.Int64
-				targetKey := containerTargetKey(c.ContainerID, &runnerID)
-				owner := "intent:" + strconv.FormatInt(execID, 10)
-				locked, lockErr := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
-				if lockErr != nil || !locked {
-					skipped++
-					recordIntentExecContainer(ctx, r.DB, execID, c, "skipped", nil, nil)
-					continue
-				}
-				upStart := time.Now()
-				pipelineCtx, pipelineCancel := context.WithTimeout(ctx, 15*time.Minute)
-				err := r.runnerUpgradePipeline(pipelineCtx, uid, c, runner, nullStrDefault(c.ImageName), nil)
-				pipelineCancel()
-				_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
-				upStatus, upErr := "success", ""
-				duration := time.Since(upStart).Milliseconds()
-				if err == nil {
-					upgraded++
-					recordIntentExecContainer(ctx, r.DB, execID, c, "upgraded", nil, &duration)
-				} else {
-					failed++
-					upStatus, upErr = "failed", err.Error()
-					recordIntentExecContainer(ctx, r.DB, execID, c, "failed", &upErr, &duration)
-				}
-				row := *c
-				r.recordUpgradeHistory(ctx, uid, &row, runner, nullStrDefault(row.ImageName),
-					upStatus, upErr, duration)
-			} else {
-				skipped++
-				recordIntentExecContainer(ctx, r.DB, execID, c, "skipped", nil, nil)
-			}
-			if intent.SequentialDelaySec > 0 {
-				time.Sleep(time.Duration(intent.SequentialDelaySec) * time.Second)
-			}
-		}
-		// Node parity: skipped containers alone still count as completed.
-		status := "completed"
-		if failed > 0 {
-			if upgraded == 0 {
-				status = "failed"
-			} else {
-				status = "partial"
-			}
-		}
-		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, skipped, nil)
-		_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
-		r.publishIntentExecution(ctx, uid, execID)
-		if upgraded > 0 && r.Hub != nil {
-			r.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
-				SourceIds: []string{}, ContainerCount: 0,
-			})
+		runCtx := context.Background()
+		if _, err := exec.ExecuteIntent(runCtx, &intentCopy, uid, intents.ExecOptions{
+			TriggerType: "manual",
+			ExecutionID: &execIDA,
+		}); err != nil {
+			releaseIdempotency(runCtx, r.DB, uid, "trigger-intent:"+id, idempotencyKey)
 		}
 	}()
 
@@ -1624,38 +1543,19 @@ func (r *mutationResolver) DryRunIntent(ctx context.Context, id string) (*model.
 		return nil, fmt.Errorf("intent not found")
 	}
 
-	matchC := db.UnmarshalStringArr(intent.MatchContainers)
-	matchI := db.UnmarshalStringArr(intent.MatchImages)
-	matchS := db.UnmarshalStringArr(intent.MatchSources)
-	matchSt := db.UnmarshalStringArr(intent.MatchStacks)
-	matchR := db.UnmarshalStringArr(intent.MatchRegistries)
-	exC := db.UnmarshalStringArr(intent.ExcludeContainers)
-	exI := db.UnmarshalStringArr(intent.ExcludeImages)
-	exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
-	exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
-
-	matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
-		matchC, matchI, matchS, matchSt, matchR, exC, exI, exSt, exR, 0, 0)
+	// Node parity: dryRunIntent is executeIntent with dryRun forced true —
+	// live matching, dry_run rows recorded, no upstream mutation. Synchronous
+	// so the client receives the completed execution directly.
+	dry := true
+	result, err := r.intentsExecutor().ExecuteIntent(ctx, intent, uid, intents.ExecOptions{
+		TriggerType: "manual",
+		DryRun:      &dry,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
-	if err != nil {
-		return nil, fmt.Errorf("create execution: %w", err)
-	}
-
-	// Evaluation only: record matches, never touch upstream systems.
-	for i := range matched {
-		recordIntentExecContainer(ctx, r.DB, execID, &matched[i], "dry_run", nil, nil)
-	}
-	if err := db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil); err != nil {
-		return nil, err
-	}
-	_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
-	r.publishIntentExecution(ctx, uid, execID)
-
-	row, _ := db.GetIntentExecutionByID(ctx, r.DB, execID, uid)
+	row, _ := db.GetIntentExecutionByID(ctx, r.DB, result.ExecutionID, uid)
 	if row == nil {
 		return nil, fmt.Errorf("execution not found")
 	}
@@ -2907,17 +2807,10 @@ func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.In
 		return nil, fmt.Errorf("intent not found")
 	}
 
-	matchC := db.UnmarshalStringArr(intent.MatchContainers)
-	matchI := db.UnmarshalStringArr(intent.MatchImages)
-	matchS := db.UnmarshalStringArr(intent.MatchSources)
-	matchSt := db.UnmarshalStringArr(intent.MatchStacks)
-	matchR := db.UnmarshalStringArr(intent.MatchRegistries)
-	exC := db.UnmarshalStringArr(intent.ExcludeContainers)
-	exI := db.UnmarshalStringArr(intent.ExcludeImages)
-	exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
-	exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
-
-	all, err := db.GetContainers(ctx, r.DB, uid)
+	// Node parity: preview is served with LIVE runner containers (not just
+	// the persisted containers table), inclusion matches that hit an
+	// exclusion criterion are tracked separately.
+	out, err := intents.FindMatchingContainers(ctx, r.DB, intent, uid, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -2925,20 +2818,17 @@ func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.In
 	current := []*model.IntentPreviewContainer{}
 	excluded := []*model.IntentPreviewContainer{}
 	next := []*model.IntentPreviewContainer{}
-	for i := range all {
-		c := &all[i]
-		if !db.IntentMatchesInclusion(*c, matchC, matchI, matchS, matchSt, matchR) {
-			continue
-		}
+	for i := range out.Matched {
+		c := &out.Matched[i]
 		hasUpdate := db.ContainerHasUpdate(*c)
-		if reason := db.IntentExclusionReason(*c, exC, exI, exSt, exR); reason != "" {
-			excluded = append(excluded, previewContainer(c, hasUpdate, strPtr(reason), nil))
-			continue
-		}
 		current = append(current, previewContainer(c, hasUpdate, nil, nil))
 		if hasUpdate {
 			next = append(next, previewContainer(c, hasUpdate, nil, strPtr("would_upgrade")))
 		}
+	}
+	for i := range out.Excluded {
+		e := &out.Excluded[i]
+		excluded = append(excluded, previewContainer(&e.Container, db.ContainerHasUpdate(e.Container), strPtr(e.Reason), nil))
 	}
 
 	return &model.IntentPreview{

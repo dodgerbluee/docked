@@ -17,6 +17,12 @@ const { getAllUsers, getEnabledIntents, updateIntent } = require("../../db/index
 const { isIntentDue } = require("./scheduleEvaluator");
 const { executeIntent } = require("./intentExecutor");
 
+// Migration flag: the Go backend (internal/intents) now owns the intent
+// engine — scheduled polling, immediate-intent hooks, and stale-execution
+// cleanup. This module is kept intact for rollback; flip to false to
+// re-enable the Node evaluator.
+const GO_INTENTS_ENGINE = true;
+
 class IntentEvaluator {
   constructor() {
     this.checkInterval = null;
@@ -29,6 +35,10 @@ class IntentEvaluator {
    * Start the periodic evaluation loop for scheduled intents.
    */
   start() {
+    if (GO_INTENTS_ENGINE) {
+      logger.info("Intent evaluator disabled — Go backend owns intent scheduling");
+      return;
+    }
     if (this.checkInterval) {
       logger.warn("Intent evaluator already running");
       return;
@@ -176,6 +186,9 @@ class IntentEvaluator {
    * @param {number} scanResult.itemsUpdated - Number of containers with available updates
    */
   async evaluateImmediateIntents(userId, scanResult) {
+    if (GO_INTENTS_ENGINE) {
+      return;
+    }
     // Only trigger if the scan actually found updates
     if (!scanResult || !scanResult.itemsUpdated || scanResult.itemsUpdated <= 0) {
       return;
