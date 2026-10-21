@@ -19,6 +19,51 @@ import (
 
 // ContainerToRow converts a live runner container into a db.ContainerRow.
 func ContainerToRow(ctx context.Context, database *sql.DB, uid int64, rr db.RunnerRow, c domain.Container) db.ContainerRow {
+	row := containerRowBase(rr, c)
+	repo, tag := splitImageRepoTag(c.Image)
+	registryData, err := db.GetRegistryData(ctx, database, uid, repo, tag)
+	if err != nil {
+		slog.Debug("live runner registry lookup failed", "image", c.Image, "error", err)
+		return row
+	}
+	applyRegistryData(&row, registryData)
+	return row
+}
+
+// FetchContainerRows converts a batch of live runner containers for one
+// runner, loading the user's registry_image_versions rows once instead of
+// one GetRegistryData per container — the per-container lookup was an N+1
+// on every live container listing and intent match.
+func FetchContainerRows(ctx context.Context, database *sql.DB, uid int64, rr db.RunnerRow, ctrs []domain.Container) []db.ContainerRow {
+	registry, err := db.GetRegistryDataMap(ctx, database, uid)
+	if err != nil {
+		slog.Debug("live runner registry map load failed", "runner", rr.Name, "error", err)
+	}
+	out := make([]db.ContainerRow, 0, len(ctrs))
+	for _, c := range ctrs {
+		row := containerRowBase(rr, c)
+		if registry != nil {
+			if d := registry.Get(splitImageRepoTag(c.Image)); d != nil {
+				applyRegistryData(&row, d)
+			}
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// applyRegistryData copies the joined registry columns onto a converted row.
+func applyRegistryData(row *db.ContainerRow, d *db.RegistryData) {
+	row.LatestDigest = d.LatestDigest
+	row.LatestVersion = d.LatestVersion
+	row.LatestTag = d.LatestTag
+	row.LatestPublishDate = d.LatestPublishDate
+	row.Provider = d.Provider
+	row.LastChecked = d.LastChecked
+}
+
+// containerRowBase builds the registry-free part of the DB-row shape.
+func containerRowBase(rr db.RunnerRow, c domain.Container) db.ContainerRow {
 	repo, tag := splitImageRepoTag(c.Image)
 
 	row := db.ContainerRow{
@@ -52,18 +97,6 @@ func ContainerToRow(ctx context.Context, database *sql.DB, uid int64, rr db.Runn
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	row.LastSeen = sql.NullString{String: now, Valid: true}
 	row.CreatedAt = row.LastSeen
-
-	registryData, err := db.GetRegistryData(ctx, database, uid, repo, tag)
-	if err != nil {
-		slog.Debug("live runner registry lookup failed", "image", c.Image, "error", err)
-		return row
-	}
-	row.LatestDigest = registryData.LatestDigest
-	row.LatestVersion = registryData.LatestVersion
-	row.LatestTag = registryData.LatestTag
-	row.LatestPublishDate = registryData.LatestPublishDate
-	row.Provider = registryData.Provider
-	row.LastChecked = registryData.LastChecked
 	return row
 }
 

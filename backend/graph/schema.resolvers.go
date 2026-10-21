@@ -81,11 +81,7 @@ func (r *intentResolver) Executions(ctx context.Context, obj *model.Intent, firs
 		return nil, fmt.Errorf("invalid intent id")
 	}
 
-	limit := 20
-	if first != nil && *first > 0 {
-		limit = *first
-	}
-	offset := parseIntCursor(after)
+	limit, offset := pageArgs(first, after, 20)
 
 	rows, total, err := db.GetIntentExecutions(ctx, r.DB, uid, &iid, limit, offset)
 	if err != nil {
@@ -2411,11 +2407,7 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 		return nil, err
 	}
 
-	limit := 100
-	if first != nil && *first > 0 {
-		limit = *first
-	}
-	offset := parseIntCursor(after)
+	limit, offset := pageArgs(first, after, 100)
 
 	rows, err := db.GetContainers(ctx, r.DB, uid)
 	if err != nil {
@@ -2806,11 +2798,7 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 		return nil, err
 	}
 
-	limit := 20
-	if first != nil && *first > 0 {
-		limit = *first
-	}
-	offset := parseIntCursor(after)
+	limit, offset := pageArgs(first, after, 20)
 
 	var iid *int64
 	if intentID != nil && *intentID != "" {
@@ -2942,11 +2930,7 @@ func (r *queryResolver) BatchRuns(ctx context.Context, jobType *model.BatchJobTy
 		return nil, err
 	}
 
-	limit := 20
-	if first != nil && *first > 0 {
-		limit = *first
-	}
-	offset := parseIntCursor(after)
+	limit, offset := pageArgs(first, after, 20)
 
 	var jt *string
 	if jobType != nil {
@@ -2996,11 +2980,7 @@ func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.Upgrad
 		return nil, err
 	}
 
-	limit := 50
-	if first != nil && *first > 0 {
-		limit = *first
-	}
-	offset := parseIntCursor(after)
+	limit, offset := pageArgs(first, after, 50)
 
 	var f *db.UpgradeHistoryFilter
 	if filter != nil {
@@ -3063,6 +3043,9 @@ func (r *queryResolver) TrackedAppUpgradeHistory(ctx context.Context, filter *mo
 	limit := derefInt(first, 100)
 	if limit < 1 {
 		limit = 100
+	}
+	if limit > maxPageLimit {
+		limit = maxPageLimit
 	}
 	off := derefInt(offset, 0)
 

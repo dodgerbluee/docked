@@ -38,6 +38,61 @@ func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageR
 	return &d, nil
 }
 
+// RegistryDataMap holds every registry_image_versions row for one user so a
+// live container listing can join registry data with a single query instead
+// of one GetRegistryData per container. Get mirrors GetRegistryData's match
+// semantics: exact repo+tag first, then a tag-agnostic (NULL tag) row.
+type RegistryDataMap struct {
+	exact    map[string]*RegistryData // image_repo + "\x00" + tag
+	fallback map[string]*RegistryData // image_repo, for rows with NULL tag
+}
+
+func GetRegistryDataMap(ctx context.Context, database *sql.DB, userID int64) (*RegistryDataMap, error) {
+	rows, err := database.QueryContext(ctx,
+		`SELECT image_repo, tag, latest_digest, latest_version, latest_publish_date, provider, last_checked
+		 FROM registry_image_versions WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get registry data map: %w", err)
+	}
+	defer rows.Close()
+
+	m := &RegistryDataMap{
+		exact:    make(map[string]*RegistryData),
+		fallback: make(map[string]*RegistryData),
+	}
+	for rows.Next() {
+		var repo string
+		var tag sql.NullString
+		var d RegistryData
+		if err := rows.Scan(&repo, &tag, &d.LatestDigest, &d.LatestVersion,
+			&d.LatestPublishDate, &d.Provider, &d.LastChecked); err != nil {
+			return nil, fmt.Errorf("scan registry data map: %w", err)
+		}
+		d.LatestTag = tag
+		if tag.Valid {
+			m.exact[repo+"\x00"+tag.String] = &d
+		} else {
+			m.fallback[repo] = &d
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read registry data map: %w", err)
+	}
+	return m, nil
+}
+
+// Get returns the registry row matching (repo, tag) with the same precedence
+// as GetRegistryData, or nil when nothing matches.
+func (m *RegistryDataMap) Get(repo, tag string) *RegistryData {
+	if d, ok := m.exact[repo+"\x00"+tag]; ok {
+		return d
+	}
+	if d, ok := m.fallback[repo]; ok {
+		return d
+	}
+	return nil
+}
+
 // GetAssociatedImages returns the distinct image repos associated with a
 // repository access token (deployed_images.repository_token_id).
 func GetAssociatedImages(ctx context.Context, database *sql.DB, userID, tokenID int64) ([]string, error) {

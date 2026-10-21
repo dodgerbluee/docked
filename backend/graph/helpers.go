@@ -819,12 +819,21 @@ func trackedAppUpgradeToModel(row db.TrackedAppUpgradeRow) *model.TrackedAppUpgr
 	}
 }
 
+// maxPageLimit bounds the first argument for every connection: the client
+// never asks past 50, and an unbounded first lets a caller force huge
+// in-memory loads (live container merges, relation joins) from the API.
+const maxPageLimit = 500
+
 // pageArgs parses the standard first/after pagination arguments into a
-// limit/offset pair, using defaultLimit when first is not supplied.
+// limit/offset pair, using defaultLimit when first is not supplied and
+// clamping first to maxPageLimit.
 func pageArgs(first *int, after *string, defaultLimit int) (limit, offset int) {
 	limit = defaultLimit
 	if first != nil && *first > 0 {
 		limit = *first
+	}
+	if limit > maxPageLimit {
+		limit = maxPageLimit
 	}
 	if after != nil && *after != "" {
 		offset, _ = strconv.Atoi(*after)

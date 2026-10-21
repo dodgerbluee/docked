@@ -45,10 +45,7 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 				log.Printf("live runner fetch failed (runner %s): %v", rr.Name, err)
 				return
 			}
-			fetched := make([]db.ContainerRow, 0, len(ctrs))
-			for _, c := range ctrs {
-				fetched = append(fetched, r.runnerContainerToRow(ctx, uid, rr, c))
-			}
+			fetched := runner.FetchContainerRows(ctx, r.DB, uid, rr, ctrs)
 			mu.Lock()
 			reached[rr.ID] = true
 			live = append(live, fetched...)

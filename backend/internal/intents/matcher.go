@@ -156,10 +156,7 @@ func fetchLiveRunnerContainers(ctx context.Context, database *sql.DB, userID int
 					"runnerId", rr.ID, "runnerName", rr.Name, "error", err)
 				return
 			}
-			fetched := make([]db.ContainerRow, 0, len(ctrs))
-			for _, c := range ctrs {
-				fetched = append(fetched, runner.ContainerToRow(ctx, database, userID, rr, c))
-			}
+			fetched := runner.FetchContainerRows(ctx, database, userID, rr, ctrs)
 			mu.Lock()
 			out = append(out, fetched...)
 			mu.Unlock()
