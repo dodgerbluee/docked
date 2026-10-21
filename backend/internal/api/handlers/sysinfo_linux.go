@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -53,10 +54,23 @@ func procRSSMB() int {
 }
 
 // sysLoadAvg returns the 1/5/15-minute load averages (Node's os.loadavg()).
+// x/sys/unix has no Getloadavg on linux; read /proc/loadavg instead.
 func sysLoadAvg() ([3]float64, error) {
-	l, err := unix.Getloadavg()
+	data, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
 		return [3]float64{}, err
 	}
-	return l, nil
+	fields := strings.Fields(string(data))
+	if len(fields) < 3 {
+		return [3]float64{}, errors.New("short /proc/loadavg")
+	}
+	var out [3]float64
+	for i := 0; i < 3; i++ {
+		v, err := strconv.ParseFloat(fields[i], 64)
+		if err != nil {
+			return [3]float64{}, err
+		}
+		out[i] = v
+	}
+	return out, nil
 }

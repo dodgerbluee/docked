@@ -108,10 +108,7 @@ describe("goRunnerProxy bridge", () => {
   });
 
   it("forwards the Cookie header (OAuth state cookies ride the SSO flows)", async () => {
-    await request(app)
-      .get("/api/avatars")
-      .set("Cookie", "oauth_state=xyz; other=1")
-      .expect(200);
+    await request(app).get("/api/avatars").set("Cookie", "oauth_state=xyz; other=1").expect(200);
     expect(seen[0].headers.cookie).toBe("oauth_state=xyz; other=1");
   });
 
