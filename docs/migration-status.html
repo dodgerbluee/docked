@@ -1,0 +1,245 @@
+<!doctype html>
+<!--
+  Docked: Node -> Go migration tracker.
+  To update progress: edit the DATA object below (status fields + counts + updated date),
+  then commit. Open this file directly in a browser, or serve from docs/.
+  Statuses: "go" = live in Go | "node" = live in Node, to migrate | "dead" = dead code to sunset | "removed" = already deleted
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Docked — Node→Go Migration Tracker</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --dim: #8b949e;
+        --go: #3fb950;
+        --node: #58a6ff;
+        --dead: #d29922;
+        --removed: #8b949e;
+        --accent: #bc8cff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      header { padding: 24px 28px 8px; }
+      h1 { margin: 0 0 4px; font-size: 22px; }
+      .meta { color: var(--dim); }
+      .meta b { color: var(--text); }
+      main { padding: 0 28px 40px; max-width: 1400px; margin: 0 auto; }
+      section { margin-top: 26px; }
+      h2 { font-size: 15px; margin: 0 0 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+      .bars { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .bar-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+      .bar-label { display: flex; justify-content: space-between; margin-bottom: 8px; }
+      .bar { height: 14px; background: #21262d; border-radius: 7px; overflow: hidden; }
+      .bar > div { height: 100%; border-radius: 7px; }
+      .bar-go { background: var(--go); }
+      .bar-dom { background: var(--accent); }
+      .bar-sub { color: var(--dim); font-size: 12px; margin-top: 6px; }
+
+      .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      @media (max-width: 1000px) { .board { grid-template-columns: 1fr 1fr; } }
+      .col { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+      .col h3 { margin: 0 0 10px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      .dot-go { background: var(--go); }
+      .dot-node { background: var(--node); }
+      .dot-dead { background: var(--dead); }
+      .dot-removed { background: var(--removed); }
+      .card {
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--removed);
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        background: #0d1117;
+      }
+      .card.go { border-left-color: var(--go); }
+      .card.node { border-left-color: var(--node); }
+        .card.dead { border-left-color: var(--dead); }
+      .card .name { font-weight: 600; }
+      .card .note { color: var(--dim); font-size: 12px; margin-top: 3px; }
+      .tag {
+        display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 10px;
+        border: 1px solid var(--border); color: var(--dim); margin-left: 6px; vertical-align: 1px;
+      }
+      .tag.phase { color: var(--node); border-color: var(--node); }
+
+      table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+      th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+      th { color: var(--dim); font-size: 12px; text-transform: uppercase; }
+      tr:last-child td { border-bottom: none; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .check { color: var(--go); }
+      .pending { color: var(--dim); }
+      footer { color: var(--dim); font-size: 12px; margin-top: 34px; }
+      code { background: #21262d; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Docked — Node → Go Migration</h1>
+      <div class="meta" id="meta"></div>
+    </header>
+    <main>
+      <section>
+        <h2>Progress</h2>
+        <div class="bars" id="bars"></div>
+      </section>
+      <section>
+        <h2>Domain board</h2>
+        <div class="board" id="board"></div>
+      </section>
+      <section>
+        <h2>Migration phases</h2>
+        <table id="phases"></table>
+      </section>
+      <section>
+        <h2>Punch list (quality debt)</h2>
+        <table id="punch"></table>
+      </section>
+      <footer id="foot"></footer>
+    </main>
+    <script>
+      // ─────────────────────────────────────────────────────────────────────────
+      // EDIT THIS BLOCK as the migration progresses. That's the whole workflow.
+      // ─────────────────────────────────────────────────────────────────────────
+      const DATA = {
+        updated: "2026-10-21",
+        prodVersion: "3.26.1-dev",
+        nodeLoc: 29035, // server/ JS excl. tests+migrations
+        goLoc: 58564,   // backend/ Go excl. generated
+        domains: [
+          // status: go | node | dead | removed   — phase = target migration phase (node only)
+          { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
+          { name: "Data viewer (dev mode)", status: "go", note: "containerData query; REST data routes deleted" },
+          { name: "Container sync / pull", status: "go", note: "pullContainers + Go scheduler; batch runs shared table" },
+          { name: "Container upgrade (GraphQL)", status: "go", note: "upgradeContainer mutation + WS progress phases" },
+          { name: "Registry digest / hasUpdate", status: "go", note: "GHCR→GitLab→GCR→DockerHub; 24h shared cache" },
+          { name: "Discord: container updates", status: "go", note: "internal/imagesync/notify.go" },
+          { name: "Runner upgrade via GraphQL", status: "go", note: "runner ops pipeline (runnerUpgradePipeline.go)" },
+          { name: "Typed intents (deployed images)", status: "go", note: "Go side live; Node engine still runs too" },
+          { name: "Portainer support", status: "removed", note: "schema + Go + client + Node all deleted (prod: 0 instances)" },
+          { name: "REST container routes", status: "removed", note: "list/pull/batch/upgrade/debug/batch-trigger pruned" },
+          { name: "Dead Node read stack", status: "removed", note: "containerService cluster, portainerService, repos, validators" },
+
+          { name: "Runner agent protocol", status: "node", phase: 4, note: "register/heartbeat/enroll/SSE upgrade/operations/apps" },
+          { name: "Runner version poller", status: "node", phase: 4, note: "runnerVersionPoller.js" },
+          { name: "Tracked apps + scanning", status: "node", phase: 5, note: "batch handlers, registry providers, github/gitlab services" },
+          { name: "Discord: tracked apps", status: "node", phase: 5, note: "discordService.js (container half already in Go)" },
+          { name: "Intents engine (Node)", status: "node", phase: 6, note: "evaluator/executor/matching; portainer:<id> keys need migration care" },
+          { name: "Auth (login/logout/verify/me)", status: "node", phase: 7, note: "revoked_tokens shared; Go already mirrors token scheme" },
+          { name: "Config import / export", status: "node", phase: 7, note: "portainerInstances keys = file-format contract" },
+          { name: "OAuth / SSO", status: "node", phase: 7, note: "Authentik + generic OIDC providers" },
+          { name: "Avatars", status: "node", phase: 7, note: "upload/serve/delete" },
+          { name: "WS bridge (graphqlWsProxy)", status: "node", phase: 8, note: "dies when proxy points /graphql at Go directly" },
+          { name: "Debug router", status: "node", phase: 8, note: "port to Go or retire at cutover" },
+          { name: "health / version", status: "node", phase: 8, note: "stays REST — becomes Go plain-HTTP handlers" },
+
+          { name: "Node db/ layer (per domain)", status: "dead", note: "sunsets domain-by-domain as routes migrate" },
+          { name: "dockerHubImageVersions (legacy)", status: "dead", note: "read-only legacy table; Go writes registry_image_versions" },
+          { name: "graphqlWsProxy.js", status: "dead", note: "obsolete after reverse-proxy cutover to Go" },
+          { name: "Node batchSystem (tracked-apps only)", status: "dead", note: "Go scheduler absorbs tracked-apps jobs in phase 5" },
+
+          { name: "Node repositories/ + validation mw", status: "removed", note: "orphaned after controller deletions" },
+          { name: "containerDetailsService / nginxProxyManager", status: "removed", note: "Portainer-era upgrade paths" },
+          { name: "dnsResolver IP-fallback", status: "removed", note: "Portainer IP probing; resolveUrlToIp kept" },
+        ],
+        phases: [
+          { n: 1, name: "Go GraphQL backend live (reads, schema parity)", done: true },
+          { n: 2, name: "Client → GraphQL for containers list", done: true },
+          { n: 3, name: "Data viewer + sync + upgrade + subscriptions in Go", done: true },
+          { n: "3+", name: "Portainer fully removed (schema/Go/client/Node)", done: true },
+          { n: "3+", name: "Node REST container stack pruned + dead-code sweep", done: true },
+          { n: 4, name: "Runner agent protocol → Go (SSE → WS/GraphQL)", done: false },
+          { n: 5, name: "Tracked apps + registry scanning + Discord → Go", done: false },
+          { n: 6, name: "Intents engine → Go", done: false },
+          { n: 7, name: "Auth/OAuth/avatars/config import-export → Go", done: false },
+          { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
+        ],
+        punch: [
+          { done: false, text: "Runner containers N+1 (schema.resolvers.go)" },
+          { done: false, text: "Login resolver lacks throttle" },
+          { done: false, text: "WS proxy drops upgrade head bytes" },
+          { done: false, text: "Event hub silently drops on full buffers" },
+          { done: false, text: "Idempotency claim consumed before insert can strand retries 24h" },
+          { done: false, text: "Go dotenv keeps inline # comments Node strips" },
+          { done: false, text: "Wire PruneExpiredRevoked into periodic cleanup" },
+          { done: false, text: "Dependency vulns (npm-audit/snyk) — batch 2c" },
+        ],
+      };
+      // ─────────────────────────────────────────────────────────────────────────
+
+      const COLS = [
+        { key: "go", title: "Live in Go", dot: "dot-go" },
+        { key: "node", title: "Live in Node (to migrate)", dot: "dot-node" },
+        { key: "dead", title: "Dead code to sunset", dot: "dot-dead" },
+        { key: "removed", title: "Removed ✓", dot: "dot-removed" },
+      ];
+
+      const counts = {};
+      for (const c of COLS) counts[c.key] = DATA.domains.filter((d) => d.status === c.key).length;
+      const total = DATA.domains.length;
+      const migrated = counts.go + counts.removed;
+      const pct = Math.round((migrated / total) * 100);
+
+      document.getElementById("meta").innerHTML =
+        `Updated <b>${DATA.updated}</b> &nbsp;·&nbsp; prod <b>${DATA.prodVersion}</b> &nbsp;·&nbsp; ` +
+        `Go <b>${DATA.goLoc.toLocaleString()}</b> LOC &nbsp;·&nbsp; Node <b>${DATA.nodeLoc.toLocaleString()}</b> LOC remaining`;
+
+      document.getElementById("bars").innerHTML = `
+        <div class="bar-card">
+          <div class="bar-label"><span>Domain coverage (migrated + removed)</span><b>${pct}%</b></div>
+          <div class="bar"><div class="bar-dom" style="width:${pct}%"></div></div>
+          <div class="bar-sub">${migrated} of ${total} domains · ${counts.node} still on Node</div>
+        </div>
+        <div class="bar-card">
+          <div class="bar-label"><span>Go share of backend code</span><b>${Math.round((DATA.goLoc / (DATA.goLoc + DATA.nodeLoc)) * 100)}%</b></div>
+          <div class="bar"><div class="bar-go" style="width:${Math.round((DATA.goLoc / (DATA.goLoc + DATA.nodeLoc)) * 100)}%"></div></div>
+          <div class="bar-sub">target: Node → 0</div>
+        </div>`;
+
+      document.getElementById("board").innerHTML = COLS.map((c) => {
+        const cards = DATA.domains
+          .filter((d) => d.status === c.key)
+          .map(
+            (d) => `<div class="card ${c.key}">
+              <span class="name">${d.name}</span>
+              ${d.phase ? `<span class="tag phase">phase ${d.phase}</span>` : ""}
+              ${d.note ? `<div class="note">${d.note}</div>` : ""}
+            </div>`
+          )
+          .join("");
+        return `<div class="col"><h3><span class="dot ${c.dot}"></span>${c.title} (${counts[c.key]})</h3>${cards}</div>`;
+      }).join("");
+
+      document.getElementById("phases").innerHTML =
+        `<tr><th style="width:60px">Phase</th><th>Milestone</th><th style="width:90px">Status</th></tr>` +
+        DATA.phases
+          .map(
+            (p) =>
+              `<tr><td>${p.n}</td><td>${p.name}</td><td>${p.done ? '<span class="check">✓ done</span>' : '<span class="pending">open</span>'}</td></tr>`
+          )
+          .join("");
+
+      document.getElementById("punch").innerHTML =
+        `<tr><th style="width:40px"></th><th>Item</th></tr>` +
+        DATA.punch
+          .map((p) => `<tr><td>${p.done ? "✓" : "○"}</td><td>${p.text}</td></tr>`)
+          .join("");
+
+      document.getElementById("foot").textContent =
+        "How to update: edit the DATA block at the top of docs/migration-status.html — flip domain status (go/node/dead/removed), tick phases, adjust LOC. Commit with the migration work.";
+    </script>
+  </body>
+</html>
