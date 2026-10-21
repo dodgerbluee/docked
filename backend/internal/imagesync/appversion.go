@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/runner"
@@ -45,39 +44,7 @@ type runnerApp struct {
 // row for the app-version-scan job (same guard stack as TrackedAcquire, its
 // own in-process flag so the three job types can run side by side like Node).
 func (s *Service) AppVersionAcquire(ctx context.Context, userID int64, isManual bool) (int64, error) {
-	s.mu.Lock()
-	if s.runningAppVersion[userID] {
-		s.mu.Unlock()
-		return 0, fmt.Errorf("job %s is already running for user %d", AppVersionJobType, userID)
-	}
-	s.runningAppVersion[userID] = true
-	s.mu.Unlock()
-
-	release := func() {
-		s.mu.Lock()
-		delete(s.runningAppVersion, userID)
-		s.mu.Unlock()
-	}
-
-	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, AppVersionJobType); err != nil {
-		release()
-		return 0, err
-	} else if existing != nil {
-		if startedAt, perr := parseSQLiteTime(existing.StartedAt); perr == nil && time.Since(startedAt) > staleRunThreshold {
-			msg := "Job marked as failed: stale running job detected"
-			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
-		} else {
-			release()
-			return 0, fmt.Errorf("job %s is already running for user %d (run ID: %d)", AppVersionJobType, userID, existing.ID)
-		}
-	}
-
-	runID, err := db.CreateBatchRun(ctx, s.DB, userID, AppVersionJobType, isManual)
-	if err != nil {
-		release()
-		return 0, err
-	}
-	return runID, nil
+	return s.acquireRun(ctx, s.runningAppVersion, userID, isManual, AppVersionJobType)
 }
 
 // AppVersionExecuteAndComplete performs the scan and finalizes the batch_run

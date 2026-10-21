@@ -611,6 +611,8 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 	// Go-initiated upgrades.
 	go func() {
 		defer db.ReleaseUpgradeLock(context.Background(), r.DB, targetKey, opID)
+		stopHB := r.startLockHeartbeat(targetKey, opID)
+		defer stopHB()
 		start := time.Now()
 		status, errMsg := "success", ""
 		if runnerURL != "" {
@@ -687,8 +689,10 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		upgraded, attempted := 0, 0
 		var firstErr string
 
-		// Build set of target container IDs if specified
-		targetIDs := make(map[string]bool)
+		// Map target keys to their input entries so each upgrade can use the
+		// image reference the client actually selected (the DB row's image_name
+		// can be stale) and so unmatched targets can be resolved live below.
+		targets := make(map[string]*model.UpgradeContainerInput)
 		if input.Containers != nil {
 			for _, target := range input.Containers {
 				var runnerID *int64
@@ -697,32 +701,19 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 						runnerID = &parsed
 					}
 				}
-				targetIDs[containerTargetKey(target.DockerContainerID, runnerID)] = true
+				targets[containerTargetKey(target.DockerContainerID, runnerID)] = target
 			}
 		}
+		matched := make(map[string]bool)
 
-		for _, c := range containers {
+		// upgradeOne locks, upgrades, heartbeats, records history, and counts
+		// a single container; shared by the DB-row pass and the live pass.
+		upgradeOne := func(c *db.ContainerRow, run *db.RunnerRow, imageName string) {
+			attempted++
 			var rowRunnerID *int64
 			if c.RunnerID.Valid {
 				rowRunnerID = &c.RunnerID.Int64
 			}
-			if len(targetIDs) > 0 && !targetIDs[containerTargetKey(c.ContainerID, rowRunnerID)] {
-				continue
-			}
-			var runnerURL string
-			var runner *db.RunnerRow
-			if c.RunnerID.Valid {
-				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
-				if runner != nil {
-					runnerURL = runner.URL
-				}
-			}
-			// A container with no reachable runner is skipped, not counted as
-			// an attempt, so it does not skew the success/failure ratio.
-			if runnerURL == "" {
-				continue
-			}
-			attempted++
 			targetKey := containerTargetKey(c.ContainerID, rowRunnerID)
 			owner := "batch:" + strconv.FormatInt(batchID, 10)
 			locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
@@ -734,12 +725,14 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 						firstErr = "upgrade already in progress"
 					}
 				}
-				continue
+				return
 			}
+			stopHB := r.startLockHeartbeat(targetKey, owner)
 			upStart := time.Now()
 			pipelineCtx, pipelineCancel := context.WithTimeout(ctx, 15*time.Minute)
-			upgradeErr := r.runnerUpgradePipeline(pipelineCtx, uid, &c, runner, nullStrDefault(c.ImageName), nil)
+			upgradeErr := r.runnerUpgradePipeline(pipelineCtx, uid, c, run, imageName, nil)
 			pipelineCancel()
+			stopHB()
 			_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
 			upStatus, upErr := "success", ""
 			if upgradeErr != nil {
@@ -750,9 +743,64 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			} else {
 				upgraded++
 			}
-			row := c
-			r.recordUpgradeHistory(ctx, uid, &row, runner, nullStrDefault(row.ImageName),
+			row := *c
+			r.recordUpgradeHistory(ctx, uid, &row, run, imageName,
 				upStatus, upErr, time.Since(upStart).Milliseconds())
+		}
+
+		for _, c := range containers {
+			var rowRunnerID *int64
+			if c.RunnerID.Valid {
+				rowRunnerID = &c.RunnerID.Int64
+			}
+			key := containerTargetKey(c.ContainerID, rowRunnerID)
+			if len(targets) > 0 {
+				if _, ok := targets[key]; !ok {
+					continue
+				}
+				matched[key] = true
+			}
+			var run *db.RunnerRow
+			if c.RunnerID.Valid {
+				run, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
+			}
+			// A container with no reachable runner is skipped, not counted as
+			// an attempt, so it does not skew the success/failure ratio.
+			if run == nil || run.URL == "" {
+				continue
+			}
+			imageName := nullStrDefault(c.ImageName)
+			if t := targets[key]; t != nil && t.ImageName != "" {
+				imageName = t.ImageName
+			}
+			upgradeOne(&c, run, imageName)
+		}
+
+		// Runner containers are only persisted to the containers table when
+		// upgraded, so a never-upgraded runner container has no DB row. Fall
+		// back to resolving leftover targets live from their runner, mirroring
+		// UpgradeContainer's fallback, instead of silently skipping them.
+		for key, t := range targets {
+			if matched[key] || t.RunnerID == nil {
+				continue
+			}
+			rid, err := strconv.ParseInt(*t.RunnerID, 10, 64)
+			if err != nil {
+				continue
+			}
+			c := r.liveRunnerContainer(ctx, uid, rid, t.DockerContainerID)
+			if c == nil {
+				continue
+			}
+			run, _ := db.GetRunnerByID(ctx, r.DB, rid, uid)
+			if run == nil || run.URL == "" {
+				continue
+			}
+			imageName := t.ImageName
+			if imageName == "" {
+				imageName = nullStrDefault(c.ImageName)
+			}
+			upgradeOne(c, run, imageName)
 		}
 
 		// Report an honest terminal status instead of always "completed":
@@ -1520,7 +1568,11 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 			TriggerType: "manual",
 			ExecutionID: &execIDA,
 		}); err != nil {
-			releaseIdempotency(runCtx, r.DB, uid, "trigger-intent:"+id, idempotencyKey)
+			// Deliberately keep the idempotency claim once the execution row
+			// exists: the run may have already upgraded some containers before
+			// failing, and releasing the key would let a retry double-fire the
+			// same intent.
+			slog.Error("manual intent execution failed", "intentId", id, "userId", uid, "error", err.Error())
 		}
 	}()
 

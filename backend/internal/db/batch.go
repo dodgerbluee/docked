@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -155,6 +156,40 @@ func CreateBatchRun(ctx context.Context, database *sql.DB, userID int64, jobType
 		userID, jobType, manual)
 	if err != nil {
 		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// ErrBatchRunActive reports that a 'running' batch_run row already exists for
+// the (user, job) pair when an atomic claim was attempted.
+var ErrBatchRunActive = errors.New("batch run already active")
+
+// CreateBatchRunIfNoneRunning atomically claims the run slot: the guard
+// check and the INSERT are a single statement, so the scheduler process and
+// the GraphQL process racing on the same user+job can never both create a
+// 'running' row (the previous check-then-insert pair could).
+func CreateBatchRunIfNoneRunning(ctx context.Context, database *sql.DB, userID int64, jobType string, isManual bool) (int64, error) {
+	manual := 0
+	if isManual {
+		manual = 1
+	}
+	res, err := database.ExecContext(ctx,
+		`INSERT INTO batch_runs (user_id, job_type, status, is_manual)
+		 SELECT ?, ?, 'running', ?
+		 WHERE NOT EXISTS (
+		   SELECT 1 FROM batch_runs
+		   WHERE user_id = ? AND job_type = ? AND status = 'running'
+		 )`,
+		userID, jobType, manual, userID, jobType)
+	if err != nil {
+		return 0, err
+	}
+	changes, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if changes == 0 {
+		return 0, ErrBatchRunActive
 	}
 	return res.LastInsertId()
 }

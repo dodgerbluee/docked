@@ -56,39 +56,7 @@ type trackedCheckResult struct {
 // container sync and a tracked-apps scan can run concurrently (Node runs both
 // job types side by side).
 func (s *Service) TrackedAcquire(ctx context.Context, userID int64, isManual bool) (int64, error) {
-	s.mu.Lock()
-	if s.runningTracked[userID] {
-		s.mu.Unlock()
-		return 0, fmt.Errorf("job %s is already running for user %d", TrackedJobType, userID)
-	}
-	s.runningTracked[userID] = true
-	s.mu.Unlock()
-
-	release := func() {
-		s.mu.Lock()
-		delete(s.runningTracked, userID)
-		s.mu.Unlock()
-	}
-
-	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, TrackedJobType); err != nil {
-		release()
-		return 0, err
-	} else if existing != nil {
-		if startedAt, perr := parseSQLiteTime(existing.StartedAt); perr == nil && time.Since(startedAt) > staleRunThreshold {
-			msg := "Job marked as failed: stale running job detected"
-			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
-		} else {
-			release()
-			return 0, fmt.Errorf("job %s is already running for user %d (run ID: %d)", TrackedJobType, userID, existing.ID)
-		}
-	}
-
-	runID, err := db.CreateBatchRun(ctx, s.DB, userID, TrackedJobType, isManual)
-	if err != nil {
-		release()
-		return 0, err
-	}
-	return runID, nil
+	return s.acquireRun(ctx, s.runningTracked, userID, isManual, TrackedJobType)
 }
 
 // TrackedExecuteAndComplete performs the tracked-apps scan and finalizes the

@@ -14,8 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockedapp/backend/graph/model"
@@ -24,6 +26,32 @@ import (
 )
 
 // ── Decoded-JSON access helpers ─────────────────────────────────────────────
+
+// startLockHeartbeat extends a held upgrade lock every 60s until the
+// returned stop func is called. Node's lock manager heartbeats on the same
+// cadence (see the runnerUser SSE proxy's refresh loop); without it the
+// ten-minute lease expires mid-pipeline — upgrades get a fifteen-minute
+// budget — and a second upgrade could then start against the same
+// container while the first is still recreating it.
+func (r *Resolver) startLockHeartbeat(targetKey, owner string) (stop func()) {
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := db.RefreshUpgradeLock(context.Background(), r.DB, targetKey, owner); err != nil {
+					slog.Warn("upgrade lock refresh failed", "target", targetKey, "error", err.Error())
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() { once.Do(func() { close(done) }) }
+}
 
 // jObj returns m[key] when it is a JSON object, nil otherwise. Indexing a nil
 // map is safe in Go, so callers may chain jObj(jObj(m, "State"), "Health").

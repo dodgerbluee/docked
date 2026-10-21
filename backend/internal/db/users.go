@@ -347,22 +347,48 @@ func CountUserStats(ctx context.Context, database *sql.DB, userID int64) (*UserS
 	return &s, nil
 }
 
-// DeleteUser removes a user and cascades their associated data, mirroring
-// Node's deleteUser table list. Returns rows deleted from users (0 or 1).
+// DeleteUser removes a user and every user-scoped row in a single
+// transaction so a mid-cascade failure can't leave orphaned rows behind.
+// The table list covers every user_id column in the migrated schema;
+// revoked_tokens and idempotency_claims are deliberately left behind:
+// revoked entries must outlive the user to block token replay until their
+// natural expiry, and claims are harmless tombstones. Returns rows deleted
+// from users (0 or 1).
 func DeleteUser(ctx context.Context, database *sql.DB, userID int64) (int, error) {
 	tables := []string{
 		"source_instances", "tracked_apps", "discord_webhooks", "containers",
 		"deployed_images", "settings", "batch_config",
+		"batch_runs", "discord_notifications_sent", "docker_hub_credentials",
+		"intents", "intent_executions", "registry_image_versions",
+		"repository_access_tokens", "runner_enrollment_tokens", "runners",
+		"tracked_app_upgrade_history", "upgrade_history",
 	}
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin delete user: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
 	for _, t := range tables {
-		if _, err := database.ExecContext(ctx, "DELETE FROM "+t+" WHERE user_id = ?", userID); err != nil {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM "+t+" WHERE user_id = ?", userID); err != nil {
 			return 0, fmt.Errorf("delete %s for user: %w", t, err)
 		}
 	}
-	res, err := database.ExecContext(ctx, "DELETE FROM users WHERE id = ?", userID)
+	// Pending auth tokens (password-change / instance-admin) are keyed by
+	// username, not user_id; clear them while the user row still exists.
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM pending_auth_tokens WHERE username = (SELECT username FROM users WHERE id = ?)", userID); err != nil {
+		return 0, fmt.Errorf("delete pending auth tokens for user: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", userID)
 	if err != nil {
 		return 0, fmt.Errorf("delete user: %w", err)
 	}
 	changes, err := res.RowsAffected()
-	return int(changes), err
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit delete user: %w", err)
+	}
+	return int(changes), nil
 }

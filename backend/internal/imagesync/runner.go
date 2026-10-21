@@ -3,6 +3,7 @@ package imagesync
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -59,36 +60,49 @@ func NewService(database *sql.DB, hub *events.Hub) *Service {
 // register the run synchronously (so clients polling batchRuns immediately
 // see the new row) and then execute it in the background.
 func (s *Service) Acquire(ctx context.Context, userID int64, isManual bool) (int64, error) {
+	return s.acquireRun(ctx, s.running, userID, isManual, JobType)
+}
+
+// acquireRun implements the shared guard stack for every batch job type:
+// an in-process fast path, stale-run reaping, and finally an atomic DB
+// claim (CreateBatchRunIfNoneRunning) so the scheduler process and the
+// GraphQL process can never both create a 'running' row for the same
+// user+job — the old check-then-insert pair raced across processes.
+func (s *Service) acquireRun(ctx context.Context, running map[int64]bool, userID int64, isManual bool, jobType string) (int64, error) {
 	s.mu.Lock()
-	if s.running[userID] {
+	if running[userID] {
 		s.mu.Unlock()
-		return 0, fmt.Errorf("job %s is already running for user %d", JobType, userID)
+		return 0, fmt.Errorf("job %s is already running for user %d", jobType, userID)
 	}
-	s.running[userID] = true
+	running[userID] = true
 	s.mu.Unlock()
 
 	release := func() {
 		s.mu.Lock()
-		delete(s.running, userID)
+		delete(running, userID)
 		s.mu.Unlock()
 	}
 
-	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, JobType); err != nil {
+	// Reap stale runs: a crashed process can leave a 'running' row behind.
+	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, jobType); err != nil {
 		release()
 		return 0, err
 	} else if existing != nil {
 		if startedAt, perr := parseSQLiteTime(existing.StartedAt); perr == nil && time.Since(startedAt) > staleRunThreshold {
 			msg := "Job marked as failed: stale running job detected"
 			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
-		} else {
-			release()
-			return 0, fmt.Errorf("job %s is already running for user %d (run ID: %d)", JobType, userID, existing.ID)
 		}
 	}
 
-	runID, err := db.CreateBatchRun(ctx, s.DB, userID, JobType, isManual)
+	runID, err := db.CreateBatchRunIfNoneRunning(ctx, s.DB, userID, jobType, isManual)
 	if err != nil {
 		release()
+		if errors.Is(err, db.ErrBatchRunActive) {
+			if existing, _ := db.GetRunningBatchRun(ctx, s.DB, userID, jobType); existing != nil {
+				return 0, fmt.Errorf("job %s is already running for user %d (run ID: %d)", jobType, userID, existing.ID)
+			}
+			return 0, fmt.Errorf("job %s is already running for user %d", jobType, userID)
+		}
 		return 0, err
 	}
 	return runID, nil
