@@ -74,11 +74,12 @@ COPY server/ ./
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/client/build ./public
 
-# Entrypoint script to run both Go and Node
+# Entrypoint script (Go sole server since phase 8c)
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Expose port
+# Expose port (served by the Go binary directly since phase 8c; the host
+# edge keeps pointing at this same port — no external config change)
 EXPOSE 3001
 
 # Accept NODE_ENV as build argument
@@ -86,8 +87,11 @@ ARG NODE_ENV=production
 
 # Set environment variables
 ENV NODE_ENV=${NODE_ENV}
-ENV PORT=3001
-ENV GRAPHQL_BACKEND=http://127.0.0.1:4000
+# Go listens on the historical Node port so the container's published port
+# and the host edge config stay untouched.
+ENV ADDR=:3001
+# Go is the edge: apply helmet/CORS ports on its own responses.
+ENV EDGE_SERVE=true
 
-# Start both servers
+# Start the server
 ENTRYPOINT ["docker-entrypoint.sh"]
