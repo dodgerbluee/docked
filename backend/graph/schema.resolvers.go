@@ -50,6 +50,18 @@ func (r *containerResolver) UpgradeHistory(ctx context.Context, obj *model.Conta
 	}, nil
 }
 
+// Standalone is the resolver for the standalone field.
+// Standalone is the resolver for the standalone field: the parent query
+// pre-builds the full connection, so the field resolver only has to apply
+// first/after (defaulting to the full list for clients that pass neither).
+func (r *containerGroupResolver) Standalone(ctx context.Context, obj *model.ContainerGroup, first *int, after *string) (*model.ContainerConnection, error) {
+	var items []*model.Container
+	if obj.Standalone != nil {
+		items = obj.Standalone.Items
+	}
+	return paginateContainersFull(items, first, after), nil
+}
+
 // LastExecution is the resolver for the lastExecution field.
 func (r *intentResolver) LastExecution(ctx context.Context, obj *model.Intent) (*model.IntentExecution, error) {
 	uid, err := requireUser(ctx)
@@ -2570,6 +2582,16 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 	}
 	cid, _ := strconv.ParseInt(id, 10, 64)
 
+	// Synthetic live ids (live-<dockerID>) have no containers-table row;
+	// resolve them straight from the runners.
+	if dockerID, ok := strings.CutPrefix(id, "live-"); ok {
+		row := r.liveRunnerContainerByDockerID(ctx, uid, dockerID)
+		if row == nil {
+			return nil, nil
+		}
+		return containerRowToModel(row), nil
+	}
+
 	row, err := db.GetContainerByID(ctx, r.DB, cid, uid)
 	if err != nil {
 		return nil, err
@@ -3489,7 +3511,7 @@ func (r *runnerResolver) Containers(ctx context.Context, obj *model.Runner, firs
 	}
 	rid, _ := strconv.ParseInt(obj.ID, 10, 64)
 
-	rows, err := db.GetContainersByRunner(ctx, r.DB, uid, rid)
+	rows, err := r.runnerContainersForRunner(ctx, uid, rid)
 	if err != nil {
 		return nil, err
 	}
@@ -3542,6 +3564,18 @@ func (r *runnerResolver) Apps(ctx context.Context, obj *model.Runner) ([]*model.
 		return []*model.RunnerApp{}, nil
 	}
 	return fetchRunnerApps(ctx, *rr), nil
+}
+
+// Containers is the resolver for the containers field.
+// Containers is the resolver for the stackGroup.containers field: the parent
+// pre-builds the full connection, so the field resolver only applies
+// first/after (defaulting to the full list for clients that pass neither).
+func (r *stackGroupResolver) Containers(ctx context.Context, obj *model.StackGroup, first *int, after *string) (*model.ContainerConnection, error) {
+	var items []*model.Container
+	if obj.Containers != nil {
+		items = obj.Containers.Items
+	}
+	return paginateContainersFull(items, first, after), nil
 }
 
 // ContainersUpdated is the resolver for the containersUpdated field.
@@ -3757,6 +3791,9 @@ func (r *userResolver) TrackedAppCount(ctx context.Context, obj *model.User) (in
 // Container returns ContainerResolver implementation.
 func (r *Resolver) Container() ContainerResolver { return &containerResolver{r} }
 
+// ContainerGroup returns ContainerGroupResolver implementation.
+func (r *Resolver) ContainerGroup() ContainerGroupResolver { return &containerGroupResolver{r} }
+
 // Intent returns IntentResolver implementation.
 func (r *Resolver) Intent() IntentResolver { return &intentResolver{r} }
 
@@ -3777,6 +3814,9 @@ func (r *Resolver) RepositoryAccessToken() RepositoryAccessTokenResolver {
 // Runner returns RunnerResolver implementation.
 func (r *Resolver) Runner() RunnerResolver { return &runnerResolver{r} }
 
+// StackGroup returns StackGroupResolver implementation.
+func (r *Resolver) StackGroup() StackGroupResolver { return &stackGroupResolver{r} }
+
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
@@ -3788,12 +3828,14 @@ func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type (
 	containerResolver             struct{ *Resolver }
+	containerGroupResolver        struct{ *Resolver }
 	intentResolver                struct{ *Resolver }
 	intentExecutionResolver       struct{ *Resolver }
 	mutationResolver              struct{ *Resolver }
 	queryResolver                 struct{ *Resolver }
 	repositoryAccessTokenResolver struct{ *Resolver }
 	runnerResolver                struct{ *Resolver }
+	stackGroupResolver            struct{ *Resolver }
 	subscriptionResolver          struct{ *Resolver }
 	trackedAppResolver            struct{ *Resolver }
 	userResolver                  struct{ *Resolver }

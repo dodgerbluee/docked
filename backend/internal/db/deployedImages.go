@@ -28,7 +28,7 @@ func GetUnusedImages(ctx context.Context, database *sql.DB, userID int64) ([]Dep
 		AND di.image_repo NOT IN (
 			SELECT COALESCE(image_repo, '') FROM containers WHERE user_id = ?
 		)
-		ORDER BY di.last_seen DESC`
+		ORDER BY di.last_seen DESC, di.id`
 	rows, err := database.QueryContext(ctx, q, userID, userID)
 	if err != nil {
 		return nil, err

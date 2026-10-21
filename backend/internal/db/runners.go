@@ -176,10 +176,32 @@ func joinStrings(parts []string, sep string) string {
 }
 
 // DeleteRunner removes a runner.
+// DeleteRunner removes a runner and everything hanging off it. The schema
+// declares ON DELETE CASCADE / SET NULL for runner_events, containers and
+// upgrade_history, but foreign-key enforcement is OFF (Node parity — see
+// db.Open), so the cascades never fire on their own and must be issued
+// explicitly, in one transaction. Enrollment tokens are user-scoped, so
+// DeleteUser already covers them.
 func DeleteRunner(ctx context.Context, database *sql.DB, id, userID int64) error {
-	_, err := database.ExecContext(ctx,
-		"DELETE FROM runners WHERE id = ? AND user_id = ?", id, userID)
-	return err
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete runner: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
+	owned := `SELECT id FROM runners WHERE id = ? AND user_id = ?`
+	for _, stmt := range []struct{ label, sql string }{
+		{"runner_events", "DELETE FROM runner_events WHERE runner_id IN (" + owned + ")"},
+		{"containers", "DELETE FROM containers WHERE runner_id IN (" + owned + ")"},
+		{"upgrade_history", "UPDATE upgrade_history SET runner_id = NULL WHERE runner_id IN (" + owned + ")"},
+	} {
+		if _, err := tx.ExecContext(ctx, stmt.sql, id, userID); err != nil {
+			return fmt.Errorf("delete runner %s: %w", stmt.label, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM runners WHERE id = ? AND user_id = ?", id, userID); err != nil {
+		return fmt.Errorf("delete runner: %w", err)
+	}
+	return tx.Commit()
 }
 
 // UpdateRunnerVersion persists the runner's reported version and the latest

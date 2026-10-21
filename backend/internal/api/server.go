@@ -187,6 +187,11 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			// re-validate (HTTP requests carry their own bearer tokens and
 			// already pass through the revocation-aware middleware).
 			ctx = context.WithValue(ctx, wsConnectionCtxKey{}, true)
+			// Give the subscription watchdog a way to tear down the whole
+			// connection when the session dies mid-stream (see
+			// graph.WSDisconnectKey).
+			connCtx, connCancel := context.WithCancel(ctx)
+			ctx = context.WithValue(connCtx, graph.WSDisconnectKey{}, connCancel)
 			return auth.ContextWithUserID(ctx, userID), nil, nil
 		},
 	})

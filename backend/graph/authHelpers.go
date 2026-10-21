@@ -49,6 +49,23 @@ func (r *mutationResolver) revokeRefreshToken(ctx context.Context, refreshToken 
 // re-checks that its connection's session is still alive.
 const subscriptionRevalidateInterval = 30 * time.Second
 
+// WSDisconnectKey carries the connection's context-cancel func (installed by
+// the transport InitFunc) so the subscription watchdog can tear down the
+// whole websocket, not just the one stream. gqlgen's transport closes a
+// cancelled connection with code 1000; the client's reconnect then hits
+// InitFunc, which rejects the dead token with 4401 — the session is dead
+// either way, the socket just cannot be closed with 4401 directly.
+type WSDisconnectKey struct{}
+
+// WSDisconnectFromContext returns the connection's disconnect func, or nil
+// when the context is not a websocket connection context.
+func WSDisconnectFromContext(ctx context.Context) func() {
+	if f, ok := ctx.Value(WSDisconnectKey{}).(func()); ok {
+		return f
+	}
+	return nil
+}
+
 // subscriptionGuard returns the periodic revalidation hook for
 // forwardSubscription: the raw token the websocket presented at
 // connection-init time must stay unexpired, unrevoked, and mapped to an
@@ -60,17 +77,26 @@ func (r *Resolver) subscriptionGuard(ctx context.Context) func() error {
 		return nil
 	}
 	return func() error {
+		fail := func(err error) error {
+			// Terminate the whole connection, not just this stream: a
+			// dead session must not keep the socket (and any other live
+			// subscriptions on it) streaming.
+			if disconnect := WSDisconnectFromContext(ctx); disconnect != nil {
+				disconnect()
+			}
+			return err
+		}
 		checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		uid, err := auth.ValidateToken(raw, r.Cfg.JWTSecret)
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		if revoked, err := db.IsTokenRevoked(checkCtx, r.DB, raw); err != nil || revoked {
-			return fmt.Errorf("token revoked")
+			return fail(fmt.Errorf("token revoked"))
 		}
 		if u, err := db.GetUserByID(checkCtx, r.DB, uid); err != nil || u == nil {
-			return fmt.Errorf("user no longer exists")
+			return fail(fmt.Errorf("user no longer exists"))
 		}
 		return nil
 	}

@@ -57,6 +57,9 @@ func (s *Service) AppVersionExecuteAndComplete(ctx context.Context, userID, runI
 		s.mu.Unlock()
 	}()
 
+	stopHeartbeat := s.heartbeatRun(ctx, runID)
+	defer stopHeartbeat()
+
 	checked, updated, err := s.ScanRunnerApps(ctx, userID)
 
 	doneCtx := context.WithoutCancel(ctx)

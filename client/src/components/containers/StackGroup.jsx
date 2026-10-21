@@ -35,7 +35,7 @@ const StackGroup = React.memo(function StackGroup({
     return null;
   }
 
-  const stackKey = `${stack.stackName}-${showUpdates ? "updates" : "current"}`;
+  const stackKey = `${stack.groupKey ?? stack.stackName}-${showUpdates ? "updates" : "current"}`;
   const isCollapsed = collapsed.has(stackKey);
   const displayName =
     stack.stackName === STACK_NAMES.STANDALONE

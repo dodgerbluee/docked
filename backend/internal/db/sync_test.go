@@ -94,7 +94,8 @@ func newSyncTestDB(t *testing.T) *sql.DB {
 			containers_checked INTEGER DEFAULT 0,
 			containers_updated INTEGER DEFAULT 0,
 			error_message TEXT,
-			logs TEXT
+			logs TEXT,
+			heartbeat_at DATETIME
 		)`,
 	}
 	for _, s := range stmts {

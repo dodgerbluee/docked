@@ -179,10 +179,17 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	standalone := 0
 	for i := range out.Matched {
 		c := out.Matched[i]
+		// Stack names are only unique WITHIN a source: identically named
+		// stacks on different runners are different stacks and must not be
+		// serialized against each other (or share a sequential delay).
 		key := c.StackName.String
 		if key == "" {
 			key = fmt.Sprintf("__standalone_%d", standalone)
 			standalone++
+		} else if c.RunnerID.Valid {
+			key = fmt.Sprintf("runner:%d|%s", c.RunnerID.Int64, key)
+		} else if c.SourceInstanceID.Valid {
+			key = fmt.Sprintf("instance:%d|%s", c.SourceInstanceID.Int64, key)
 		}
 		g, ok := index[key]
 		if !ok {

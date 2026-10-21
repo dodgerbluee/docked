@@ -15,6 +15,13 @@ func Open(path string) (*sql.DB, error) {
 	// parameter (the _journal_mode/_busy_timeout form is mattn/go-sqlite3
 	// syntax and is silently ignored here). Using the wrong form meant WAL and
 	// the busy timeout were never actually installed.
+	//
+	// foreign_keys is deliberately NOT enabled: Node (better-sqlite3) never
+	// enforced it either, and the users-rebuild migration left child tables
+	// whose FK text points at the dropped "users_old" — enforcement would
+	// turn every insert into those tables into an error. Cascade deletes are
+	// therefore done explicitly (DeleteUser / DeleteRunner). ensureSchema
+	// repairs the orphans the unenforced era accumulated.
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=cache_size(-8000)",
 		path,

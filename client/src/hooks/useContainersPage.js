@@ -128,7 +128,7 @@ export function useContainersPage({
       const stackName = container.stackName || "Standalone";
       const key = `${container.runnerId ?? container.endpointId ?? ""}|${stackName}`;
       if (!acc[key]) {
-        acc[key] = { stackName, containers: [] };
+        acc[key] = { stackName, groupKey: key, containers: [] };
       }
       acc[key].containers.push(container);
       return acc;

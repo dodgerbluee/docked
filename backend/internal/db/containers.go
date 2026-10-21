@@ -136,7 +136,7 @@ LEFT JOIN registry_image_versions riv
 LEFT JOIN source_instances si ON c.source_instance_id = si.id
 LEFT JOIN runners         r  ON c.runner_id           = r.id
 WHERE c.user_id = ?
-ORDER BY c.last_seen DESC
+ORDER BY c.last_seen DESC, c.id
 `
 
 // GetContainers returns all containers for the given user with their full update info.

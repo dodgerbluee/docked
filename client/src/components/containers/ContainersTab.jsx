@@ -81,7 +81,9 @@ const ContainersTab = React.memo(function ContainersTab({
               return nameA.localeCompare(nameB);
             })
             .map((stack) => {
-              const stackKey = `${stack.stackName}-all`;
+              // Collapse state is keyed by source+stack so identically named
+              // stacks on different runners collapse independently.
+              const stackKey = `${stack.groupKey ?? stack.stackName}-all`;
               const isCollapsed = collapsedStacks.has(stackKey);
               const displayName =
                 stack.stackName === STACK_NAMES.STANDALONE

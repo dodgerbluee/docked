@@ -162,3 +162,179 @@ func TestDeleteUserCascadesAllUserRows(t *testing.T) {
 		}
 	}
 }
+
+// FK enforcement is off (Node parity), so DeleteRunner must clear the
+// dependent rows itself: events and enrollment tokens go away, container
+// rows sourced from the runner go away, and upgrade_history keeps its rows
+// with the runner reference nulled (the schema's SET NULL intent).
+func TestDeleteRunnerRemovesDependents(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	uid, err := CreateUser(ctx, database, "cascade-runner", "hash", "Administrator", 1)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	rid, err := CreateRunner(ctx, database, uid, "r1", "http://runner.invalid", "key")
+	if err != nil {
+		t.Fatalf("create runner: %v", err)
+	}
+	seed := []struct {
+		stmt string
+		args []any
+	}{
+		{`INSERT INTO runner_events (runner_id, event_type, message) VALUES (?, 'heartbeat', 'up')`, []any{rid}},
+		{`INSERT INTO containers (user_id, container_id, container_name, image_name, image_repo, runner_id)
+		  VALUES (?, 'abc123def456', 'web', 'img:1', 'img', ?)`, []any{uid, rid}},
+		{`INSERT INTO upgrade_history (user_id, container_id, container_name, old_image, new_image, runner_id)
+		  VALUES (?, 'abc123def456', 'web', 'img:1', 'img:2', ?)`, []any{uid, rid}},
+	}
+	for _, s := range seed {
+		if _, err := database.ExecContext(ctx, s.stmt, s.args...); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	if err := DeleteRunner(ctx, database, rid, uid); err != nil {
+		t.Fatalf("delete runner: %v", err)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM runner_events WHERE runner_id = ?`, rid); n != 0 {
+		t.Errorf("runner_events left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM containers WHERE runner_id = ?`, rid); n != 0 {
+		t.Errorf("runner-sourced containers left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM upgrade_history WHERE runner_id = ?`, rid); n != 0 {
+		t.Errorf("upgrade_history runner refs not nulled: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM upgrade_history WHERE container_id = 'abc123def456'`); n != 1 {
+		t.Errorf("upgrade_history row should survive with nulled ref, got %d", n)
+	}
+}
+
+// intent_execution_containers and runner_events have no user_id column;
+// DeleteUser must clear them through their parents before the parents go.
+func TestDeleteUserClearsGrandchildren(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	uid, err := CreateUser(ctx, database, "cascade-user", "hash", "Administrator", 1)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	rid, err := CreateRunner(ctx, database, uid, "r1", "http://runner.invalid", "key")
+	if err != nil {
+		t.Fatalf("create runner: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO runner_events (runner_id, event_type, message) VALUES (?, 'heartbeat', 'up')`, rid); err != nil {
+		t.Fatalf("seed event: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO intents (user_id, name, schedule_type) VALUES (?, 'nightly', 'immediate')`, uid); err != nil {
+		t.Fatalf("seed intent: %v", err)
+	}
+	var intentID int64
+	if err := database.QueryRowContext(ctx, `SELECT id FROM intents WHERE user_id = ?`, uid).Scan(&intentID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, 'completed', 'manual')`,
+		intentID, uid); err != nil {
+		t.Fatalf("seed execution: %v", err)
+	}
+	var execID int64
+	if err := database.QueryRowContext(ctx, `SELECT id FROM intent_executions WHERE user_id = ?`, uid).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO intent_execution_containers (execution_id, container_id, container_name, image_name, status)
+		 VALUES (?, 'abc123def456', 'web', 'img:1', 'success')`, execID); err != nil {
+		t.Fatalf("seed execution container: %v", err)
+	}
+
+	if n, err := DeleteUser(ctx, database, uid); err != nil || n != 1 {
+		t.Fatalf("delete user: n=%d err=%v", n, err)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM runner_events`); n != 0 {
+		t.Errorf("runner_events left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM intent_execution_containers`); n != 0 {
+		t.Errorf("intent_execution_containers left: %d", n)
+	}
+}
+
+// The stale-run reaper must measure silence since the last heartbeat, not
+// since the job started: a long-running job that beats is never reaped,
+// and one that stops beating is.
+func TestBatchRunHeartbeatLease(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+
+	runID, err := CreateBatchRunIfNoneRunning(ctx, database, 1, "docker-hub-pull", false)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	// Backdate the start beyond the threshold: without a heartbeat the row
+	// is stale and gets reaped.
+	if _, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET started_at = datetime('now', '-10 minutes') WHERE id = ?`, runID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := MarkStaleBatchRunsFailed(ctx, database, "docker-hub-pull", 300); err != nil || n != 1 {
+		t.Fatalf("unheartbeated run should be reaped: n=%d err=%v", n, err)
+	}
+
+	runID, err = CreateBatchRunIfNoneRunning(ctx, database, 2, "docker-hub-pull", false)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET started_at = datetime('now', '-10 minutes') WHERE id = ?`, runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := HeartbeatBatchRun(ctx, database, runID); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	if n, err := MarkStaleBatchRunsFailed(ctx, database, "docker-hub-pull", 300); err != nil || n != 0 {
+		t.Fatalf("heartbeated run must not be reaped: n=%d err=%v", n, err)
+	}
+	// A completed run ignores heartbeats (the lease only covers 'running'):
+	// stamp a sentinel and confirm the beat leaves it alone.
+	if _, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET heartbeat_at = '2000-01-01 00:00:00' WHERE id = ?`, runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := CompleteBatchRun(ctx, database, runID, "completed", 0, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := HeartbeatBatchRun(ctx, database, runID); err != nil {
+		t.Fatalf("heartbeat on completed run: %v", err)
+	}
+	if n := countRows(t, database,
+		`SELECT COUNT(*) FROM batch_runs WHERE id = ? AND status = 'completed' AND heartbeat_at = '2000-01-01 00:00:00'`, runID); n != 1 {
+		t.Errorf("completed run should not beat, got %d", n)
+	}
+}
+
+// The CSRF state must survive exactly one consume: two concurrent callbacks
+// carrying the same state may not both obtain the PKCE verifier.
+func TestConsumeOAuthStateIsSingleUse(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	if err := CreateOAuthState(ctx, database, "state-1", "verifier", "nonce", nil, nil); err != nil {
+		t.Fatalf("create state: %v", err)
+	}
+	first, err := ConsumeOAuthState(ctx, database, "state-1")
+	if err != nil {
+		t.Fatalf("first consume: %v", err)
+	}
+	if first == nil || first.CodeVerifier != "verifier" {
+		t.Fatalf("first consume = %#v, want the stored row", first)
+	}
+	second, err := ConsumeOAuthState(ctx, database, "state-1")
+	if err != nil {
+		t.Fatalf("second consume: %v", err)
+	}
+	if second != nil {
+		t.Fatalf("second consume = %#v, want nil (state already spent)", second)
+	}
+}

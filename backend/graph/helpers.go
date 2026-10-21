@@ -921,6 +921,40 @@ func paginateContainers(items []*model.Container, first *int, after *string) *mo
 	}
 }
 
+// paginateContainersFull slices like paginateContainers but defaults first
+// to the FULL list: grouped connections (stack groups, standalone) were
+// always served unpaginated, so clients that pass no first/after must keep
+// getting every item; only explicit arguments narrow the page.
+func paginateContainersFull(items []*model.Container, first *int, after *string) *model.ContainerConnection {
+	limit, offset := len(items), 0
+	if first != nil && *first > 0 {
+		limit = *first
+		if limit > maxPageLimit {
+			limit = maxPageLimit
+		}
+	}
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+		if offset < 0 {
+			offset = 0
+		}
+	}
+	total := len(items)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	page := items[offset:end]
+	return &model.ContainerConnection{
+		Items:      page,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(page), total, limit, offset),
+	}
+}
+
 func buildPageInfo(returned, total, limit, offset int) *model.PageInfo {
 	return &model.PageInfo{
 		HasNextPage:     offset+returned < total,

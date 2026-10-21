@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 
@@ -61,7 +62,67 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 		}
 		base = append(base, row)
 	}
+	// Live rows arrive in goroutine-completion order; sort deterministically
+	// so paginated requests see a stable sequence (offsets mean the same
+	// thing across pages).
+	sort.Slice(live, func(i, j int) bool {
+		a, b := live[i], live[j]
+		if a.RunnerID.Int64 != b.RunnerID.Int64 {
+			return a.RunnerID.Int64 < b.RunnerID.Int64
+		}
+		if a.ContainerName != b.ContainerName {
+			return a.ContainerName < b.ContainerName
+		}
+		return a.ContainerID < b.ContainerID
+	})
 	return append(base, live...)
+}
+
+// liveRunnerContainerByDockerID resolves a synthetic "live-<dockerID>" model
+// id (runner containers that never got a DB row) by searching the user's
+// enabled runners. Docker ids are not globally unique across runners; the
+// first enabled runner holding the container wins, mirroring how the ids
+// were minted in containerRowToModel.
+func (r *Resolver) liveRunnerContainerByDockerID(ctx context.Context, uid int64, dockerID string) *db.ContainerRow {
+	runners, err := db.GetEnabledRunners(ctx, r.DB, uid)
+	if err != nil {
+		log.Printf("live container lookup: enabled runners: %v", err)
+		return nil
+	}
+	for _, rr := range runners {
+		if row := r.liveRunnerContainer(ctx, uid, rr.ID, dockerID); row != nil {
+			return row
+		}
+	}
+	return nil
+}
+
+// runnerContainersForRunner returns one runner's containers: the live fetch
+// replaces persisted rows when the runner is reachable (same stale-beats-
+// missing rule as the global merge), with a deterministic order so
+// pagination cursors stay meaningful.
+func (r *Resolver) runnerContainersForRunner(ctx context.Context, uid, rid int64) ([]db.ContainerRow, error) {
+	rows, err := db.GetContainersByRunner(ctx, r.DB, uid, rid)
+	if err != nil {
+		return nil, err
+	}
+	rr, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
+	if err != nil || rr == nil || !rr.Enabled {
+		return rows, nil
+	}
+	ctrs, err := runner.FetchContainers(ctx, *rr)
+	if err != nil {
+		log.Printf("live runner fetch failed (runner %s): %v", rr.Name, err)
+		return rows, nil
+	}
+	live := runner.FetchContainerRows(ctx, r.DB, uid, *rr, ctrs)
+	sort.Slice(live, func(i, j int) bool {
+		if live[i].ContainerName != live[j].ContainerName {
+			return live[i].ContainerName < live[j].ContainerName
+		}
+		return live[i].ContainerID < live[j].ContainerID
+	})
+	return live, nil
 }
 
 // runnerContainerToRow converts a live runner container into the DB-row shape

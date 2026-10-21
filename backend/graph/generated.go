@@ -30,12 +30,14 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Container() ContainerResolver
+	ContainerGroup() ContainerGroupResolver
 	Intent() IntentResolver
 	IntentExecution() IntentExecutionResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 	RepositoryAccessToken() RepositoryAccessTokenResolver
 	Runner() RunnerResolver
+	StackGroup() StackGroupResolver
 	Subscription() SubscriptionResolver
 	TrackedApp() TrackedAppResolver
 	User() UserResolver
@@ -830,6 +832,9 @@ type ComplexityRoot struct {
 type ContainerResolver interface {
 	UpgradeHistory(ctx context.Context, obj *model.Container, first *int, after *string) (*model.UpgradeRecordConnection, error)
 }
+type ContainerGroupResolver interface {
+	Standalone(ctx context.Context, obj *model.ContainerGroup, first *int, after *string) (*model.ContainerConnection, error)
+}
 type IntentResolver interface {
 	LastExecution(ctx context.Context, obj *model.Intent) (*model.IntentExecution, error)
 
@@ -960,6 +965,9 @@ type RunnerResolver interface {
 	Containers(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.ContainerConnection, error)
 	UpgradeHistory(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.UpgradeRecordConnection, error)
 	Apps(ctx context.Context, obj *model.Runner) ([]*model.RunnerApp, error)
+}
+type StackGroupResolver interface {
+	Containers(ctx context.Context, obj *model.StackGroup, first *int, after *string) (*model.ContainerConnection, error)
 }
 type SubscriptionResolver interface {
 	ContainersUpdated(ctx context.Context) (<-chan *model.ContainersUpdatedEvent, error)
@@ -11140,7 +11148,8 @@ func (ec *executionContext) _ContainerGroup_standalone(ctx context.Context, fiel
 			return ec.fieldContext_ContainerGroup_standalone(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Standalone, nil
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.ContainerGroup().Standalone(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ContainerConnection) graphql.Marshaler {
@@ -11154,8 +11163,8 @@ func (ec *executionContext) fieldContext_ContainerGroup_standalone(ctx context.C
 	fc = &graphql.FieldContext{
 		Object:     "ContainerGroup",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ContainerConnection(ctx, field)
 		},
@@ -21828,7 +21837,8 @@ func (ec *executionContext) _StackGroup_containers(ctx context.Context, field gr
 			return ec.fieldContext_StackGroup_containers(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Containers, nil
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.StackGroup().Containers(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ContainerConnection) graphql.Marshaler {
@@ -21842,8 +21852,8 @@ func (ec *executionContext) fieldContext_StackGroup_containers(ctx context.Conte
 	fc = &graphql.FieldContext{
 		Object:     "StackGroup",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ContainerConnection(ctx, field)
 		},
@@ -28669,27 +28679,60 @@ func (ec *executionContext) _ContainerGroup(ctx context.Context, sel ast.Selecti
 		case "stacks":
 			out.Values[i] = ec._ContainerGroup_stacks(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "standalone":
-			out.Values[i] = ec._ContainerGroup_standalone(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ContainerGroup_standalone(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "runners":
 			out.Values[i] = ec._ContainerGroup_runners(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "unusedImagesCount":
 			out.Values[i] = ec._ContainerGroup_unusedImagesCount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "stats":
 			out.Values[i] = ec._ContainerGroup_stats(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -33015,28 +33058,61 @@ func (ec *executionContext) _StackGroup(ctx context.Context, sel ast.SelectionSe
 		case "id":
 			out.Values[i] = ec._StackGroup_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._StackGroup_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "source":
 			out.Values[i] = ec._StackGroup_source(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "endpointId":
 			out.Values[i] = ec._StackGroup_endpointId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "containers":
-			out.Values[i] = ec._StackGroup_containers(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._StackGroup_containers(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

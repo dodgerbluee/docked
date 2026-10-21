@@ -52,6 +52,45 @@ func ensureSchema(ctx context.Context, database *sql.DB) error {
 		return nil
 	}
 
+	// Orphan repair: FK enforcement is on in the DSN (Node parity —
+	// better-sqlite3 enforces by default), but the early Go era ran with
+	// enforcement off and could have accumulated child rows whose parents
+	// were deleted. Those rows would now fail UPDATEs and the containers
+	// table rebuilds, so clear them before anything else touches the
+	// schema. Every statement is soft: on a fresh DB the referenced tables
+	// or columns may not exist yet, and on a healthy DB they are no-ops.
+	for _, repair := range []struct{ label, stmt string }{
+		{"containers orphans (v14 shape)", `DELETE FROM containers WHERE
+			(runner_id IS NOT NULL AND runner_id NOT IN (SELECT id FROM runners))
+			OR (source_instance_id IS NOT NULL AND source_instance_id NOT IN (SELECT id FROM source_instances))
+			OR user_id NOT IN (SELECT id FROM users)`},
+		{"containers orphans (legacy shape)", `DELETE FROM containers WHERE
+			portainer_instance_id NOT IN (SELECT id FROM portainer_instances)
+			OR user_id NOT IN (SELECT id FROM users)`},
+		{"containers dangling deployed_image_id", `UPDATE containers SET deployed_image_id = NULL
+			WHERE deployed_image_id IS NOT NULL
+			AND deployed_image_id NOT IN (SELECT id FROM deployed_images)`},
+		{"runner_events orphans", `DELETE FROM runner_events WHERE runner_id NOT IN (SELECT id FROM runners)`},
+		{"intent_execution_containers orphans", `DELETE FROM intent_execution_containers
+			WHERE execution_id NOT IN (SELECT id FROM intent_executions)`},
+		{"intent_executions orphans", `DELETE FROM intent_executions
+			WHERE intent_id NOT IN (SELECT id FROM intents) OR user_id NOT IN (SELECT id FROM users)`},
+		{"intents orphans", `DELETE FROM intents WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"upgrade_history dangling runner", `UPDATE upgrade_history SET runner_id = NULL
+			WHERE runner_id IS NOT NULL AND runner_id NOT IN (SELECT id FROM runners)`},
+		{"upgrade_history dangling instance", `UPDATE upgrade_history SET portainer_instance_id = NULL
+			WHERE portainer_instance_id IS NOT NULL
+			AND portainer_instance_id NOT IN (SELECT id FROM portainer_instances)`},
+		{"upgrade_history orphans", `DELETE FROM upgrade_history WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"tracked_app_versions dangling app", `UPDATE tracked_app_versions SET tracked_app_id = NULL
+			WHERE tracked_app_id IS NOT NULL AND tracked_app_id NOT IN (SELECT id FROM tracked_apps)`},
+		{"tracked_apps orphans", `DELETE FROM tracked_apps WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"deployed_images orphans", `DELETE FROM deployed_images WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"registry_image_versions orphans", `DELETE FROM registry_image_versions WHERE user_id NOT IN (SELECT id FROM users)`},
+	} {
+		soft(repair.label, repair.stmt)
+	}
+
 	if err := hard("users", `CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -309,6 +348,12 @@ func ensureSchema(ctx context.Context, database *sql.DB) error {
         error_message TEXT,
         logs TEXT
       )`); err != nil {
+		return err
+	}
+	// Lease heartbeat: a live long-running job refreshes heartbeat_at, so
+	// the stale-run reaper never marks a healthy run (in this or another
+	// process) failed just because it started long ago.
+	if err := addColumn("batch_runs", "heartbeat_at", "DATETIME"); err != nil {
 		return err
 	}
 	soft("idx_batch_runs_started_at", "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)")

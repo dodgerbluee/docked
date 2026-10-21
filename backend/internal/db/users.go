@@ -368,6 +368,16 @@ func DeleteUser(ctx context.Context, database *sql.DB, userID int64) (int, error
 		return 0, fmt.Errorf("begin delete user: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op after commit
+	// Grandchild tables have no user_id column and FK enforcement is off,
+	// so clear them through their parents BEFORE the parents go.
+	for _, stmt := range []struct{ label, sql string }{
+		{"runner_events", "DELETE FROM runner_events WHERE runner_id IN (SELECT id FROM runners WHERE user_id = ?)"},
+		{"intent_execution_containers", "DELETE FROM intent_execution_containers WHERE execution_id IN (SELECT id FROM intent_executions WHERE user_id = ?)"},
+	} {
+		if _, err := tx.ExecContext(ctx, stmt.sql, userID); err != nil {
+			return 0, fmt.Errorf("delete %s for user: %w", stmt.label, err)
+		}
+	}
 	for _, t := range tables {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+t+" WHERE user_id = ?", userID); err != nil {
 			return 0, fmt.Errorf("delete %s for user: %w", t, err)

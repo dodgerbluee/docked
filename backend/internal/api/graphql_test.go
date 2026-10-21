@@ -70,7 +70,26 @@ CREATE TABLE batch_runs (
   containers_checked INTEGER DEFAULT 0,
   containers_updated INTEGER DEFAULT 0,
   error_message TEXT,
-  logs TEXT
+  logs TEXT,
+  heartbeat_at DATETIME
+);
+CREATE TABLE runner_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  runner_id INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  message TEXT,
+  details TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE intent_execution_containers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  execution_id INTEGER NOT NULL,
+  container_id TEXT,
+  container_name TEXT,
+  image_name TEXT,
+  status TEXT,
+  error_message TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE source_instances (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

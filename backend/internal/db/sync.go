@@ -306,7 +306,8 @@ func GetLatestBatchRunByJobType(ctx context.Context, database *sql.DB, userID in
 func GetRunningBatchRun(ctx context.Context, database *sql.DB, userID int64, jobType string) (*BatchRunRow, error) {
 	row := database.QueryRowContext(ctx,
 		`SELECT id, user_id, job_type, status, started_at, completed_at, duration_ms,
-			containers_checked, containers_updated, error_message, logs, is_manual
+			containers_checked, containers_updated, error_message, logs, is_manual,
+			heartbeat_at
 		 FROM batch_runs
 		 WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL
 		 ORDER BY started_at DESC LIMIT 1`,
@@ -314,7 +315,8 @@ func GetRunningBatchRun(ctx context.Context, database *sql.DB, userID int64, job
 
 	var r BatchRunRow
 	err := row.Scan(&r.ID, &r.UserID, &r.JobType, &r.Status, &r.StartedAt, &r.CompletedAt,
-		&r.DurationMs, &r.ContainersChecked, &r.ContainersUpdated, &r.ErrorMessage, &r.Logs, &r.IsManual)
+		&r.DurationMs, &r.ContainersChecked, &r.ContainersUpdated, &r.ErrorMessage, &r.Logs, &r.IsManual,
+		&r.HeartbeatAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -334,7 +336,7 @@ func MarkStaleBatchRunsFailed(ctx context.Context, database *sql.DB, jobType str
 		 SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
 			 error_message = 'Job marked as failed: stale running job detected'
 		 WHERE job_type = ? AND status = 'running' AND completed_at IS NULL
-		   AND started_at < datetime('now', ?)`,
+		   AND COALESCE(heartbeat_at, started_at) < datetime('now', ?)`,
 		jobType, fmt.Sprintf("-%d seconds", staleSeconds))
 	if err != nil {
 		return 0, err

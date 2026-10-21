@@ -47,6 +47,20 @@ type BatchRunRow struct {
 	ErrorMessage      sql.NullString
 	Logs              sql.NullString
 	IsManual          int
+	HeartbeatAt       sql.NullString
+}
+
+// HeartbeatBatchRun refreshes a running job's lease timestamp. Long-running
+// scans tick this so the cross-process stale-run reaper measures silence
+// since the last beat, not since the job started.
+func HeartbeatBatchRun(ctx context.Context, database *sql.DB, id int64) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET heartbeat_at = CURRENT_TIMESTAMP
+		 WHERE id = ? AND status = 'running' AND completed_at IS NULL`, id)
+	if err != nil {
+		return fmt.Errorf("heartbeat batch run: %w", err)
+	}
+	return nil
 }
 
 func GetBatchConfigs(ctx context.Context, database *sql.DB, userID int64) ([]BatchConfigRow, error) {

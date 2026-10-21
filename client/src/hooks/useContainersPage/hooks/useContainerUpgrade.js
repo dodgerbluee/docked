@@ -85,9 +85,17 @@ export const useContainerUpgrade = ({
         if (onContainersUpdate) {
           onContainersUpdate((prevContainers) =>
             prevContainers.map((c) => {
+              // Docker short-ids and container names are only unique WITHIN
+              // a source: a same-named container on another runner must not
+              // have its hasUpdate flag cleared by this upgrade.
+              const sameSource =
+                (c.runnerId ?? null) === (container.runnerId ?? null) &&
+                (c.endpointId ?? null) === (container.endpointId ?? null);
               const matchesId =
-                c.id === container.id || c.id?.substring(0, 12) === container.id?.substring(0, 12);
-              const matchesName = c.name === container.name;
+                sameSource &&
+                (c.id === container.id ||
+                  c.id?.substring(0, 12) === container.id?.substring(0, 12));
+              const matchesName = sameSource && c.name === container.name;
               if (matchesId || matchesName) return { ...c, hasUpdate: false };
               return c;
             })
@@ -284,9 +292,12 @@ export const useContainerUpgrade = ({
 
       await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
 
-      // Group by stack (same stack = one at a time; different stacks = in parallel)
+      // Group by stack (same stack = one at a time; different stacks = in
+      // parallel). Stack names are only unique within a source, so the
+      // group key includes the runner/endpoint identity.
       const byStack = entries.reduce((acc, entry) => {
-        const stack = entry.container.stackName || "Standalone";
+        const scope = entry.container.runnerId ?? entry.container.endpointId ?? "";
+        const stack = `${scope}|${entry.container.stackName || "Standalone"}`;
         if (!acc[stack]) acc[stack] = [];
         acc[stack].push(entry);
         return acc;

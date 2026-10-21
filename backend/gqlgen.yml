@@ -29,6 +29,14 @@ models:
     model: github.com/dockedapp/backend/graph/model.Upload
   # Relation fields are loaded lazily via dedicated field resolvers rather than
   # bound to (nil) model struct fields.
+  StackGroup:
+    fields:
+      containers:
+        resolver: true
+  ContainerGroup:
+    fields:
+      standalone:
+        resolver: true
   User:
     fields:
       containers:

@@ -33,15 +33,18 @@ func CreateOAuthState(ctx context.Context, database *sql.DB, state, codeVerifier
 	return nil
 }
 
-// ConsumeOAuthState fetches and deletes a state record (single use). Returns
-// nil when the state is unknown or older than 10 minutes (mirrors Node's
-// expiry window: expired rows are deleted and treated as invalid).
+// ConsumeOAuthState deletes and returns a state record atomically (single
+// use). Returns nil when the state is unknown or older than 10 minutes
+// (mirrors Node's expiry window: expired rows are deleted and treated as
+// invalid). The DELETE ... RETURNING form is what makes it single-use:
+// concurrent callbacks carrying the same CSRF state race, and only one of
+// them receives the row — the old SELECT-then-DELETE pair let both pass.
 func ConsumeOAuthState(ctx context.Context, database *sql.DB, state string) (*OAuthStateRow, error) {
 	var r OAuthStateRow
 	var createdAt string
 	err := database.QueryRowContext(ctx,
-		`SELECT code_verifier, nonce, redirect_uri, provider_name, created_at
-		 FROM oauth_states WHERE state = ?`, state).
+		`DELETE FROM oauth_states WHERE state = ?
+		 RETURNING code_verifier, nonce, redirect_uri, provider_name, created_at`, state).
 		Scan(&r.CodeVerifier, &r.Nonce, &r.RedirectURI, &r.ProviderName, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -52,14 +55,8 @@ func ConsumeOAuthState(ctx context.Context, database *sql.DB, state string) (*OA
 
 	created, perr := ParseSQLiteTime(createdAt)
 	if perr == nil && time.Since(created) > 10*time.Minute {
-		// Expired: delete and treat as invalid (delete errors ignored, like Node).
-		_, _ = database.ExecContext(ctx, "DELETE FROM oauth_states WHERE state = ?", state)
+		// Expired: the atomic DELETE already removed the row.
 		return nil, nil
-	}
-
-	if _, derr := database.ExecContext(ctx, "DELETE FROM oauth_states WHERE state = ?", state); derr != nil {
-		// Node still returns the data when the delete fails — the state was valid.
-		// Log-and-continue equivalent: the row may linger until the hourly cleanup.
 	}
 	return &r, nil
 }

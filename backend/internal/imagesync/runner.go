@@ -88,7 +88,14 @@ func (s *Service) acquireRun(ctx context.Context, running map[int64]bool, userID
 		release()
 		return 0, err
 	} else if existing != nil {
-		if startedAt, perr := parseSQLiteTime(existing.StartedAt); perr == nil && time.Since(startedAt) > staleRunThreshold {
+		// Lease-aware reap: measure silence since the last heartbeat when
+		// one exists, so a legitimately long run in another process is
+		// never marked failed mid-flight.
+		ref := existing.StartedAt
+		if existing.HeartbeatAt.Valid {
+			ref = existing.HeartbeatAt.String
+		}
+		if startedAt, perr := parseSQLiteTime(ref); perr == nil && time.Since(startedAt) > staleRunThreshold {
 			msg := "Job marked as failed: stale running job detected"
 			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
 		}
@@ -116,6 +123,11 @@ func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64) e
 		delete(s.running, userID)
 		s.mu.Unlock()
 	}()
+
+	// Lease heartbeat: keep the batch_runs row fresh while the scan runs so
+	// another process's stale-run reaper leaves it alone.
+	stopHeartbeat := s.heartbeatRun(ctx, runID)
+	defer stopHeartbeat()
 
 	checked, updated, runErr := s.RunDockerHubPull(ctx, userID)
 
@@ -164,6 +176,30 @@ func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) 
 // parseSQLiteTime parses timestamp strings from SQLite (see db.ParseSQLiteTime).
 func parseSQLiteTime(s string) (time.Time, error) {
 	return db.ParseSQLiteTime(s)
+}
+
+// heartbeatRun ticks a lease heartbeat against the batch_runs row until the
+// returned stop func runs. Beat well inside staleRunThreshold so a live run
+// is never reaped by a peer process.
+func (s *Service) heartbeatRun(ctx context.Context, runID int64) func() {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := db.HeartbeatBatchRun(ctx, s.DB, runID); err != nil {
+					slog.Warn("batch run heartbeat failed", "runId", runID, "error", err)
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 // ScanRunnerContainers ports DockerHubPullHandler.scanRunnerContainers.
@@ -313,7 +349,10 @@ func (s *Service) RunDockerHubPull(ctx context.Context, userID int64) (int, int,
 	s.notifier.SendContainerUpdateNotifications(ctx, current, previous, userID)
 
 	if s.Hub != nil {
-		s.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
+		// Per-user channel: len(current) is this user's container count, so
+		// broadcasting globally would leak one tenant's inventory size to
+		// every other connected user.
+		s.Hub.PublishContainersUpdated(userID, model.ContainersUpdatedEvent{
 			ContainerCount: len(current),
 		})
 	}

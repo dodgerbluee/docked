@@ -48,7 +48,8 @@ func newTestDB(t *testing.T) *sql.DB {
 			containers_checked INTEGER DEFAULT 0,
 			containers_updated INTEGER DEFAULT 0,
 			error_message TEXT,
-			logs TEXT
+			logs TEXT,
+			heartbeat_at DATETIME
 		)`,
 		`INSERT INTO users (id, username, password_hash, role, email, last_login, created_at, updated_at)
 		 VALUES (1, 'u', 'x', 'user', '', '', '', '')`,

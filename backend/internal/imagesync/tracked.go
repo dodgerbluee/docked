@@ -69,6 +69,9 @@ func (s *Service) TrackedExecuteAndComplete(ctx context.Context, userID, runID i
 		s.mu.Unlock()
 	}()
 
+	stopHeartbeat := s.heartbeatRun(ctx, runID)
+	defer stopHeartbeat()
+
 	checked, updated, runErr := s.CheckAllTrackedApps(ctx, userID)
 
 	doneCtx := context.WithoutCancel(ctx)
