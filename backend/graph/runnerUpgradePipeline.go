@@ -243,10 +243,36 @@ func buildUpgradeConfig(details map[string]any, newImage string, cleanHC, netCfg
 	if jsTruthy(config["Entrypoint"]) {
 		out["Entrypoint"] = config["Entrypoint"]
 	}
+	addPreservedConfigFields(out, config)
 	if netCfg != nil {
 		out["NetworkingConfig"] = netCfg
 	}
 	return out
+}
+
+// addPreservedConfigFields copies the Config fields that Docker's inspect
+// returns but the original Node port failed to carry over, which silently
+// stripped health checks, the run-as user, and stop behavior from every
+// recreated container (State.Health, health-gated readiness, and the UI
+// health badge all degrade after upgrade).
+func addPreservedConfigFields(out, config map[string]any) {
+	if user := jStr(config, "User"); user != "" {
+		out["User"] = user
+	}
+	if hc, ok := config["Healthcheck"].(map[string]any); ok && len(hc) > 0 {
+		out["Healthcheck"] = hc
+	}
+	if ss := jStr(config, "StopSignal"); ss != "" {
+		out["StopSignal"] = ss
+	}
+	if st, ok := config["StopTimeout"].(float64); ok && st > 0 {
+		out["StopTimeout"] = int(st)
+	}
+	for _, b := range []string{"Tty", "OpenStdin", "StdinOnce"} {
+		if v, ok := config[b].(bool); ok && v {
+			out[b] = true
+		}
+	}
 }
 
 // prepareContainerConfig is the main config-prep entry point: cleaned
@@ -682,6 +708,7 @@ func buildRecreateContainerConfig(details map[string]any, cleanHC, netCfg map[st
 	if jsTruthy(config["Entrypoint"]) {
 		out["Entrypoint"] = config["Entrypoint"]
 	}
+	addPreservedConfigFields(out, config)
 	if netCfg != nil {
 		out["NetworkingConfig"] = netCfg
 	}

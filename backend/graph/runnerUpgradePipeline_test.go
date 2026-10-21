@@ -188,6 +188,61 @@ func TestPrepareContainerConfig(t *testing.T) {
 	}
 }
 
+// Recreated containers must keep the Config fields Docker inspects but the
+// original Node port dropped: without them the new container loses its health
+// check, run-as user, and stop behavior.
+func TestPreservedConfigFields(t *testing.T) {
+	config := map[string]any{
+		"Image":       "img:1",
+		"User":        "1000:1000",
+		"Healthcheck": map[string]any{"Test": []any{"CMD-SHELL", "curl -f http://localhost/"}, "Interval": float64(30000000000), "Timeout": float64(5000000000)},
+		"StopSignal":  "SIGUSR1",
+		"StopTimeout": float64(20),
+		"Tty":         true,
+		"OpenStdin":   false,
+		"StdinOnce":   false,
+	}
+
+	out := buildUpgradeConfig(map[string]any{"Config": config}, "img:2", nil, nil, false)
+	if out["User"] != "1000:1000" {
+		t.Errorf("User = %v, want 1000:1000", out["User"])
+	}
+	if hc, ok := out["Healthcheck"].(map[string]any); !ok || hc["StopSignal"] != nil {
+		t.Errorf("Healthcheck not preserved: %v", out["Healthcheck"])
+	} else if test, _ := hc["Test"].([]any); len(test) != 2 {
+		t.Errorf("Healthcheck.Test mangled: %v", hc["Test"])
+	}
+	if out["StopSignal"] != "SIGUSR1" {
+		t.Errorf("StopSignal = %v, want SIGUSR1", out["StopSignal"])
+	}
+	if out["StopTimeout"] != 20 {
+		t.Errorf("StopTimeout = %v, want 20", out["StopTimeout"])
+	}
+	if out["Tty"] != true {
+		t.Errorf("Tty must be preserved when true")
+	}
+	if _, ok := out["OpenStdin"]; ok {
+		t.Errorf("false OpenStdin must not be added")
+	}
+
+	// Dependent-recreate path must preserve the same fields.
+	rec := buildRecreateContainerConfig(map[string]any{"Config": config}, map[string]any{"NetworkMode": "container:abc"}, nil, true)
+	if rec["User"] != "1000:1000" || rec["StopSignal"] != "SIGUSR1" {
+		t.Errorf("recreate path dropped fields: %v", rec)
+	}
+	if _, ok := rec["Healthcheck"].(map[string]any); !ok {
+		t.Errorf("recreate path dropped Healthcheck")
+	}
+
+	// Empty/absent fields must not be added.
+	empty := buildUpgradeConfig(map[string]any{"Config": map[string]any{"Image": "img:1", "User": ""}}, "img:2", nil, nil, false)
+	for _, k := range []string{"User", "Healthcheck", "StopSignal", "StopTimeout", "Tty"} {
+		if _, ok := empty[k]; ok {
+			t.Errorf("empty %s must not be added to create payload", k)
+		}
+	}
+}
+
 func TestUpgradeImageRef(t *testing.T) {
 	cases := []struct {
 		in, want string
