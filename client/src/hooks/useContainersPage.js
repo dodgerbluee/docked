@@ -120,21 +120,21 @@ export function useContainersPage({
     };
   }, [instancesToShow, containersBySource, loadingInstances]);
 
-  // Group containers by stack
+  // Group containers by stack. Keyed by source + name so identically named
+  // stacks on different runners stay separate (matches the server grouping);
+  // the label stays the bare stack name.
   const groupedStacks = useMemo(() => {
     const instanceStacks = aggregatedContainers.all.reduce((acc, container) => {
       const stackName = container.stackName || "Standalone";
-      if (!acc[stackName]) {
-        acc[stackName] = [];
+      const key = `${container.runnerId ?? container.endpointId ?? ""}|${stackName}`;
+      if (!acc[key]) {
+        acc[key] = { stackName, containers: [] };
       }
-      acc[stackName].push(container);
+      acc[key].containers.push(container);
       return acc;
     }, {});
 
-    const groups = Object.keys(instanceStacks).map((stackName) => ({
-      stackName: stackName,
-      containers: instanceStacks[stackName],
-    }));
+    const groups = Object.values(instanceStacks);
 
     groups.sort((a, b) => {
       if (a.stackName === "Standalone") return 1;

@@ -467,11 +467,19 @@ func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
 	if t == nil {
 		return nil
 	}
+	// Node reuses the github_repo column to store GitLab project paths
+	// (trackedAppService.js: "Reusing github_repo field for GitLab repos"),
+	// so gitlab-sourced apps surface that value as gitlabRepo.
+	var gitlabRepo *string
+	if t.SourceType == "gitlab" {
+		gitlabRepo = nullStrPtr(t.GithubRepo)
+	}
 	return &model.TrackedApp{
 		ID:                        strconv.FormatInt(t.ID, 10),
 		Name:                      t.Name,
 		ImageName:                 nullStrPtr(t.ImageName),
 		GithubRepo:                nullStrPtr(t.GithubRepo),
+		GitlabRepo:                gitlabRepo,
 		SourceType:                model.TrackedAppSourceType(enumConst(t.SourceType)),
 		CurrentVersion:            nullStrPtr(t.CurrentVersion),
 		CurrentDigest:             nullStrPtr(t.CurrentDigest),
@@ -596,6 +604,37 @@ func discordWebhookToModel(d *db.DiscordWebhookRow) *model.DiscordWebhook {
 		UpdatedAt:   parseTime(d.UpdatedAt),
 	}
 }
+
+// stackBucket accumulates containers of one stack group (same source + name).
+type stackBucket struct {
+	name  string
+	items []*model.Container
+}
+
+// stackGroupKey keys stack groups by their source so identically named
+// stacks on different runners/endpoints are not merged into one group with a
+// single (wrong) source.
+func stackGroupKey(row *db.ContainerRow) string {
+	name := row.StackName.String
+	switch {
+	case row.RunnerID.Valid:
+		return "r" + strconv.FormatInt(row.RunnerID.Int64, 10) + "|" + name
+	case row.EndpointID.Valid:
+		return "e" + strconv.FormatInt(row.EndpointID.Int64, 10) + "|" + name
+	default:
+		return name
+	}
+}
+
+// updatedAtOrDefault prefers the row's updated_at and falls back to
+// created_at for rows that were never updated (or synthetic live rows).
+func updatedAtOrDefault(c *db.ContainerRow) sql.NullString {
+	if c.UpdatedAt.Valid && c.UpdatedAt.String != "" {
+		return c.UpdatedAt
+	}
+	return c.CreatedAt
+}
+
 func containerRowToModel(c *db.ContainerRow) *model.Container {
 	if c == nil {
 		return nil
@@ -609,11 +648,25 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 			state = model.ContainerStateExited
 		case "restarting":
 			state = model.ContainerStateRestarting
+		case "created":
+			state = model.ContainerStateCreated
+		case "paused":
+			state = model.ContainerStatePaused
+		case "dead":
+			state = model.ContainerStateDead
 		}
 	}
 
+	// Synthetic live runner rows carry no DB primary key (ID == 0); deriving a
+	// stable key from the docker id keeps React keys and selection state from
+	// colliding across every live container.
+	id := strconv.FormatInt(c.ID, 10)
+	if c.ID == 0 && c.ContainerID != "" {
+		id = "live-" + c.ContainerID
+	}
+
 	out := &model.Container{
-		ID:                strconv.FormatInt(c.ID, 10),
+		ID:                id,
 		DockerContainerID: c.ContainerID,
 		Name:              c.ContainerName,
 		ImageName:         nullStrDefault(c.ImageName),
@@ -627,7 +680,7 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 		ProvidesNetwork:   c.ProvidesNetwork,
 		LastSeen:          parseTime(nullStrDefault(c.LastSeen)),
 		CreatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
-		UpdatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
+		UpdatedAt:         parseTime(nullStrDefault(updatedAtOrDefault(c))),
 		Source:            containerSourceFromRow(c),
 		ImageInfo:         imageInfoFromRow(c),
 	}

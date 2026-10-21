@@ -75,22 +75,21 @@ export function mapGqlContainer(c) {
 }
 
 // Group flat containers into the legacy REST stacks shape:
-// [{ name, containers }] with an "Unstacked" pseudo-stack last.
+// [{ name, containers }] with an "Unstacked" pseudo-stack last. Keyed by
+// source + name so identically named stacks on different runners stay apart.
 function deriveStacks(containers) {
   const byStack = new Map();
   const unstacked = [];
   for (const container of containers) {
     if (container.stackName) {
-      if (!byStack.has(container.stackName)) byStack.set(container.stackName, []);
-      byStack.get(container.stackName).push(container);
+      const key = `${container.runnerId ?? ""}|${container.stackName}`;
+      if (!byStack.has(key)) byStack.set(key, { name: container.stackName, containers: [] });
+      byStack.get(key).containers.push(container);
     } else {
       unstacked.push(container);
     }
   }
-  const stacks = Array.from(byStack.entries()).map(([name, stackContainers]) => ({
-    name,
-    containers: stackContainers,
-  }));
+  const stacks = Array.from(byStack.values());
   if (unstacked.length > 0) stacks.push({ name: "Unstacked", containers: unstacked });
   return stacks;
 }

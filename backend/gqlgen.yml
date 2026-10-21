@@ -61,6 +61,8 @@ models:
         resolver: true
       upgradeHistory:
         resolver: true
+      apps:
+        resolver: true
   Container:
     fields:
       upgradeHistory:

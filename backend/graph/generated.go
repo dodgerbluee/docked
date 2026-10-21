@@ -959,6 +959,7 @@ type RepositoryAccessTokenResolver interface {
 type RunnerResolver interface {
 	Containers(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.ContainerConnection, error)
 	UpgradeHistory(ctx context.Context, obj *model.Runner, first *int, after *string) (*model.UpgradeRecordConnection, error)
+	Apps(ctx context.Context, obj *model.Runner) ([]*model.RunnerApp, error)
 }
 type SubscriptionResolver interface {
 	ContainersUpdated(ctx context.Context) (<-chan *model.ContainersUpdatedEvent, error)
@@ -20563,7 +20564,7 @@ func (ec *executionContext) _Runner_apps(ctx context.Context, field graphql.Coll
 			return ec.fieldContext_Runner_apps(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Apps, nil
+			return ec.Resolvers.Runner().Apps(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.RunnerApp) graphql.Marshaler {
@@ -20577,8 +20578,8 @@ func (ec *executionContext) fieldContext_Runner_apps(_ context.Context, field gr
 	fc = &graphql.FieldContext{
 		Object:     "Runner",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_RunnerApp(ctx, field)
 		},
@@ -32371,10 +32372,43 @@ func (ec *executionContext) _Runner(ctx context.Context, sel ast.SelectionSet, o
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "apps":
-			out.Values[i] = ec._Runner_apps(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Runner_apps(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

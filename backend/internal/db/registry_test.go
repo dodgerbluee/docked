@@ -40,11 +40,11 @@ func TestRegistryDataMapMatchesGetRegistryData(t *testing.T) {
 	cases := []struct {
 		repo, tag, want string
 	}{
-		{"ghcr.io/a", "1.0", "v1.0"},   // exact tag
-		{"ghcr.io/a", "2.0", "v2.0"},   // different exact tag
-		{"ghcr.io/a", "3.0", ""},       // no exact, no fallback row
+		{"ghcr.io/a", "1.0", "v1.0"},    // exact tag
+		{"ghcr.io/a", "2.0", "v2.0"},    // different exact tag
+		{"ghcr.io/a", "3.0", ""},        // no exact, no fallback row
 		{"ghcr.io/b", "anything", "v9"}, // NULL-tag fallback
-		{"ghcr.io/missing", "1.0", ""}, // no rows at all
+		{"ghcr.io/missing", "1.0", ""},  // no rows at all
 	}
 	for _, c := range cases {
 		d := m.Get(c.repo, c.tag)

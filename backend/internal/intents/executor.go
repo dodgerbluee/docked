@@ -165,7 +165,10 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	}
 
 	// Step 4: stack-aware concurrency — sequential within a stack, parallel
-	// across stacks (standalone containers each get their own group).
+	// across stacks (standalone containers each get their own group), with
+	// the intent's max_concurrent capping how many groups run at once and
+	// sequential_delay_sec pacing upgrades within a group. (Node stored both
+	// columns but never enforced them; the contract says they should apply.)
 	type group struct {
 		containers []db.ContainerRow
 		results    []ContainerResult
@@ -193,11 +196,23 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	slog.Info("intent executor: grouped containers by stack",
 		"intentId", intent.ID, "totalContainers", len(out.Matched), "stackGroups", len(groups))
 
+	maxConcurrent := intent.MaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	seqDelay := time.Duration(intent.SequentialDelaySec) * time.Second
+	if seqDelay < 0 {
+		seqDelay = 0
+	}
+
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrent)
 	for _, g := range groups {
 		wg.Add(1)
 		go func(g *group) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			for i := range g.containers {
 				res, err := e.upgradeContainer(ctx, &g.containers[i], userID, execID, intent.ID)
 				if err != nil {
@@ -205,6 +220,14 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 					return
 				}
 				g.results = append(g.results, res)
+				if seqDelay > 0 && i < len(g.containers)-1 {
+					select {
+					case <-time.After(seqDelay):
+					case <-ctx.Done():
+						g.err = ctx.Err()
+						return
+					}
+				}
 			}
 		}(g)
 	}

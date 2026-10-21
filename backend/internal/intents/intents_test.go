@@ -140,6 +140,13 @@ func dockhand(id, name, image string, repoDigests ...string) map[string]any {
 	}
 }
 
+// withStack tags a dockhand container with its compose project — the wire
+// field the runner client maps onto StackName.
+func withStack(c map[string]any, stack string) map[string]any {
+	c["composeProject"] = stack
+	return c
+}
+
 func seedRegistry(t *testing.T, database *sql.DB, repo, tag, latestDigest string) {
 	t.Helper()
 	_, err := database.Exec(
@@ -158,7 +165,8 @@ func insertIntent(t *testing.T, database *sql.DB, fields map[string]any) *db.Int
 	for _, opt := range []struct{ col, key string }{
 		{"schedule_cron", "schedule_cron"}, {"last_evaluated_at", "last_evaluated_at"},
 		{"match_containers", "match_containers"}, {"exclude_containers", "exclude_containers"},
-		{"dry_run", "dry_run"},
+		{"dry_run", "dry_run"}, {"max_concurrent", "max_concurrent"},
+		{"sequential_delay_sec", "sequential_delay_sec"},
 	} {
 		if v, ok := fields[opt.key]; ok {
 			cols = append(cols, opt.col)
@@ -412,6 +420,83 @@ func TestExecuteIntentUpgrades(t *testing.T) {
 	}
 	if _, perr := time.Parse(isoMillis, updated.LastEvaluatedAt.String); perr != nil {
 		t.Errorf("last_evaluated_at %q not ISO millis: %v", updated.LastEvaluatedAt.String, perr)
+	}
+}
+
+func TestExecuteIntentHonorsSequentialDelayAndStackGrouping(t *testing.T) {
+	ctx := context.Background()
+	database := testDB(t)
+	seedRunner(t, database, "r1",
+		withStack(dockhand("cid-d1", "delay-one", "repo/app:latest", "repo/app@"+digestOld), "web"),
+		withStack(dockhand("cid-d2", "delay-two", "repo/app:latest", "repo/app@"+digestOld), "web"),
+		withStack(dockhand("cid-d3", "delay-three", "repo/app:latest", "repo/app@"+digestOld), "web"),
+	)
+	seedRegistry(t, database, "repo/app", "latest", digestNew)
+
+	// All three containers share one stack group, so they run sequentially
+	// with sequential_delay_sec pacing between them (2 x 1s minimum).
+	intent := insertIntent(t, database, map[string]any{
+		"name": "delayed", "schedule_type": "scheduled", "match_containers": `["delay-*"]`,
+		"max_concurrent": 4, "sequential_delay_sec": 1,
+	})
+
+	start := time.Now()
+	exec := &Executor{DB: database, Upgrade: func(ctx context.Context, userID int64, c *db.ContainerRow, rr *db.RunnerRow, imageName string) error {
+		return nil
+	}}
+	sum, err := exec.ExecuteIntent(ctx, intent, 1, ExecOptions{TriggerType: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.ContainersUpgraded != 3 {
+		t.Fatalf("summary = %+v", sum)
+	}
+	if elapsed := time.Since(start); elapsed < 2*time.Second {
+		t.Errorf("elapsed %v, want >= 2s (two 1s sequential delays)", elapsed)
+	}
+}
+
+func TestExecuteIntentCapsGroupConcurrency(t *testing.T) {
+	ctx := context.Background()
+	database := testDB(t)
+	seedRunner(t, database, "r1",
+		dockhand("cid-c1", "conc-one", "repo/app:latest", "repo/app@"+digestOld),
+		dockhand("cid-c2", "conc-two", "repo/app:latest", "repo/app@"+digestOld),
+		dockhand("cid-c3", "conc-three", "repo/app:latest", "repo/app@"+digestOld),
+	)
+	seedRegistry(t, database, "repo/app", "latest", digestNew)
+
+	// Three standalone containers = three stack groups; max_concurrent=1 must
+	// serialize them even though they are independent groups.
+	intent := insertIntent(t, database, map[string]any{
+		"name": "conc", "schedule_type": "scheduled", "match_containers": `["conc-*"]`,
+		"max_concurrent": 1, "sequential_delay_sec": 0,
+	})
+
+	var mu sync.Mutex
+	inFlight, peak := 0, 0
+	exec := &Executor{DB: database, Upgrade: func(ctx context.Context, userID int64, c *db.ContainerRow, rr *db.RunnerRow, imageName string) error {
+		mu.Lock()
+		inFlight++
+		if inFlight > peak {
+			peak = inFlight
+		}
+		mu.Unlock()
+		time.Sleep(40 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		return nil
+	}}
+	sum, err := exec.ExecuteIntent(ctx, intent, 1, ExecOptions{TriggerType: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.ContainersUpgraded != 3 {
+		t.Fatalf("summary = %+v", sum)
+	}
+	if peak > 1 {
+		t.Errorf("peak concurrency = %d, want 1 (max_concurrent=1)", peak)
 	}
 }
 

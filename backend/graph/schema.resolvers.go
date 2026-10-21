@@ -104,13 +104,25 @@ func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.Int
 		return nil, err
 	}
 	eid, _ := strconv.ParseInt(obj.ID, 10, 64)
+	limit, offset := pageArgs(first, after, 20)
 
 	rows, err := db.GetIntentExecutionContainers(ctx, r.DB, eid)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]*model.IntentExecutionContainer, len(rows))
-	for i, row := range rows {
+	// Executions carry a bounded handful of containers, so the page window
+	// is applied in memory rather than in SQL.
+	total := len(rows)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	page := rows[offset:end]
+	items := make([]*model.IntentExecutionContainer, len(page))
+	for i, row := range page {
 		items[i] = &model.IntentExecutionContainer{
 			ID:                strconv.FormatInt(row.ID, 10),
 			ExecutionID:       strconv.FormatInt(row.ExecutionID, 10),
@@ -131,8 +143,8 @@ func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.Int
 	}
 	return &model.IntentExecutionContainerConnection{
 		Items:      items,
-		TotalCount: len(items),
-		PageInfo:   buildPageInfo(len(items), len(items), len(items), 0),
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(items), total, limit, offset),
 	}, nil
 }
 
@@ -1151,6 +1163,11 @@ func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.Cre
 			githubRepo = &v
 		}
 	}
+	if githubRepo == nil && input.GitlabRepo != nil {
+		if v := strings.TrimSpace(*input.GitlabRepo); v != "" {
+			githubRepo = &v // GitLab project paths reuse the github_repo column (Node parity)
+		}
+	}
 	sourceType := dbEnumValue(string(input.SourceType))
 	if sourceType == "github" && githubRepo == nil {
 		return nil, fmt.Errorf("GitHub repository is required for GitHub source type")
@@ -1220,6 +1237,11 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 	}
 	if input.GithubRepo != nil {
 		v := strings.TrimSpace(*input.GithubRepo)
+		githubRepo = &v
+	}
+	if githubRepo == nil && input.GitlabRepo != nil {
+		// GitLab project paths reuse the github_repo column (Node parity).
+		v := strings.TrimSpace(*input.GitlabRepo)
 		githubRepo = &v
 	}
 	if input.SourceType != nil {
@@ -2450,8 +2472,9 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 	}
 	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
 
-	// Partition into stacks and standalone
-	stackMap := map[string][]*model.Container{}
+	// Partition into stacks and standalone. Stacks are keyed by source + name
+	// so identically named stacks on different runners/endpoints stay apart.
+	stackMap := map[string]*stackBucket{}
 	var standalone []*model.Container
 	withUpdates := 0
 	for i := range rows {
@@ -2461,31 +2484,37 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 			withUpdates++
 		}
 		if row.StackName.Valid && row.StackName.String != "" {
-			stackMap[row.StackName.String] = append(stackMap[row.StackName.String], c)
+			key := stackGroupKey(row)
+			b, ok := stackMap[key]
+			if !ok {
+				b = &stackBucket{name: row.StackName.String}
+				stackMap[key] = b
+			}
+			b.items = append(b.items, c)
 		} else {
 			standalone = append(standalone, c)
 		}
 	}
 
 	stacks := make([]*model.StackGroup, 0, len(stackMap))
-	for name, cs := range stackMap {
+	for key, b := range stackMap {
 		sg := &model.StackGroup{
-			ID:   name,
-			Name: name,
+			ID:   key,
+			Name: b.name,
 			Containers: &model.ContainerConnection{
-				Items:      cs,
-				TotalCount: len(cs),
-				PageInfo:   buildPageInfo(len(cs), len(cs), len(cs), 0),
+				Items:      b.items,
+				TotalCount: len(b.items),
+				PageInfo:   buildPageInfo(len(b.items), len(b.items), len(b.items), 0),
 			},
 		}
 		// Populate source and endpointId from first container in the stack
-		for _, row := range rows {
-			if row.StackName.Valid && row.StackName.String == name {
-				if row.EndpointID.Valid {
-					eid := strconv.FormatInt(row.EndpointID.Int64, 10)
+		for i := range rows {
+			if stackGroupKey(&rows[i]) == key {
+				if rows[i].EndpointID.Valid {
+					eid := strconv.FormatInt(rows[i].EndpointID.Int64, 10)
 					sg.EndpointID = &eid
 				}
-				sg.Source = containerSourceFromRow(&row)
+				sg.Source = containerSourceFromRow(&rows[i])
 				break
 			}
 		}
@@ -3255,9 +3284,40 @@ func (r *queryResolver) DebugEndpointsEnabled(ctx context.Context) (bool, error)
 	return v != nil && *v == "true", nil
 }
 
-// OauthProviders is the resolver for the oauthProviders field.
+// OauthProviders is the resolver for the oauthProviders field. Surfaces the
+// enabled providers in the public login-facing shape (no client secrets),
+// mirroring the unauthenticated GET /api/auth/oauth/providers REST endpoint
+// the login page already uses.
 func (r *queryResolver) OauthProviders(ctx context.Context) ([]*model.OAuthProvider, error) {
-	return []*model.OAuthProvider{}, nil
+	rows, err := db.GetEnabledOAuthProviders(ctx, r.DB)
+	if err != nil {
+		return nil, err
+	}
+	opt := func(s string) *string {
+		if s == "" {
+			return nil
+		}
+		return &s
+	}
+	out := make([]*model.OAuthProvider, len(rows))
+	for i, row := range rows {
+		name := row.DisplayName
+		if name == "" {
+			name = row.Name
+		}
+		out[i] = &model.OAuthProvider{
+			ID:        strconv.FormatInt(row.ID, 10),
+			Name:      name,
+			Type:      model.OAuthProviderType(enumConst(row.ProviderType)),
+			Enabled:   row.Enabled == 1,
+			IssuerURL: opt(row.IssuerURL),
+			ClientID:  opt(row.ClientID),
+			Scopes:    opt(row.Scopes),
+			CreatedAt: parseTime(row.CreatedAt),
+			UpdatedAt: parseTime(row.UpdatedAt),
+		}
+	}
+	return out, nil
 }
 
 // Logs is the resolver for the logs field.
@@ -3457,6 +3517,26 @@ func (r *runnerResolver) UpgradeHistory(ctx context.Context, obj *model.Runner, 
 		TotalCount: total,
 		PageInfo:   buildPageInfo(len(items), total, limit, offset),
 	}, nil
+}
+
+// Apps is the resolver for the apps field.
+func (r *runnerResolver) Apps(ctx context.Context, obj *model.Runner) ([]*model.RunnerApp, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rid, err := strconv.ParseInt(obj.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid runner id")
+	}
+	rr, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if rr == nil || !rr.Enabled {
+		return []*model.RunnerApp{}, nil
+	}
+	return fetchRunnerApps(ctx, *rr), nil
 }
 
 // ContainersUpdated is the resolver for the containersUpdated field.

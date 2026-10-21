@@ -143,6 +143,21 @@ CREATE TABLE runners (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE oauth_providers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  display_name TEXT NOT NULL,
+  provider_type TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret TEXT NOT NULL,
+  issuer_url TEXT NOT NULL,
+  scopes TEXT DEFAULT 'openid,profile,email',
+  auto_register INTEGER DEFAULT 1,
+  default_role TEXT DEFAULT 'Administrator',
+  enabled INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE containers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -1836,6 +1851,189 @@ func TestQueryComplexityGuard(t *testing.T) {
 	resp = env.gql(t, admin, "query { version { version } }", nil)
 	if len(resp.Errors) != 0 {
 		t.Fatalf("normal query rejected: %v", resp.Errors)
+	}
+}
+
+// --- Commit E: oauthProviders, Runner.apps, gitlabRepo wiring -------------
+
+func TestOauthProvidersQueryReturnsEnabledOnly(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+	_, err := env.database.ExecContext(ctx,
+		`INSERT INTO oauth_providers (name, display_name, provider_type, client_id, client_secret, issuer_url, enabled)
+		 VALUES ('authentik-main','Authentik SSO','authentik','cid','supersecret','https://auth.example.com',1),
+		        ('gone-oidc','Disabled One','generic_oidc','cid2','secret2','https://x.example.com',0)`)
+	if err != nil {
+		t.Fatalf("seed providers: %v", err)
+	}
+
+	tok := env.token(t, env.adminID, "admin")
+	resp := env.gql(t, tok,
+		`query { oauthProviders { id name type enabled issuerUrl clientId } }`, nil)
+	if len(resp.Errors) != 0 {
+		t.Fatalf("errors: %v", resp.Errors)
+	}
+	var providers []struct {
+		ID        string  `json:"id"`
+		Name      string  `json:"name"`
+		Type      string  `json:"type"`
+		Enabled   bool    `json:"enabled"`
+		IssuerURL *string `json:"issuerUrl"`
+		ClientID  *string `json:"clientId"`
+	}
+	if err := json.Unmarshal(resp.Data["oauthProviders"], &providers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(providers) != 1 {
+		t.Fatalf("providers = %d, want 1 (enabled only)", len(providers))
+	}
+	p := providers[0]
+	if p.Name != "Authentik SSO" || p.Type != "AUTHENTIK" || !p.Enabled {
+		t.Errorf("provider = %+v", p)
+	}
+	if p.IssuerURL == nil || *p.IssuerURL != "https://auth.example.com" {
+		t.Errorf("issuerUrl = %v", p.IssuerURL)
+	}
+	if p.ClientID == nil || *p.ClientID != "cid" {
+		t.Errorf("clientId = %v", p.ClientID)
+	}
+}
+
+func TestRunnerAppsFieldMapsRunnerPayload(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+
+	appsSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/apps" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"apps": []any{
+			map[string]any{
+				"name": "radarr", "description": "Movies", "currentVersion": "1.2.3",
+				"versionCommand":    "radarr -version",
+				"versionSource":     map[string]any{"type": "github", "repo": "Radarr/Radarr"},
+				"systemUpdateCheck": true, "systemUpdates": 3,
+				"operations": []any{
+					map[string]any{"name": "update", "description": "apt update"},
+					map[string]any{"name": ""},
+				},
+			},
+			map[string]any{"name": ""},
+		}})
+	}))
+	t.Cleanup(appsSrv.Close)
+
+	_, err := env.database.ExecContext(ctx,
+		`INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (?, 'apps-runner', ?, 'k', 1)`,
+		env.adminID, appsSrv.URL)
+	if err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
+
+	tok := env.token(t, env.adminID, "admin")
+	resp := env.gql(t, tok, `query {
+		runners { id name apps {
+			name description currentVersion versionCommand versionSource
+			systemUpdateCheck systemUpdates operations { name description }
+		} } }`, nil)
+	if len(resp.Errors) != 0 {
+		t.Fatalf("errors: %v", resp.Errors)
+	}
+	var runners []struct {
+		Name string `json:"name"`
+		Apps []struct {
+			Name              string  `json:"name"`
+			Description       *string `json:"description"`
+			CurrentVersion    *string `json:"currentVersion"`
+			VersionCommand    *string `json:"versionCommand"`
+			VersionSource     *string `json:"versionSource"`
+			SystemUpdateCheck *bool   `json:"systemUpdateCheck"`
+			SystemUpdates     *int    `json:"systemUpdates"`
+			Operations        []struct {
+				Name        string  `json:"name"`
+				Description *string `json:"description"`
+			} `json:"operations"`
+		} `json:"apps"`
+	}
+	if err := json.Unmarshal(resp.Data["runners"], &runners); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(runners) != 1 || len(runners[0].Apps) != 1 {
+		t.Fatalf("runners/apps = %+v", runners)
+	}
+	app := runners[0].Apps[0]
+	if app.Name != "radarr" || app.Description == nil || *app.Description != "Movies" {
+		t.Errorf("app = %+v", app)
+	}
+	if app.VersionSource == nil || *app.VersionSource != "github" {
+		t.Errorf("versionSource = %v, want github", app.VersionSource)
+	}
+	if app.SystemUpdateCheck == nil || !*app.SystemUpdateCheck {
+		t.Errorf("systemUpdateCheck = %v", app.SystemUpdateCheck)
+	}
+	if app.SystemUpdates == nil || *app.SystemUpdates != 3 {
+		t.Errorf("systemUpdates = %v", app.SystemUpdates)
+	}
+	if len(app.Operations) != 1 || app.Operations[0].Name != "update" {
+		t.Errorf("operations = %+v (nameless op must be dropped)", app.Operations)
+	}
+}
+
+func TestTrackedAppGitlabRepoRoundTrip(t *testing.T) {
+	env := newTestEnv(t, true)
+	tok := env.token(t, env.adminID, "admin")
+
+	resp := env.gql(t, tok, `mutation {
+		createTrackedApp(input: {
+			name: "glapp", imageName: "registry.example.com/group/proj:latest",
+			sourceType: GITLAB, gitlabRepo: "group/proj", gitlabToken: "tok"
+		}) { id gitlabRepo githubRepo sourceType } }`, nil)
+	if len(resp.Errors) != 0 {
+		t.Fatalf("create errors: %v", resp.Errors)
+	}
+	var created struct {
+		ID         string  `json:"id"`
+		GitlabRepo *string `json:"gitlabRepo"`
+		GithubRepo *string `json:"githubRepo"`
+		SourceType string  `json:"sourceType"`
+	}
+	if err := json.Unmarshal(resp.Data["createTrackedApp"], &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	c := created
+	if c.GitlabRepo == nil || *c.GitlabRepo != "group/proj" {
+		t.Fatalf("gitlabRepo = %v, want group/proj", c.GitlabRepo)
+	}
+	if c.SourceType != "GITLAB" {
+		t.Errorf("sourceType = %s", c.SourceType)
+	}
+
+	// The value is stored in the shared github_repo column (Node parity).
+	var stored string
+	if err := env.database.QueryRowContext(context.Background(),
+		"SELECT github_repo FROM tracked_apps WHERE id = ?", c.ID).Scan(&stored); err != nil {
+		t.Fatalf("read column: %v", err)
+	}
+	if stored != "group/proj" {
+		t.Errorf("github_repo column = %q, want group/proj", stored)
+	}
+
+	// Update path: gitlabRepo input rewrites the shared column.
+	resp = env.gql(t, tok, `mutation ($id: ID!) {
+		updateTrackedApp(id: $id, input: { gitlabRepo: "group/other" }) { gitlabRepo } }`,
+		map[string]any{"id": c.ID})
+	if len(resp.Errors) != 0 {
+		t.Fatalf("update errors: %v", resp.Errors)
+	}
+	var updated struct {
+		GitlabRepo *string `json:"gitlabRepo"`
+	}
+	if err := json.Unmarshal(resp.Data["updateTrackedApp"], &updated); err != nil {
+		t.Fatalf("decode update: %v", err)
+	}
+	if v := updated.GitlabRepo; v == nil || *v != "group/other" {
+		t.Errorf("updated gitlabRepo = %v, want group/other", v)
 	}
 }
 
