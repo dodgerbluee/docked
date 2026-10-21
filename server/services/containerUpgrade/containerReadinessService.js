@@ -7,37 +7,30 @@
  */
 
 const logger = require("../../utils/logger");
-const portainerService = require("../portainerService");
 
 /**
- * Get container details using the backend if provided, otherwise fall back to portainerService.
+ * Get container details through the backend service.
  */
 function getDetails(portainerUrl, endpointId, containerId, backend) {
-  if (backend?.service?.getContainerDetails) {
-    return backend.service.getContainerDetails(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
+  return backend.service.getContainerDetails(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
 /**
- * Get container logs using the backend if provided, otherwise fall back to portainerService.
+ * Get container logs through the backend service.
  */
 function getLogs(portainerUrl, endpointId, containerId, tail, backend) {
-  if (backend?.service?.getContainerLogs) {
-    return backend.service.getContainerLogs(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      tail,
-      backend.apiKey
-    );
-  }
-  return portainerService.getContainerLogs(portainerUrl, endpointId, containerId, tail);
+  return backend.service.getContainerLogs(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    tail,
+    backend.apiKey
+  );
 }
 
 /**

@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // Prevents repeated hits to runner /containers endpoints within a short window.
 // Key: sorted comma-joined runner IDs, Value: { data, timestamp }
 const _runnerContainerCache = new Map();
-const RUNNER_CACHE_TTL_MS = 120_000; // 2 minutes (matches Portainer cache)
+const RUNNER_CACHE_TTL_MS = 120_000; // 2 minutes
 
 /**
  * Build an axios config for a runner request.
@@ -60,7 +60,7 @@ async function fetchRunnerContainers(url, apiKey) {
  * @returns {Object}
  */
 function normalizeRunnerContainer(rc, runner) {
-  // Clean repoDigests to sha256-only format, matching Portainer's pipeline (imageUpdateService.js:341).
+  // Clean repoDigests to sha256-only format.
   // Docker (and dockhand) return entries like "ghcr.io/image@sha256:abc..." — strip the image prefix.
   const cleanRepoDigests = (rc.repoDigests || []).map((rd) => {
     if (rd.includes("@sha256:")) {
@@ -121,7 +121,7 @@ function normalizeRunnerContainer(rc, runner) {
     latestDigest: null,
     lastChecked: null,
 
-    // No source instance fields (runner containers don't come from Portainer)
+    // No source instance fields (legacy source columns remain null)
     sourceName: null,
     sourceUrl: null,
     endpointId: null,

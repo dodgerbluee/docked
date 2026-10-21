@@ -1,7 +1,7 @@
 /**
  * Shared scroll lock utility with reference counting.
  *
- * Multiple overlays (Modal, ContainerDebugModal, MobileDrawer) may request
+ * Multiple overlays (Modal, MobileDrawer) may request
  * body scroll lock simultaneously. Without ref-counting, the first overlay
  * to close would prematurely restore scrolling while another overlay is
  * still open.

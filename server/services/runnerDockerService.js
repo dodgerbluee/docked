@@ -2,10 +2,8 @@
  * Runner Docker Service
  *
  * HTTP client for Docker management operations on a dockhand runner.
- * Mirrors the portainerService interface so the upgrade pipeline can treat
- * both backends identically. The endpointId parameter is accepted in every
- * function signature for interface parity but is ignored — dockhand is
- * always a single-host agent.
+ * The endpointId parameter is accepted in every function signature for
+ * interface parity but is ignored — dockhand is always a single-host agent.
  *
  * Authentication: Authorization: Bearer {apiKey} (same as runnerService).
  */
@@ -184,7 +182,7 @@ async function getImages(runnerUrl, _endpointId, apiKey) {
  * @param {string} runnerUrl
  * @param {*} _endpointId - ignored
  * @param {string} imageName - Full image reference (e.g. "nginx:latest")
- * @param {*} _originalUrl - ignored (interface parity with portainerService)
+ * @param {*} _originalUrl - ignored (interface parity)
  * @param {string} apiKey
  * @returns {Promise<void>}
  */
@@ -201,14 +199,6 @@ async function pullImage(runnerUrl, _endpointId, imageName, _originalUrl, apiKey
   logger.info("runnerDockerService: image pulled", { imageName, runnerUrl });
 }
 
-// ── Stubs for interface parity (not applicable to runner backend) ──────────
-
-/** Not needed for runner — no separate auth step. */
-async function authenticatePortainer() {}
-
-/** Not needed for runner. */
-function clearAuthToken() {}
-
 module.exports = {
   // Container
   getContainers,
@@ -221,7 +211,4 @@ module.exports = {
   // Image
   getImages,
   pullImage,
-  // Stubs
-  authenticatePortainer,
-  clearAuthToken,
 };

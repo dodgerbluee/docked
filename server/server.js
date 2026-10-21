@@ -375,8 +375,6 @@ if (shouldStartServer) {
       if (process.env.NODE_ENV === "development") {
         logger.debug("Development configuration", {
           module: "server",
-          portainerUrls: config.portainer.urls,
-          portainerUsername: config.portainer.username,
           dockerHubAuthConfigured: "Configure via Settings UI",
           cacheTTL: "24 hours",
         });

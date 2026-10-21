@@ -12,80 +12,59 @@
 /* eslint-disable max-lines -- Large service file with comprehensive dependent container management */
 
 const logger = require("../../utils/logger");
-const portainerService = require("../portainerService");
-
 // ── Routing helpers ──────────────────────────────────────────────────────────
-// Each helper routes through backend.service when present, otherwise falls
-// back to portainerService. The url/endpointId params are used only for the
-// Portainer fallback path (runner paths use backend.url / backend.endpointId).
+// All calls route through backend.service (runner backend). The url/endpointId
+// params are unused pass-throughs kept for call-site stability.
 
 function svcGetContainers(url, endpointId, backend) {
-  if (backend?.service?.getContainers) {
-    return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
-  }
-  return portainerService.getContainers(url, endpointId);
+  return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
 }
 
 function svcGetContainerDetails(url, endpointId, containerId, backend) {
-  if (backend?.service?.getContainerDetails) {
-    return backend.service.getContainerDetails(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.getContainerDetails(url, endpointId, containerId);
+  return backend.service.getContainerDetails(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
 function svcStopContainer(url, endpointId, containerId, backend) {
-  if (backend?.service?.stopContainer) {
-    return backend.service.stopContainer(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.stopContainer(url, endpointId, containerId);
+  return backend.service.stopContainer(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
 function svcStartContainer(url, endpointId, containerId, backend) {
-  if (backend?.service?.startContainer) {
-    return backend.service.startContainer(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.startContainer(url, endpointId, containerId);
+  return backend.service.startContainer(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
 function svcRemoveContainer(url, endpointId, containerId, backend, force) {
-  if (backend?.service?.removeContainer) {
-    return backend.service.removeContainer(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey,
-      force
-    );
-  }
-  return portainerService.removeContainer(url, endpointId, containerId, force);
+  return backend.service.removeContainer(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey,
+    force
+  );
 }
 
 function svcCreateContainer(url, endpointId, config, name, backend) {
-  if (backend?.service?.createContainer) {
-    return backend.service.createContainer(
-      backend.url,
-      backend.endpointId,
-      config,
-      name,
-      backend.apiKey
-    );
-  }
-  return portainerService.createContainer(url, endpointId, config, name);
+  return backend.service.createContainer(
+    backend.url,
+    backend.endpointId,
+    config,
+    name,
+    backend.apiKey
+  );
 }
 
 /**

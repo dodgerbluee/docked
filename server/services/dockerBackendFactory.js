@@ -1,92 +1,46 @@
 /**
  * Docker Backend Factory
  *
- * Resolves which Docker backend service to use (Portainer or Runner) based on
- * the context provided by the caller. Returns a backend descriptor that the
- * upgrade pipeline and container management endpoints can use uniformly.
+ * Resolves the runner Docker backend service for a given runner ID and
+ * returns a backend descriptor that the upgrade pipeline and container
+ * management endpoints can use uniformly.
  *
  * Usage:
- *   const backend = await resolveBackend(userId, { portainerUrl, endpointId });
- *   // or
  *   const backend = await resolveBackend(userId, { runnerId });
  *
  *   await backend.service.stopContainer(backend.url, backend.endpointId, containerId, backend.apiKey);
  */
 
-const portainerService = require("./portainerService");
 const runnerDockerService = require("./runnerDockerService");
-const { getAllSourceInstances } = require("../db/index");
 const { getRunnerById } = require("../db/runners");
 const logger = require("../utils/logger");
 
 /**
  * @typedef {Object} BackendDescriptor
- * @property {"portainer"|"runner"} type
- * @property {Object} service        - portainerService or runnerDockerService
- * @property {string} url            - Base URL of the backend (portainerUrl or runner.url)
- * @property {string|null} endpointId  - Endpoint ID (null for runner backends)
- * @property {string|null} apiKey    - Runner API key (null for Portainer — uses token cache)
- * @property {number|null} instanceId  - source_instances.id (null for runner)
- * @property {number|null} runnerId    - runners.id (null for Portainer)
- * @property {string|null} instanceName - Display name of the backend instance
+ * @property {"runner"} type
+ * @property {Object} service        - runnerDockerService
+ * @property {string} url            - Runner base URL
+ * @property {null} endpointId       - Always null for runner backends
+ * @property {string|null} apiKey    - Runner API key
+ * @property {null} instanceId       - Always null (Portainer removed)
+ * @property {number|null} runnerId  - runners.id
+ * @property {string|null} instanceName - Display name of the runner
  */
 
 /**
  * Resolve which backend to use based on the request context.
  *
- * Pass exactly one of { portainerUrl + endpointId } or { runnerId }.
- *
  * @param {number} userId
  * @param {Object} opts
- * @param {string} [opts.portainerUrl]
- * @param {string|number} [opts.endpointId]
  * @param {number} [opts.runnerId]
  * @returns {Promise<BackendDescriptor>}
- * @throws {Error} If the referenced instance/runner is not found or not owned by userId
+ * @throws {Error} If the runner is not found or not owned by userId
  */
-async function resolveBackend(userId, { portainerUrl, endpointId, runnerId } = {}) {
-  if (runnerId) {
-    return resolveRunnerBackend(userId, runnerId);
+async function resolveBackend(userId, { runnerId } = {}) {
+  if (!runnerId) {
+    throw Object.assign(new Error("runnerId is required"), { status: 400 });
   }
-  if (portainerUrl) {
-    return resolvePortainerBackend(userId, portainerUrl, endpointId);
-  }
-  throw Object.assign(new Error("Either portainerUrl or runnerId is required"), { status: 400 });
-}
-
-/**
- * Resolve a Portainer backend and pre-authenticate.
- */
-async function resolvePortainerBackend(userId, portainerUrl, endpointId) {
-  const instances = await getAllSourceInstances(userId);
-  const instance = instances.find((inst) => inst.url === portainerUrl);
-  if (!instance) {
-    logger.warn("dockerBackendFactory: Portainer instance not found", { userId, portainerUrl });
-    throw Object.assign(new Error("Portainer instance not found or not accessible"), {
-      status: 404,
-    });
-  }
-
-  // Pre-authenticate (uses token cache internally).
-  await portainerService.authenticatePortainer({
-    portainerUrl,
-    username: instance.username,
-    password: instance.password,
-    apiKey: instance.api_key,
-    authType: instance.auth_type || "apikey",
-    skipCache: false,
-  });
-
-  return {
-    type: "portainer",
-    service: portainerService,
-    url: portainerUrl,
-    endpointId: endpointId ?? null,
-    apiKey: null,
-    instanceId: instance.id,
-    runnerId: null,
-    instanceName: instance.name,
-  };
+  return resolveRunnerBackend(userId, runnerId);
 }
 
 /**

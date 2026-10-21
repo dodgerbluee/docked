@@ -21,7 +21,6 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   onToggleSelect,
   onUpgrade,
   developerModeEnabled = false,
-  onOpenDebugModal,
   disabledMessage,
 }) {
   // Resolve the tooltip message: use explicit prop, fall back to Portainer default
@@ -30,18 +29,11 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   const { imageVersion, imageNameWithoutVersion, handleVersionClick, handleImageClick } =
     useContainerImageInfo(container);
 
-  // Handle container name click - open container details modal
+  // Handle container name click - copy name to clipboard
   const handleContainerNameClick = useCallback(
     async (e) => {
       e.stopPropagation();
 
-      // Always open container details modal if available
-      if (container.id && onOpenDebugModal) {
-        onOpenDebugModal({ id: container.id, name: container.name });
-        return;
-      }
-
-      // Fallback: copy to clipboard if modal handler not available
       if (container.name) {
         try {
           await navigator.clipboard.writeText(container.name);
@@ -52,7 +44,7 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
         }
       }
     },
-    [container.name, container.id, onOpenDebugModal]
+    [container.name]
   );
 
   // Handle card click to open upgrade/rebuild modal
@@ -120,7 +112,7 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
         <div className={styles.headerLeft}>
           <h3
             className={styles.containerName}
-            title={developerModeEnabled ? "Click to view debug info" : container.name}
+            title={container.name}
             onClick={handleContainerNameClick}
           >
             {container.name}
@@ -235,7 +227,6 @@ SourceContainerCard.propTypes = {
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
   developerModeEnabled: PropTypes.bool,
-  onOpenDebugModal: PropTypes.func,
   disabledMessage: PropTypes.string,
 };
 

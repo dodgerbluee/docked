@@ -272,7 +272,7 @@ async function executeIntent(intent, userId, options = {}) {
  * Upgrade a single container and record the result.
  * Acquires an upgrade lock before proceeding; skips the container if already locked.
  *
- * @param {Object} container - Container object (enriched with portainerUrl or runnerId)
+ * @param {Object} container - Container object (enriched with runnerId)
  * @param {number} userId - User ID
  * @param {number} executionId - Execution ID for recording
  * @param {number} intentId - Intent ID (for lock owner identification)
@@ -332,8 +332,6 @@ async function upgradeContainer(container, userId, executionId, intentId) {
 
   try {
     const result = await upgradeSingleContainer(
-      container.portainerUrl,
-      container.endpointId,
       container.containerId,
       container.imageName,
       userId,

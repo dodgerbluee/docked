@@ -2,15 +2,7 @@
  * Validation utility tests
  */
 
-const {
-  validateRequiredFields,
-  isValidContainerId,
-  isValidEndpointId,
-  isValidImageName,
-  isValidPortainerUrl,
-  validateImageArray,
-  validateContainerArray,
-} = require("../validation");
+const { validateRequiredFields, validatePathComponent, isValidEmail } = require("../validation");
 
 describe("Validation Utilities", () => {
   describe("validateRequiredFields", () => {
@@ -28,107 +20,53 @@ describe("Validation Utilities", () => {
       expect(result.error).toContain("Missing required fields");
       expect(result.missingFields).toContain("field2");
     });
-  });
 
-  describe("isValidContainerId", () => {
-    it("should return true for valid container ID", () => {
-      expect(isValidContainerId("abc123def456")).toBe(true);
-      expect(isValidContainerId("a".repeat(12))).toBe(true);
-    });
-
-    it("should return false for invalid container ID", () => {
-      expect(isValidContainerId("")).toBe(false);
-      expect(isValidContainerId("abc")).toBe(false);
-      expect(isValidContainerId(null)).toBe(false);
-      expect(isValidContainerId(undefined)).toBe(false);
+    it("should accept falsy values like 0, false and empty string", () => {
+      const body = { zero: 0, no: false, empty: "" };
+      expect(validateRequiredFields(body, ["zero", "no", "empty"])).toBeNull();
     });
   });
 
-  describe("isValidEndpointId", () => {
-    it("should return true for valid endpoint ID", () => {
-      expect(isValidEndpointId(1)).toBe(true);
-      expect(isValidEndpointId("1")).toBe(true);
-      expect(isValidEndpointId(0)).toBe(true);
+  describe("validatePathComponent", () => {
+    it("should return valid for safe alphanumeric components", () => {
+      expect(validatePathComponent("avatar")).toEqual({ valid: true, sanitized: "avatar" });
+      expect(validatePathComponent("user-1_2")).toEqual({ valid: true, sanitized: "user-1_2" });
+      expect(validatePathComponent(42)).toEqual({ valid: true, sanitized: "42" });
     });
 
-    it("should return false for invalid endpoint ID", () => {
-      expect(isValidEndpointId(null)).toBe(false);
-      expect(isValidEndpointId(undefined)).toBe(false);
-    });
-  });
-
-  describe("isValidImageName", () => {
-    it("should return true for valid image name", () => {
-      expect(isValidImageName("nginx:latest")).toBe(true);
-      expect(isValidImageName("myimage")).toBe(true);
+    it("should reject null and undefined", () => {
+      expect(validatePathComponent(null).valid).toBe(false);
+      expect(validatePathComponent(undefined).valid).toBe(false);
     });
 
-    it("should return false for invalid image name", () => {
-      expect(isValidImageName("")).toBe(false);
-      expect(isValidImageName(null)).toBe(false);
-      expect(isValidImageName(undefined)).toBe(false);
+    it("should reject path traversal and invalid characters", () => {
+      expect(validatePathComponent("../etc/passwd").valid).toBe(false);
+      expect(validatePathComponent("a/b").valid).toBe(false);
+      expect(validatePathComponent("a%2eb").valid).toBe(false);
+      expect(validatePathComponent("padded ").valid).toBe(false);
+      expect(validatePathComponent("bad!char").valid).toBe(false);
+      expect(validatePathComponent("").valid).toBe(false);
     });
   });
 
-  describe("isValidPortainerUrl", () => {
-    it("should return true for valid URLs", () => {
-      expect(isValidPortainerUrl("http://localhost:9000")).toBe(true);
-      expect(isValidPortainerUrl("https://portainer.example.com")).toBe(true);
+  describe("isValidEmail", () => {
+    it("should return true for valid email addresses", () => {
+      expect(isValidEmail("user@example.com")).toBe(true);
+      expect(isValidEmail("first.last+tag@sub.example.co.uk")).toBe(true);
     });
 
-    it("should return false for invalid URLs", () => {
-      expect(isValidPortainerUrl("not-a-url")).toBe(false);
-      expect(isValidPortainerUrl("ftp://example.com")).toBe(false);
-      expect(isValidPortainerUrl("")).toBe(false);
-    });
-  });
-
-  describe("validateImageArray", () => {
-    it("should return null for valid image array", () => {
-      const images = [{ id: "img1", portainerUrl: "http://localhost:9000", endpointId: 1 }];
-      expect(validateImageArray(images)).toBeNull();
+    it("should return false for invalid email addresses", () => {
+      expect(isValidEmail("")).toBe(false);
+      expect(isValidEmail(null)).toBe(false);
+      expect(isValidEmail(undefined)).toBe(false);
+      expect(isValidEmail("not-an-email")).toBe(false);
+      expect(isValidEmail("user@")).toBe(false);
+      expect(isValidEmail("@example.com")).toBe(false);
     });
 
-    it("should return error for empty array", () => {
-      expect(validateImageArray([])).not.toBeNull();
-      expect(validateImageArray(null)).not.toBeNull();
-    });
-
-    it("should return error for images with missing fields", () => {
-      const images = [{ id: "img1" }];
-      const result = validateImageArray(images);
-      expect(result).not.toBeNull();
-      expect(result.error).toContain("id, portainerUrl, and endpointId");
-    });
-  });
-
-  describe("validateContainerArray", () => {
-    it("should return null for valid container array", () => {
-      const containers = [
-        {
-          containerId: "abc123def456", // At least 12 characters required
-          endpointId: 1,
-          imageName: "nginx:latest",
-          portainerUrl: "http://localhost:9000",
-        },
-      ];
-      expect(validateContainerArray(containers)).toBeNull();
-    });
-
-    it("should return error for empty array", () => {
-      expect(validateContainerArray([])).not.toBeNull();
-    });
-
-    it("should return error for containers with missing fields", () => {
-      const containers = [{ containerId: "abc123def456" }];
-      const result = validateContainerArray(containers);
-      expect(result).not.toBeNull();
-      expect(result.error).toContain("Validation failed");
-      expect(result.errors).toBeDefined();
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].error).toContain(
-        "containerId, endpointId, imageName, and portainerUrl"
-      );
+    it("should reject excessively long inputs", () => {
+      const longLocal = "a".repeat(250);
+      expect(isValidEmail(`${longLocal}@example.com`)).toBe(false);
     });
   });
 });

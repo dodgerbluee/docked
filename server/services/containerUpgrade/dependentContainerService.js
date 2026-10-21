@@ -7,7 +7,6 @@
  */
 
 const logger = require("../../utils/logger");
-const portainerService = require("../portainerService");
 
 /**
  * Check if network mode matches container name
@@ -33,57 +32,43 @@ function matchesNetworkMode(networkMode, cleanContainerName) {
 }
 
 // ── Routing helpers ──────────────────────────────────────────────────────────
-// Route through backend.service when present, otherwise fall back to portainerService.
+// All calls route through backend.service (runner backend).
 
-function svcGetContainers(url, endpointId, backend) {
-  if (backend?.service?.getContainers) {
-    return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
-  }
-  return portainerService.getContainers(url, endpointId);
+function svcGetContainers(backend) {
+  return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
 }
 
-function svcGetContainerDetails(url, endpointId, containerId, backend) {
-  if (backend?.service?.getContainerDetails) {
-    return backend.service.getContainerDetails(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.getContainerDetails(url, endpointId, containerId);
+function svcGetContainerDetails(backend, containerId) {
+  return backend.service.getContainerDetails(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
-function svcStopContainer(url, endpointId, containerId, backend) {
-  if (backend?.service?.stopContainer) {
-    return backend.service.stopContainer(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.stopContainer(url, endpointId, containerId);
+function svcStopContainer(backend, containerId) {
+  return backend.service.stopContainer(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
-function svcRemoveContainer(url, endpointId, containerId, backend) {
-  if (backend?.service?.removeContainer) {
-    return backend.service.removeContainer(
-      backend.url,
-      backend.endpointId,
-      containerId,
-      backend.apiKey
-    );
-  }
-  return portainerService.removeContainer(url, endpointId, containerId);
+function svcRemoveContainer(backend, containerId) {
+  return backend.service.removeContainer(
+    backend.url,
+    backend.endpointId,
+    containerId,
+    backend.apiKey
+  );
 }
 
 /**
  * Process a single container for dependencies
  * @param {Object} params - Parameters object
  * @param {Object} params.container - Container object
- * @param {string} params.portainerUrl - Portainer URL
- * @param {string} params.endpointId - Endpoint ID
  * @param {string} params.targetContainerId - Target container ID
  * @param {string} params.cleanContainerName - Clean container name
  * @param {Object} params.backend - Backend descriptor
@@ -92,8 +77,6 @@ function svcRemoveContainer(url, endpointId, containerId, backend) {
 // eslint-disable-next-line complexity -- Container dependency processing requires multiple conditional checks
 async function processContainerForDependency({
   container,
-  portainerUrl,
-  endpointId,
   targetContainerId,
   cleanContainerName,
   backend,
@@ -103,7 +86,7 @@ async function processContainerForDependency({
   }
 
   try {
-    const details = await svcGetContainerDetails(portainerUrl, endpointId, container.Id, backend);
+    const details = await svcGetContainerDetails(backend, container.Id);
     const networkMode = details.HostConfig?.NetworkMode || "";
 
     if (matchesNetworkMode(networkMode, cleanContainerName)) {
@@ -125,32 +108,22 @@ async function processContainerForDependency({
 
 /**
  * Find containers that depend on the target container via network_mode
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
  * @param {string} targetContainerId - Container ID being upgraded
  * @param {string} targetContainerName - Container name being upgraded
  * @param {Object} backend - Backend descriptor
  * @returns {Promise<Array<Object>>} - Array of dependent containers with id and name
  */
-async function findDependentContainers(
-  portainerUrl,
-  endpointId,
-  targetContainerId,
-  targetContainerName,
-  backend
-) {
+async function findDependentContainers(targetContainerId, targetContainerName, backend) {
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 
   try {
     logger.debug(" Checking for containers that depend on this container via network_mode...");
-    const allContainers = await svcGetContainers(portainerUrl, endpointId, backend);
+    const allContainers = await svcGetContainers(backend);
     const dependentContainers = [];
 
     for (const container of allContainers) {
       const dependent = await processContainerForDependency({
         container,
-        portainerUrl,
-        endpointId,
         targetContainerId,
         cleanContainerName,
         backend,
@@ -172,18 +145,11 @@ async function findDependentContainers(
 
 /**
  * Stop and remove dependent containers before upgrading the main container
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
  * @param {Array<Object>} dependentContainers - Array of dependent containers
  * @param {Object} backend - Backend descriptor
  * @returns {Promise<void>}
  */
-async function stopAndRemoveDependentContainers(
-  portainerUrl,
-  endpointId,
-  dependentContainers,
-  backend
-) {
+async function stopAndRemoveDependentContainers(dependentContainers, backend) {
   if (dependentContainers.length === 0) {
     return;
   }
@@ -205,14 +171,14 @@ async function stopAndRemoveDependentContainers(
       );
       // Stop first, then remove
       try {
-        await svcStopContainer(portainerUrl, endpointId, container.id, backend);
+        await svcStopContainer(backend, container.id);
         logger.info(`    ${container.name} stopped`);
       } catch (stopErr) {
         logger.debug(`   Container ${container.name} may already be stopped: ${stopErr.message}`);
       }
 
       // Now remove it completely
-      await svcRemoveContainer(portainerUrl, endpointId, container.id, backend);
+      await svcRemoveContainer(backend, container.id);
       logger.info(`    ${container.name} removed`);
     } catch (err) {
       logger.warn(`     Failed to remove ${container.name}:`, { error: err });
@@ -253,8 +219,6 @@ function isInSameStack(details, stackName) {
  * Process container for restart dependencies
  * @param {Object} params - Parameters object
  * @param {Object} params.container - Container object
- * @param {string} params.portainerUrl - Portainer URL
- * @param {string} params.endpointId - Endpoint ID
  * @param {string} params.newContainerId - New container ID
  * @param {string} params.cleanContainerName - Clean container name
  * @param {string} params.stackName - Stack name
@@ -264,8 +228,6 @@ function isInSameStack(details, stackName) {
 // eslint-disable-next-line complexity -- Container restart processing requires complex dependency validation
 async function processContainerForRestart({
   container,
-  portainerUrl,
-  endpointId,
   newContainerId,
   cleanContainerName,
   stackName,
@@ -276,7 +238,7 @@ async function processContainerForRestart({
   }
 
   try {
-    const details = await svcGetContainerDetails(portainerUrl, endpointId, container.Id, backend);
+    const details = await svcGetContainerDetails(backend, container.Id);
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "exited");
     const isRunning = containerStatus === "running";
@@ -315,8 +277,6 @@ async function processContainerForRestart({
 /**
  * Find containers that should be restarted after upgrade
  * @param {Object} params - Parameters object
- * @param {string} params.portainerUrl - Portainer URL
- * @param {string} params.endpointId - Endpoint ID
  * @param {string} params.newContainerId - New container ID
  * @param {string} params.targetContainerName - Container name
  * @param {string} params.stackName - Stack name (if part of stack)
@@ -324,8 +284,6 @@ async function processContainerForRestart({
  * @returns {Promise<{networkModeContainers: Array, otherContainers: Array}>} - Dependent containers grouped by type
  */
 async function findContainersToRestart({
-  portainerUrl,
-  endpointId,
   newContainerId,
   targetContainerName,
   stackName,
@@ -335,15 +293,13 @@ async function findContainersToRestart({
 
   try {
     logger.info(` Checking for dependent containers...`);
-    const allContainers = await svcGetContainers(portainerUrl, endpointId, backend);
+    const allContainers = await svcGetContainers(backend);
     const networkModeContainers = [];
     const otherContainers = [];
 
     for (const container of allContainers) {
       const dependency = await processContainerForRestart({
         container,
-        portainerUrl,
-        endpointId,
         newContainerId,
         cleanContainerName,
         stackName,

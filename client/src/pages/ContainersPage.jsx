@@ -11,7 +11,6 @@ import SourcesSidebar from "../components/containers/SourcesSidebar";
 import ContainersTab from "../components/containers/ContainersTab";
 import UnusedTab from "../components/containers/UnusedTab";
 import UpgradeHistoryTab from "../components/containers/UpgradeHistoryTab";
-import ContainerDebugModal from "../components/containers/ContainerDebugModal";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
 import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import { useContainersPage } from "../hooks/useContainersPage";
@@ -105,9 +104,6 @@ function ContainersPage({
   const openMobileSidebar = useCallback(() => {
     setMobileSidebarOpen(true);
   }, []);
-
-  // Debug modal state - centralized at page level for better performance
-  const [debugModalContainer, setDebugModalContainer] = useState(null);
 
   // Use extracted search hook
   const { searchQuery, setSearchQuery, filteredGroupedStacks } = useContainersSearch(
@@ -309,7 +305,6 @@ function ContainersPage({
                       onToggleSelect={containersPage.handleToggleSelect}
                       onUpgrade={containersPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
-                      onOpenDebugModal={setDebugModalContainer}
                       activeUpgrades={containersPage.activeUpgrades}
                       dismissActiveUpgrade={containersPage.dismissActiveUpgrade}
                       onNavigateToLogs={onNavigateToLogs}
@@ -334,7 +329,6 @@ function ContainersPage({
                       onToggleSelect={containersPage.handleToggleSelect}
                       onUpgrade={containersPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
-                      onOpenDebugModal={setDebugModalContainer}
                       activeUpgrades={containersPage.activeUpgrades}
                       dismissActiveUpgrade={containersPage.dismissActiveUpgrade}
                       onNavigateToLogs={onNavigateToLogs}
@@ -418,16 +412,6 @@ function ContainersPage({
         containerName={errorModal.containerName}
         details={errorModal.details}
       />
-
-      {/* Container Debug Modal - Centralized at page level */}
-      {debugModalContainer && (
-        <ContainerDebugModal
-          containerId={debugModalContainer.id}
-          containerName={debugModalContainer.name}
-          onClose={() => setDebugModalContainer(null)}
-          developerModeEnabled={developerModeEnabled}
-        />
-      )}
     </div>
   );
 }

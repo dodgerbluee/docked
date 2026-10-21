@@ -108,36 +108,6 @@ const options = {
               nullable: true,
               example: "my-stack",
             },
-            portainerUrl: {
-              type: "string",
-              example: "http://portainer:9000",
-            },
-          },
-        },
-        PortainerInstance: {
-          type: "object",
-          properties: {
-            id: {
-              type: "integer",
-              example: 1,
-            },
-            url: {
-              type: "string",
-              example: "http://portainer:9000",
-            },
-            name: {
-              type: "string",
-              example: "Local Portainer",
-            },
-            authType: {
-              type: "string",
-              enum: ["apikey", "basic"],
-              example: "apikey",
-            },
-            displayOrder: {
-              type: "integer",
-              example: 0,
-            },
           },
         },
         TrackedApp: {

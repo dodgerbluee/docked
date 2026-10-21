@@ -24,14 +24,6 @@ function checkIsLocalhost(req) {
 
 const config = {
   port: process.env.PORT || 3001,
-  portainer: {
-    urls: (process.env.PORTAINER_URL || process.env.PORTAINER_URLS || "http://localhost:9000")
-      .split(",")
-      .map((url) => url.trim())
-      .filter((url) => url.length > 0),
-    username: process.env.PORTAINER_USERNAME || "admin",
-    password: process.env.PORTAINER_PASSWORD ? String(process.env.PORTAINER_PASSWORD) : "",
-  },
   cache: {
     digestCacheTTL: 24 * 60 * 60 * 1000, // 24 hours
   },
