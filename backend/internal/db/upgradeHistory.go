@@ -68,8 +68,8 @@ func GetUpgradeHistoryStats(ctx context.Context, database *sql.DB, userID int64)
 	var s UpgradeHistoryStats
 	err := database.QueryRowContext(ctx,
 		`SELECT COUNT(*),
-			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
+			COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0),
 			AVG(upgrade_duration_ms), MIN(created_at), MAX(created_at)
 		 FROM upgrade_history WHERE user_id = ?`, userID).
 		Scan(&s.Total, &s.Successful, &s.Failed, &s.AvgDuration, &s.FirstUpgrade, &s.LastUpgrade)

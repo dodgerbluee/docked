@@ -204,9 +204,9 @@ func TestGetDockerHubRepoUrl(t *testing.T) {
 
 func TestValidateWebhookURL(t *testing.T) {
 	good := "https://discord.com/api/webhooks/123456789/AbC-_9xY"
-	safe, err := validateWebhookURL(good)
+	safe, err := ValidateWebhookURL(good)
 	if err != nil || safe != good {
-		t.Errorf("validateWebhookURL(%q) = (%q, %v)", good, safe, err)
+		t.Errorf("ValidateWebhookURL(%q) = (%q, %v)", good, safe, err)
 	}
 
 	bad := []string{
@@ -217,13 +217,13 @@ func TestValidateWebhookURL(t *testing.T) {
 		"http://discordapp.com/api/webhooks/1/a",
 	}
 	for _, u := range bad {
-		if _, err := validateWebhookURL(u); err == nil {
-			t.Errorf("validateWebhookURL(%q) should fail", u)
+		if _, err := ValidateWebhookURL(u); err == nil {
+			t.Errorf("ValidateWebhookURL(%q) should fail", u)
 		}
 	}
 
 	// discordapp.com host is allowed.
-	if _, err := validateWebhookURL("https://discordapp.com/api/webhooks/1/a"); err != nil {
+	if _, err := ValidateWebhookURL("https://discordapp.com/api/webhooks/1/a"); err != nil {
 		t.Errorf("discordapp.com should be allowed: %v", err)
 	}
 }

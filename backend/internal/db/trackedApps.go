@@ -358,8 +358,8 @@ func GetTrackedAppUpgradeHistoryStats(ctx context.Context, database *sql.DB, use
 	var s TrackedAppUpgradeStats
 	err := database.QueryRowContext(ctx,
 		`SELECT COUNT(*),
-			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
+			COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0),
 			AVG(upgrade_duration_ms), MIN(created_at), MAX(created_at),
 			COUNT(DISTINCT app_name)
 		 FROM tracked_app_upgrade_history WHERE user_id = ?`, userID).

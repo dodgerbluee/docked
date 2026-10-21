@@ -1603,7 +1603,7 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 		}
 		acquire, execute = r.Sync.AppVersionAcquire, r.Sync.AppVersionExecuteAndComplete
 	default:
-		return nil, fmt.Errorf("batch job %s is not supported by the Go API; use the primary server", jt)
+		return nil, fmt.Errorf("batch job %s is not supported by the Go API", jt)
 	}
 	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
 		return nil, err
@@ -1769,9 +1769,9 @@ func (r *mutationResolver) TestDiscordWebhook(ctx context.Context, id string) (*
 		return nil, fmt.Errorf("webhook not found")
 	}
 
-	status, _, err := httpPostJSON(webhook.WebhookURL, map[string]any{
+	status, _, err := discordWebhookPost(webhook.WebhookURL, map[string]any{
 		"content": "✅ Docked test webhook successful!",
-	}, "")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("discord request failed: %w", err)
 	}
@@ -1788,9 +1788,9 @@ func (r *mutationResolver) TestDiscordWebhookURL(ctx context.Context, webhookURL
 		return nil, err
 	}
 
-	status, _, err := httpPostJSON(webhookURL, map[string]any{
+	status, _, err := discordWebhookPost(webhookURL, map[string]any{
 		"content": "✅ Docked test webhook successful!",
-	}, "")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("discord request failed: %w", err)
 	}
@@ -3097,7 +3097,7 @@ func (r *queryResolver) DiscordWebhookInfo(ctx context.Context, webhookURL strin
 		return nil, fmt.Errorf("webhook URL is required")
 	}
 
-	status, body, err := httpGet(webhookURL)
+	status, body, err := discordWebhookGet(webhookURL)
 	if err != nil {
 		return nil, fmt.Errorf("fetch webhook info: %w", err)
 	}
@@ -3224,8 +3224,9 @@ func (r *queryResolver) OauthProviders(ctx context.Context) ([]*model.OAuthProvi
 
 // Logs is the resolver for the logs field.
 func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *string, offset *int) (*model.LogResult, error) {
-	_, err := requireUser(ctx)
-	if err != nil {
+	// Admin-only: Node exposed log files solely through the admin-gated debug
+	// controller; the GraphQL surface must not be weaker than that gate.
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
 		return nil, err
 	}
 

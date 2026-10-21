@@ -20,6 +20,7 @@ import (
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/imagesync"
 )
 
 // jsLen returns the length of s in UTF-16 code units, which is exactly what
@@ -811,6 +812,9 @@ func pageArgs(first *int, after *string, defaultLimit int) (limit, offset int) {
 	}
 	if after != nil && *after != "" {
 		offset, _ = strconv.Atoi(*after)
+		if offset < 0 {
+			offset = 0
+		}
 	}
 	return limit, offset
 }
@@ -847,7 +851,11 @@ func maskURL(url string) string {
 	if len(url) <= 10 {
 		return "***"
 	}
-	return url[:20] + "..."
+	end := 20
+	if end > len(url) {
+		end = len(url)
+	}
+	return url[:end] + "..."
 }
 func joinStr(parts []string, sep string) string {
 	result := ""
@@ -879,6 +887,54 @@ func httpPostJSON(url string, payload any, bearerToken string) (int, []byte, err
 }
 func httpGet(url string) (int, []byte, error) {
 	resp, err := http.Get(url)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
+// discordHTTPClient re-validates redirect targets: a webhook request must
+// land on a whitelisted Discord webhook endpoint even after a redirect
+// (Node re-parsed the URL right before use; this closes the redirect hole).
+var discordHTTPClient = &http.Client{
+	Timeout: 15 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		_, err := imagesync.ValidateWebhookURL(req.URL.String())
+		return err
+	},
+}
+
+// discordWebhookGet issues a GET against a validated + reconstructed
+// Discord webhook URL (same SSRF guard as notification delivery, ported
+// from Node's getWebhookInfo).
+func discordWebhookGet(webhookURL string) (int, []byte, error) {
+	safeURL, err := imagesync.ValidateWebhookURL(webhookURL)
+	if err != nil {
+		return 0, nil, err
+	}
+	resp, err := discordHTTPClient.Get(safeURL)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
+// discordWebhookPost is the POST twin of discordWebhookGet (Node's
+// sendNotificationWithRetry guard).
+func discordWebhookPost(webhookURL string, payload any) (int, []byte, error) {
+	safeURL, err := imagesync.ValidateWebhookURL(webhookURL)
+	if err != nil {
+		return 0, nil, err
+	}
+	body, _ := json.Marshal(payload)
+	resp, err := discordHTTPClient.Post(safeURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return 0, nil, err
 	}

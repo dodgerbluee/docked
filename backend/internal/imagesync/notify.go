@@ -374,9 +374,10 @@ func formatPublishDate(raw string) string {
 
 var webhookPathRe = regexp.MustCompile(`^/api/webhooks/(\d+)/([A-Za-z0-9_-]+)$`)
 
-// validateWebhookURL ports the URL validation + reconstruction in
+// ValidateWebhookURL ports the URL validation + reconstruction in
 // sendNotificationWithRetry (SSRF guard: whitelisted host + validated parts).
-func validateWebhookURL(webhookURL string) (string, error) {
+// Exported so the graph's webhook test/info endpoints share the guard.
+func ValidateWebhookURL(webhookURL string) (string, error) {
 	u, err := url.Parse(strings.TrimSpace(webhookURL))
 	if err != nil {
 		return "", fmt.Errorf("invalid webhook URL format")
@@ -402,7 +403,7 @@ func validateWebhookURL(webhookURL string) (string, error) {
 var webhookTransport http.RoundTripper
 
 func sendWithRetry(ctx context.Context, webhookURL string, payload map[string]any) error {
-	safeURL, err := validateWebhookURL(webhookURL)
+	safeURL, err := ValidateWebhookURL(webhookURL)
 	if err != nil {
 		return err
 	}

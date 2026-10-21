@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -412,6 +413,38 @@ func TestRoleAdminWithoutInstanceAdminDenied(t *testing.T) {
 	if r := env.gql(t, tok, `mutation($id: ID!, $role: Role!){ setUserRole(userId: $id, role: $role){ success } }`,
 		map[string]any{"id": strconv.FormatInt(env.adminID, 10), "role": "MEMBER"}); !r.hasErrorContaining("insufficient privileges") {
 		t.Fatalf("role-only Administrator must not change roles, got: %+v", r)
+	}
+}
+
+// TestLogsQueryAdminOnly guards the log-read gate: Node exposed log files
+// only through the admin-gated debug controller, so the GraphQL logs query
+// must require instance admin, not merely any authenticated user.
+func TestLogsQueryAdminOnly(t *testing.T) {
+	env := newTestEnv(t, true)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "combined.log"), []byte("secret log line\n"), 0o644); err != nil {
+		t.Fatalf("seed log file: %v", err)
+	}
+	t.Setenv("LOGS_DIR", dir)
+
+	member := env.token(t, env.memberID, "member")
+	if r := env.gql(t, member, `{ logs(file: "combined.log", offset: 0) { logs } }`, nil); !r.hasErrorContaining("insufficient privileges") {
+		t.Fatalf("member logs query should be denied, got: %+v", r)
+	}
+
+	admin := env.token(t, env.adminID, "admin")
+	r := env.gql(t, admin, `{ logs(file: "combined.log", offset: 0) { logs } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("admin logs query errored: %+v", r.Errors)
+	}
+	var out struct {
+		Logs string `json:"logs"`
+	}
+	if err := json.Unmarshal(r.Data["logs"], &out); err != nil {
+		t.Fatalf("decode logs: %v", err)
+	}
+	if !strings.Contains(out.Logs, "secret log line") {
+		t.Fatalf("admin logs query returned %q, want file contents", out.Logs)
 	}
 }
 
