@@ -5,14 +5,25 @@ set -e
 docked-graphql &
 GO_PID=$!
 
-# Give Go backend a moment to start
-sleep 1
-
-# Fail fast: the Go backend is a hard dependency (GraphQL, subscriptions,
-# event bridge). Continuing without it only hides the breakage behind
-# failing /graphql proxies, and the container would look healthy.
-if ! kill -0 $GO_PID 2>/dev/null; then
-  echo "FATAL: Go GraphQL backend failed to start" >&2
+# Wait for the Go backend to finish database migrations and start listening
+# (it opens its port only after migrating). Starting Node before that let
+# Node's legacy migration runner race Go's on fresh or old databases.
+READY=0
+i=0
+while [ $i -lt 120 ]; do
+  if nc -z 127.0.0.1 4000 2>/dev/null; then
+    READY=1
+    break
+  fi
+  if ! kill -0 $GO_PID 2>/dev/null; then
+    echo "FATAL: Go GraphQL backend failed to start" >&2
+    exit 1
+  fi
+  sleep 0.5
+  i=$((i + 1))
+done
+if [ "$READY" -ne 1 ]; then
+  echo "FATAL: Go GraphQL backend did not become ready in time" >&2
   exit 1
 fi
 

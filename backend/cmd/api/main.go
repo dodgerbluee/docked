@@ -40,6 +40,15 @@ func main() {
 	}
 	defer database.Close()
 
+	// Own the full schema: Node's ensure block + versioned migrations, ported
+	// to Go (internal/db/migrate.go). Runs before the listener opens, so the
+	// entrypoint can treat "port is up" as "migrations are done" and Node's
+	// legacy migration runner never races us on fresh or old databases.
+	if err := db.Migrate(context.Background(), database); err != nil {
+		slog.Error("failed to migrate database", "path", cfg.DBPath, "error", err)
+		os.Exit(1)
+	}
+
 	// Event hub shared by subscription resolvers, the Node bridge, and the
 	// container-sync service.
 	hub := events.NewHub()

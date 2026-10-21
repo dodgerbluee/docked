@@ -118,7 +118,7 @@
         updated: "2026-10-21",
         prodVersion: "3.29.3-dev",
         nodeLoc: 29326, // server/ JS excl. __tests__
-        goLoc: 71901,   // backend/ Go incl. generated
+        goLoc: 74074,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -147,6 +147,7 @@
           { name: "WS bridge (graphqlWsProxy)", status: "node", phase: 8, note: "dies when proxy points /graphql at Go directly" },
           { name: "Debug router", status: "node", phase: 8, note: "port to Go or retire at cutover" },
           { name: "health / version", status: "node", phase: 8, note: "stays REST — becomes Go plain-HTTP handlers" },
+          { name: "DB migration system", status: "go", note: "ensureSchema + 15 migrations ported (internal/db/migrate*.go); entrypoint gates Node on Go readiness" },
 
           { name: "Node db/ layer (per domain)", status: "dead", note: "sunsets domain-by-domain as routes migrate" },
           { name: "dockerHubImageVersions (legacy)", status: "dead", note: "read-only legacy table; Go writes registry_image_versions" },
@@ -173,6 +174,7 @@
           { n: "6c", name: "App-version scan + triggerBatchJob gap → Go", done: true },
           { n: "7a-c", name: "Auth REST + config export + avatars → Go", done: true },
           { n: "7d", name: "OAuth/SSO → Go (OIDC flow + linking)", done: true },
+          { n: "8a", name: "DB migration system → Go (ensure block + 15 migrations)", done: true },
           { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
         ],
         punch: [

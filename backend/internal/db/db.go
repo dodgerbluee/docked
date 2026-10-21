@@ -16,7 +16,7 @@ func Open(path string) (*sql.DB, error) {
 	// syntax and is silently ignored here). Using the wrong form meant WAL and
 	// the busy timeout were never actually installed.
 	dsn := fmt.Sprintf(
-		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=cache_size(-8000)",
+		"file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=cache_size(-8000)",
 		path,
 	)
 
@@ -77,8 +77,8 @@ func Open(path string) (*sql.DB, error) {
 		code_verifier TEXT NOT NULL,
 		nonce TEXT NOT NULL,
 		redirect_uri TEXT,
-		provider_name TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		provider_name TEXT
 	)`); err != nil {
 		return nil, fmt.Errorf("ensure oauth states: %w", err)
 	}
