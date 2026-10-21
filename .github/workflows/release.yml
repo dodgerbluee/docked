@@ -69,19 +69,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
-
-      - name: Run server tests
-        run: |
-          cd server
-          npm test -- --coverage --watchAll=false
+          cd client && npm ci
 
       - name: Run client tests
         run: |
@@ -91,8 +84,8 @@ jobs:
       - name: Upload test coverage
         uses: codecov/codecov-action@v5
         with:
-          files: ./server/coverage/coverage-final.json,./client/coverage/coverage-final.json
-          flags: server,client
+          files: ./client/coverage/coverage-final.json
+          flags: client
           name: test-coverage
 
   # Security scanning
@@ -110,20 +103,17 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Run npm audit
         run: |
           npm audit --audit-level=moderate
-          cd server && npm audit --audit-level=moderate
-          cd ../client && npm audit --audit-level=moderate
+          cd client && npm audit --audit-level=moderate
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
@@ -152,14 +142,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Commit version update to repository
         run: |
@@ -176,15 +164,13 @@ jobs:
           # Update version in package.json files on the branch
           VERSION="${{ needs.version.outputs.version }}"
           npm pkg set version="$VERSION"
-          cd server && npm pkg set version="$VERSION"
-          cd ../client && npm pkg set version="$VERSION"
-          cd ../..
+          cd client && npm pkg set version="$VERSION"
 
           # Check if there are changes to commit
-          if git diff --quiet package.json server/package.json client/package.json; then
+          if git diff --quiet package.json client/package.json; then
             echo "No version changes to commit (version already up to date)"
           else
-            git add package.json server/package.json client/package.json
+            git add package.json client/package.json
             git commit -m "chore: bump version to $VERSION [skip ci]"
             git push origin $DEFAULT_BRANCH
             echo "✓ Committed version update to $VERSION on $DEFAULT_BRANCH"
@@ -198,10 +184,8 @@ jobs:
           VERSION="${{ needs.version.outputs.version }}"
           # Update root package.json
           npm pkg set version="$VERSION"
-          # Update server package.json
-          cd server && npm pkg set version="$VERSION"
           # Update client package.json
-          cd ../client && npm pkg set version="$VERSION"
+          cd client && npm pkg set version="$VERSION"
 
       - name: Build client
         run: |
@@ -279,9 +263,7 @@ jobs:
           git fetch origin
           # Update version in package.json files
           npm pkg set version="$VERSION"
-          cd server && npm pkg set version="$VERSION"
-          cd ../client && npm pkg set version="$VERSION"
-          cd ..
+          cd client && npm pkg set version="$VERSION"
           echo "✓ Version updated to $VERSION"
 
       - name: Set up Docker Buildx

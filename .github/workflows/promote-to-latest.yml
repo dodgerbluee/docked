@@ -128,11 +128,8 @@ jobs:
           echo "Updating version to $RELEASE_VERSION in all package.json files"
           # Update root package.json
           npm pkg set version="$RELEASE_VERSION"
-          # Update server package.json
-          cd server && npm pkg set version="$RELEASE_VERSION"
           # Update client package.json
-          cd ../client && npm pkg set version="$RELEASE_VERSION"
-          cd ..
+          cd client && npm pkg set version="$RELEASE_VERSION"
           echo "✓ Version updated to $RELEASE_VERSION"
 
       - name: Commit version update
@@ -142,10 +139,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Check if there are changes to commit
-          if git diff --quiet package.json server/package.json client/package.json; then
+          if git diff --quiet package.json client/package.json; then
             echo "No version changes to commit"
           else
-            git add package.json server/package.json client/package.json
+            git add package.json client/package.json
             git commit -m "chore: bump version to ${{ steps.version.outputs.release_version }} [skip ci]"
             # Get the current branch
             BRANCH=$(git rev-parse --abbrev-ref HEAD)

@@ -91,22 +91,15 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Run npm audit (root)
         run: npx better-npm-audit audit --level moderate
-
-      - name: Run npm audit (server)
-        run: |
-          cd server
-          npx better-npm-audit audit --level moderate
 
       - name: Run npm audit (client)
         run: |
@@ -128,7 +121,6 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Set up Go
@@ -140,9 +132,8 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
-          cd ../backend && go mod download
+          cd client && npm ci
+          cd backend && go mod download
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
@@ -186,14 +177,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Build client
         env:

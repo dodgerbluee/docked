@@ -194,14 +194,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Update version in package.json files
         run: |
@@ -209,19 +207,17 @@ jobs:
           DEV_VERSION_WITH_SUFFIX="${DEV_VERSION}-dev"
           echo "Updating version to $DEV_VERSION_WITH_SUFFIX in all package.json files"
           npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd server && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd ../client && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd ..
+          cd client && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
 
       - name: Commit version update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet package.json server/package.json client/package.json; then
+          if git diff --quiet package.json client/package.json; then
             echo "No version changes to commit"
           else
-            git add package.json server/package.json client/package.json
+            git add package.json client/package.json
             git commit -m "chore: bump version to ${{ needs.prepare-release.outputs.dev_version }}-dev [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
             echo "✓ Committed version update to ${{ needs.prepare-release.outputs.dev_version }}-dev"
@@ -262,9 +258,7 @@ jobs:
           git fetch origin
           # Update version in package.json files (in case update-version job hasn't committed yet)
           npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd server && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd ../client && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
-          cd ..
+          cd client && npm pkg set version="$DEV_VERSION_WITH_SUFFIX"
           echo "✓ Version set to $DEV_VERSION_WITH_SUFFIX for Docker build"
 
       - name: Set up Docker Buildx

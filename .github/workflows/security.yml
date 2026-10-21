@@ -30,22 +30,15 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Run npm audit (root)
         run: npx better-npm-audit audit --level moderate
-
-      - name: Run npm audit (server)
-        run: |
-          cd server
-          npx better-npm-audit audit --level moderate
 
       - name: Run npm audit (client)
         run: |
@@ -67,14 +60,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master

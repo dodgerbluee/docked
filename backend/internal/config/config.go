@@ -91,7 +91,7 @@ type OAuthConfig struct {
 func Load() *Config {
 	loadDotenv()
 	return &Config{
-		Addr:      env("ADDR", ":4000"),
+		Addr:      addr(),
 		DBPath:    dbPath(),
 		JWTSecret: env("JWT_SECRET", "change-this-secret-in-production-use-strong-random-string"),
 		DockedURL: env("DOCKED_URL", ""),
@@ -117,7 +117,7 @@ func Load() *Config {
 func loadEdge() EdgeConfig {
 	nodeEnv := env("NODE_ENV", "development")
 	https := os.Getenv("HTTPS") == "true" || os.Getenv("PROTOCOL") == "https"
-	port := portFromAddr(env("ADDR", ":4000"))
+	port := portFromAddr(addr())
 	// Node: port < 10000 && !HTTPS counts as localhost development.
 	localhost := port < 10000 && !https
 
@@ -207,4 +207,17 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// addr resolves the listen address: explicit ADDR wins, then PORT (the
+// Node-era convention, still set by docker-compose deployments), then :4000.
+// The container image bakes PORT=3001 (not ADDR) so compose PORT overrides work.
+func addr() string {
+	if a := os.Getenv("ADDR"); a != "" {
+		return a
+	}
+	if p := os.Getenv("PORT"); p != "" {
+		return ":" + p
+	}
+	return ":4000"
 }

@@ -77,14 +77,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Get version from dev or override
         id: version
@@ -181,30 +179,25 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         if: github.event.inputs.skip_security_scans != 'true'
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Run tests
         if: github.event.inputs.skip_security_scans != 'true'
         run: |
-          cd server
-          npm test -- --coverage --watchAll=false
-          cd ../client
+          cd client
           npm test -- --coverage
 
       - name: Run security scans
         if: github.event.inputs.skip_security_scans != 'true'
         run: |
           npm audit --audit-level=moderate
-          cd server && npm audit --audit-level=moderate
-          cd ../client && npm audit --audit-level=moderate
+          cd client && npm audit --audit-level=moderate
 
   # Job 3: Build application and create artifacts
   build:
@@ -224,23 +217,19 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
-            server/package-lock.json
             client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Update version in package.json files
         run: |
           RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
           echo "Updating version to $RELEASE_VERSION in all package.json files"
           npm pkg set version="$RELEASE_VERSION"
-          cd server && npm pkg set version="$RELEASE_VERSION"
-          cd ../client && npm pkg set version="$RELEASE_VERSION"
-          cd ..
+          cd client && npm pkg set version="$RELEASE_VERSION"
 
       - name: Build client
         run: |
@@ -315,9 +304,7 @@ jobs:
           echo "Updating version to $RELEASE_VERSION in all package.json files for Docker build"
           git fetch origin
           npm pkg set version="$RELEASE_VERSION"
-          cd server && npm pkg set version="$RELEASE_VERSION"
-          cd ../client && npm pkg set version="$RELEASE_VERSION"
-          cd ..
+          cd client && npm pkg set version="$RELEASE_VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -364,16 +351,13 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
-          cd ../client && npm ci
+          cd client && npm ci
 
       - name: Update version in package.json files
         run: |
           RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
           npm pkg set version="$RELEASE_VERSION"
-          cd server && npm pkg set version="$RELEASE_VERSION"
-          cd ../client && npm pkg set version="$RELEASE_VERSION"
-          cd ..
+          cd client && npm pkg set version="$RELEASE_VERSION"
 
       - name: Generate changelog
         id: changelog
@@ -387,10 +371,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet package.json server/package.json client/package.json; then
+          if git diff --quiet package.json client/package.json; then
             echo "No version changes to commit"
           else
-            git add package.json server/package.json client/package.json
+            git add package.json client/package.json
             git commit -m "chore: promote dev to production v${{ needs.prepare-promotion.outputs.release_version }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
             echo "✓ Committed version update to ${{ needs.prepare-promotion.outputs.release_version }}"

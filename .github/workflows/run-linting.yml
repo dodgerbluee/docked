@@ -14,37 +14,6 @@ on:
         default: false
 
 jobs:
-  eslint-server:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
-            server/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          npm ci
-          cd server && npm ci
-
-      # ESLint server step disabled — server eslint config needs cleanup first
-      # - name: Run ESLint (server)
-      #   run: |
-      #     cd server
-      #     if [ -f "node_modules/.bin/eslint" ]; then
-      #       npx eslint . --ext .js
-      #     else
-      #       echo "ESLint not found in server/node_modules/.bin/eslint"
-      #       exit 1
-      #     fi
-
   eslint-client:
     runs-on: ubuntu-latest
     steps:
