@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dockedapp/backend/internal/api"
+	"github.com/dockedapp/backend/internal/api/handlers"
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
@@ -48,6 +49,10 @@ func main() {
 
 	// Batch scheduler (docker-hub-pull) runs alongside the HTTP server.
 	go scheduler.New(syncSvc).Start(ctx)
+
+	// Enrollment token housekeeping (DB cleanup + in-memory sweep), the Go
+	// twin of Node runnerController's startup cleanup + 30-minute interval.
+	go handlers.StartEnrollmentMaintenance(ctx, database)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,

@@ -198,10 +198,34 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Keep legacy REST routes under /api for backward compat during transition
+	// Runner agent protocol + enrollment endpoints (migrated from Node's
+	// runnerController). Node proxies /api/runners/* here during the
+	// transition; qbit-proxy points straight at Go once Node retires.
+	// Limiter budgets mirror Node's express-rate-limit placement:
+	// publicLimiter (20/15min) on the unauthenticated agent endpoints,
+	// writeLimiter (30/15min) on enrollment creation.
+	agentLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
+	writeLimiter := apimiddleware.NewRateLimiter(30, 15*time.Minute, 10000)
+
 	r.Route("/api", func(r chi.Router) {
-		r.Use(auth.Middleware(cfg.JWTSecret))
-		// Legacy routes can be added here during migration
+		// Agent endpoints: unauthenticated (dockhand authenticates via
+		// enrollment token / API key inside the handlers).
+		r.Group(func(r chi.Router) {
+			r.Use(apimiddleware.RateLimit(agentLimiter, apimiddleware.RESTTooManyRequests))
+			r.Get("/runners/install/{token}", handlers.ServeInstallScript(cfg.DockedURL))
+			r.Post("/runners/register", handlers.RegisterRunner(database))
+			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database))
+			r.Post("/runners/re-enroll", handlers.ReEnrollRunner(database))
+		})
+
+		// Browser-facing enrollment endpoints behind the strict auth twin of
+		// Node's authenticate (signature + user exists + not revoked).
+		r.Group(func(r chi.Router) {
+			r.Use(auth.StrictMiddleware(cfg.JWTSecret, database))
+			r.With(apimiddleware.RateLimit(writeLimiter, apimiddleware.RESTTooManyRequests)).
+				Post("/runners/enrollment", handlers.CreateEnrollment(database, cfg.DockedURL))
+			r.Get("/runners/enrollment-status", handlers.EnrollmentStatus(database))
+		})
 	})
 
 	slog.Info("GraphQL server ready", "endpoint", "/graphql", "playground", "/playground")

@@ -13,6 +13,11 @@ type Config struct {
 	// JWTSecret is the HS256 signing secret, shared with the Node.js backend.
 	JWTSecret string
 
+	// DockedURL is the explicit externally-reachable server URL (DOCKED_URL),
+	// used by the runner install/enrollment endpoints. Empty means "derive
+	// from request headers", matching Node's runnerController behaviour.
+	DockedURL string
+
 	// Debug enables verbose debug logging (set DEBUG=true).
 	Debug bool
 }
@@ -27,6 +32,7 @@ func Load() *Config {
 		Addr:      env("ADDR", ":4000"),
 		DBPath:    dbPath(),
 		JWTSecret: env("JWT_SECRET", "change-this-secret-in-production-use-strong-random-string"),
+		DockedURL: env("DOCKED_URL", ""),
 		Debug:     os.Getenv("DEBUG") == "true",
 	}
 }

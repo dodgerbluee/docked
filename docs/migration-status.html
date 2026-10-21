@@ -116,9 +116,9 @@
       // ─────────────────────────────────────────────────────────────────────────
       const DATA = {
         updated: "2026-10-21",
-        prodVersion: "3.26.1-dev",
-        nodeLoc: 29041, // server/ JS excl. tests+migrations
-        goLoc: 58852,   // backend/ Go excl. generated
+        prodVersion: "3.26.4-dev",
+        nodeLoc: 30142, // server/ JS excl. __tests__
+        goLoc: 60724,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -133,8 +133,9 @@
           { name: "REST container routes", status: "removed", note: "list/pull/batch/upgrade/debug/batch-trigger pruned" },
           { name: "Dead Node read stack", status: "removed", note: "containerService cluster, portainerService, repos, validators" },
 
-          { name: "Runner agent protocol", status: "node", phase: 4, note: "register/heartbeat/enroll/SSE upgrade/operations/apps" },
-          { name: "Runner version poller", status: "node", phase: 4, note: "runnerVersionPoller.js" },
+          { name: "Runner agent protocol + enrollment", status: "go", note: "install/register/heartbeat/re-enroll/enrollment in Go; Node = edge limiters + streaming proxy" },
+          { name: "Runner user proxy routes", status: "node", phase: 4, note: "operations/apps/history + 3 SSE streams (Commit B)" },
+          { name: "Runner version poller", status: "node", phase: 4, note: "runnerVersionPoller.js (phase 4c → Go scheduler)" },
           { name: "Tracked apps + scanning", status: "node", phase: 5, note: "batch handlers, registry providers, github/gitlab services" },
           { name: "Discord: tracked apps", status: "node", phase: 5, note: "discordService.js (container half already in Go)" },
           { name: "Intents engine (Node)", status: "node", phase: 6, note: "evaluator/executor/matching; portainer:<id> keys need migration care" },

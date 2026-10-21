@@ -84,6 +84,29 @@ func GraphQLTooManyRequests(w http.ResponseWriter) {
 	w.Write([]byte(`{"errors":[{"message":"too many requests; please slow down"}]}`))
 }
 
+// RESTTooManyRequests writes the runner-REST-shaped 429 body (the same
+// {"success":false,"error":...} envelope the migrated Node routes produced).
+func RESTTooManyRequests(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	w.Write([]byte(`{"success":false,"error":"Too many requests from this IP, please try again later."}`))
+}
+
+// RateLimit adapts a RateLimiter to chi middleware, keying on
+// ClientKeyFromRequest (rightmost XFF entry — the identity the front proxy
+// controls).
+func RateLimit(l *RateLimiter, tooManyRequests func(http.ResponseWriter)) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !l.Allow(ClientKeyFromRequest(r)) {
+				tooManyRequests(w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // ClientKeyFromRequest derives the rate-limit identity for a request. It uses
 // the RIGHTMOST X-Forwarded-For entry, which is the only one a trusted front
 // proxy (the Node server) controls: everything to its left is client-supplied

@@ -978,7 +978,7 @@ func (r *mutationResolver) RunnerHealthCheck(ctx context.Context, runnerID strin
 				latest = strPtr(rel.TagName)
 			}
 		}
-		_ = db.UpdateRunnerVersion(bctx, r.DB, runner.ID, runner.UserID, health.Version, latest)
+		_ = db.UpdateRunnerVersion(bctx, r.DB, runner.ID, runner.UserID, health.Version, latest, nil)
 	}()
 
 	res := &model.RunnerHealthResult{Online: true, Version: health.Version, DockerOk: health.DockerOK}
@@ -1069,11 +1069,15 @@ func (r *mutationResolver) GenerateEnrollmentToken(ctx context.Context) (*model.
 		return nil, err
 	}
 
-	token, expires, err := db.CreateEnrollmentToken(ctx, r.DB, uid)
+	token, expiresAt, err := db.CreateEnrollmentToken(ctx, r.DB, uid)
 	if err != nil {
 		return nil, fmt.Errorf("generate enrollment token: %w", err)
 	}
-	return &model.EnrollmentTokenResult{Token: token, ExpiresAt: expires}, nil
+	exp, perr := time.Parse("2006-01-02T15:04:05.000Z07:00", expiresAt)
+	if perr != nil {
+		return nil, fmt.Errorf("parse enrollment expiry: %w", perr)
+	}
+	return &model.EnrollmentTokenResult{Token: token, ExpiresAt: exp}, nil
 }
 
 // CreateTrackedApp is the resolver for the createTrackedApp field.

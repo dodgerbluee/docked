@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"fmt"
 )
@@ -162,12 +163,84 @@ func DeleteRunner(ctx context.Context, database *sql.DB, id, userID int64) error
 }
 
 // UpdateRunnerVersion persists the runner's reported version and the latest
-// known release (parity with Node's db/runners.updateRunnerVersion).
-func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64, version, latestVersion *string) error {
+// known release (parity with Node's db/runners.updateRunnerVersion). A nil
+// dockerEnabled keeps the stored docker_enabled value (COALESCE).
+func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64, version, latestVersion *string, dockerEnabled *bool) error {
+	var dockerEnabledValue any
+	if dockerEnabled != nil {
+		v := 0
+		if *dockerEnabled {
+			v = 1
+		}
+		dockerEnabledValue = v
+	}
 	_, err := database.ExecContext(ctx,
 		`UPDATE runners
-		    SET version = ?, latest_version = ?, version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		    SET version = ?, latest_version = ?, docker_enabled = COALESCE(?, docker_enabled), version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 		  WHERE id = ? AND user_id = ?`,
-		version, latestVersion, id, userID)
+		version, latestVersion, dockerEnabledValue, id, userID)
 	return err
+}
+
+// GetRunnerByName looks up a runner case-insensitively across all users
+// (re-enrollment does not know the owning user). Parity with Node's
+// db/runners.getRunnerByName.
+func GetRunnerByName(ctx context.Context, database *sql.DB, name string) (*RunnerRow, error) {
+	row := database.QueryRowContext(ctx,
+		"SELECT "+runnerCols+" FROM runners WHERE LOWER(name) = LOWER(?) LIMIT 1", name)
+
+	r, err := scanRunner(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get runner by name: %w", err)
+	}
+	return &r, nil
+}
+
+// GetRunnerByAPIKey finds the runner that owns an API key (heartbeat auth).
+func GetRunnerByAPIKey(ctx context.Context, database *sql.DB, apiKey string) (*RunnerRow, error) {
+	row := database.QueryRowContext(ctx,
+		"SELECT "+runnerCols+" FROM runners WHERE api_key = ? LIMIT 1", apiKey)
+
+	r, err := scanRunner(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get runner by api key: %w", err)
+	}
+	return &r, nil
+}
+
+// UpdateRunnerURL rewrites only the runner URL (heartbeat IP-change path).
+func UpdateRunnerURL(ctx context.Context, database *sql.DB, id int64, url string) error {
+	_, err := database.ExecContext(ctx,
+		"UPDATE runners SET url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", url, id)
+	return err
+}
+
+// UpdateRunnerAPIKey rewrites the API key and URL (re-enrollment flow).
+func UpdateRunnerAPIKey(ctx context.Context, database *sql.DB, id int64, apiKey, url string) error {
+	_, err := database.ExecContext(ctx,
+		"UPDATE runners SET api_key = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", apiKey, url, id)
+	return err
+}
+
+// APIKeysEqual compares two API keys in constant time. Both sides are padded
+// to the max length first so the comparison never early-exits on a length or
+// byte mismatch (mirrors Node's timingSafeEqual padding). API keys are
+// high-entropy random tokens, so no password hashing is needed.
+func APIKeysEqual(a, b string) bool {
+	bufA, bufB := []byte(a), []byte(b)
+	n := len(bufA)
+	if len(bufB) > n {
+		n = len(bufB)
+	}
+	padA := make([]byte, n)
+	padB := make([]byte, n)
+	copy(padA, bufA)
+	copy(padB, bufB)
+	return subtle.ConstantTimeCompare(padA, padB) == 1
 }

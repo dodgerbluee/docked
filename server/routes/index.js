@@ -38,6 +38,9 @@ const avatarController = require("../controllers/avatarController");
 const versionController = require("../controllers/versionController");
 const oauthController = require("../controllers/oauthController");
 const runnerController = require("../controllers/runnerController");
+const { createGoRunnerProxy } = require("../utils/goRunnerProxy");
+const { getRunnerByApiKey } = require("../db/runners");
+const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
 const debugRouter = require("./debug");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
@@ -227,14 +230,31 @@ router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.compl
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
-router.get(
-  "/runners/install/:token",
-  publicLimiter,
-  asyncHandler(runnerController.serveInstallScript)
-);
-router.post("/runners/register", publicLimiter, asyncHandler(runnerController.registerRunner));
-router.post("/runners/heartbeat", publicLimiter, asyncHandler(runnerController.heartbeatRunner));
-router.post("/runners/re-enroll", publicLimiter, asyncHandler(runnerController.reEnrollRunner));
+// Migrated to the Go backend; Node keeps the edge limiters and streams the
+// responses through (see utils/goRunnerProxy.js).
+const goRunnerProxy = createGoRunnerProxy();
+
+// The version poller still lives in Node, so the heartbeat bridge mirrors the
+// old in-controller backoff reset: when the heartbeat reports a URL different
+// from the one stored before Go updates it, reset that runner's poll backoff.
+const heartbeatProxy = createGoRunnerProxy({
+  preflight: async (req) => {
+    if (!req.body || !req.body.apiKey) return null;
+    const runner = await getRunnerByApiKey(req.body.apiKey);
+    return runner ? { runnerId: runner.id, storedUrl: runner.url } : null;
+  },
+  onUpstream2xx: (req, proxyRes, info) => {
+    if (!info) return;
+    let reported = String((req.body && req.body.url) || "");
+    while (reported.endsWith("/")) reported = reported.slice(0, -1);
+    if (reported && info.storedUrl !== reported) resetRunnerBackoff(info.runnerId);
+  },
+});
+
+router.get("/runners/install/:token", publicLimiter, goRunnerProxy);
+router.post("/runners/register", publicLimiter, goRunnerProxy);
+router.post("/runners/heartbeat", publicLimiter, heartbeatProxy);
+router.post("/runners/re-enroll", publicLimiter, goRunnerProxy);
 
 // Protected routes - require authentication
 // All routes below this line require authentication
@@ -295,8 +315,10 @@ router.get(
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes
-router.post("/runners/enrollment", writeLimiter, asyncHandler(runnerController.createEnrollment));
-router.get("/runners/enrollment-status", asyncHandler(runnerController.getEnrollmentStatus));
+// Enrollment endpoints are served by the Go backend (proxied through Node to
+// keep the writeLimiter budget and authenticate check at the edge).
+router.post("/runners/enrollment", writeLimiter, goRunnerProxy);
+router.get("/runners/enrollment-status", goRunnerProxy);
 // Runner container SSE proxy routes
 router.post(
   "/runners/:runnerId/containers/:containerId/upgrade",
