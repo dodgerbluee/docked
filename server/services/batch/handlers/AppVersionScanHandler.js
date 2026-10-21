@@ -25,6 +25,14 @@ class AppVersionScanHandler extends JobHandler {
     return "app-version-scan";
   }
 
+  // Phase 6c: the Go backend's scheduler drives this job type now
+  // (internal/imagesync/appversion.go + internal/scheduler). Returning
+  // false keeps Node's Scheduler from double-scheduling it; the handler
+  // stays in place as the rollback path.
+  getScheduled() {
+    return false;
+  }
+
   getDisplayName() {
     return "App Version Scan";
   }

@@ -29,9 +29,10 @@ type Service struct {
 	// Wired by main.go to the intents evaluator.
 	OnScanComplete func(ctx context.Context, userID int64, itemsUpdated int)
 
-	mu             sync.Mutex
-	running        map[int64]bool // userID -> in-process docker-hub-pull run flag
-	runningTracked map[int64]bool // userID -> in-process tracked-apps-check run flag
+	mu                sync.Mutex
+	running           map[int64]bool // userID -> in-process docker-hub-pull run flag
+	runningTracked    map[int64]bool // userID -> in-process tracked-apps-check run flag
+	runningAppVersion map[int64]bool // userID -> in-process app-version-scan run flag
 }
 
 // JobType is the batch job this service executes.
@@ -43,12 +44,13 @@ const staleRunThreshold = 5 * time.Minute
 
 func NewService(database *sql.DB, hub *events.Hub) *Service {
 	return &Service{
-		DB:             database,
-		Registry:       registry.NewManager(database),
-		Hub:            hub,
-		notifier:       newNotifier(database),
-		running:        make(map[int64]bool),
-		runningTracked: make(map[int64]bool),
+		DB:                database,
+		Registry:          registry.NewManager(database),
+		Hub:               hub,
+		notifier:          newNotifier(database),
+		running:           make(map[int64]bool),
+		runningTracked:    make(map[int64]bool),
+		runningAppVersion: make(map[int64]bool),
 	}
 }
 

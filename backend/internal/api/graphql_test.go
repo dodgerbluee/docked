@@ -1698,6 +1698,41 @@ func TestBatchAndPullGuards(t *testing.T) {
 	if out.JobType != "TRACKED_APPS_CHECK" || !out.IsManual {
 		t.Fatalf("batch run fields wrong: %+v", out)
 	}
+
+	// Phase 6c: app-version-scan is Go-owned too. No runners in the fixture,
+	// so the async scan completes with 0/0 — poll the row to 'completed'.
+	r = env.gql(t, admin, `mutation { triggerBatchJob(jobType: APP_VERSION_SCAN) { id jobType status isManual } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("APP_VERSION_SCAN must be accepted, got: %+v", r.Errors)
+	}
+	var appOut struct {
+		ID       string `json:"id"`
+		JobType  string `json:"jobType"`
+		Status   string `json:"status"`
+		IsManual bool   `json:"isManual"`
+	}
+	if err := json.Unmarshal(r.Data["triggerBatchJob"], &appOut); err != nil {
+		t.Fatalf("decode app-version batch run: %v", err)
+	}
+	if appOut.JobType != "APP_VERSION_SCAN" || !appOut.IsManual || appOut.Status != "RUNNING" {
+		t.Fatalf("app-version batch run fields wrong: %+v", appOut)
+	}
+	runID := appOut.ID
+	deadline := time.Now().Add(5 * time.Second)
+	var final string
+	for {
+		if err := env.database.QueryRowContext(context.Background(),
+			"SELECT status FROM batch_runs WHERE id = ?", runID).Scan(&final); err != nil {
+			t.Fatalf("read app-version run status: %v", err)
+		}
+		if final != "running" || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if final != "completed" {
+		t.Fatalf("app-version batch run ended %q, want completed", final)
+	}
 }
 
 func TestUploadAvatarRequiresMultipartTransport(t *testing.T) {

@@ -11,7 +11,7 @@ func ptr(s string) *string { return &s }
 func TestFormatIntentExecutionNotification(t *testing.T) {
 	data := IntentExecutionNotify{
 		IntentName: "Nightly patch", Status: "partial", TriggerType: "scheduled_window",
-		DurationMs: 12400,
+		DurationMs:        12400,
 		ContainersMatched: 4, ContainersUpgraded: 2, ContainersFailed: 1, ContainersSkipped: 1,
 		ContainerResults: []IntentNotifyContainer{
 			{ContainerName: "alpha", Status: "upgraded", ImageName: "repo/alpha:1",

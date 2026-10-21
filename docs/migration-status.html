@@ -117,8 +117,8 @@
       const DATA = {
         updated: "2026-10-21",
         prodVersion: "3.28.1-dev",
-        nodeLoc: 29317, // server/ JS excl. __tests__
-        goLoc: 66849,   // backend/ Go incl. generated
+        nodeLoc: 29325, // server/ JS excl. __tests__
+        goLoc: 67433,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -139,6 +139,7 @@
           { name: "Tracked apps + scanning", status: "go", note: "internal/imagesync/tracked*.go: docker/github/gitlab + batch lifecycle + scheduler" },
           { name: "Discord: tracked apps", status: "go", note: "tracked_notify.go (dedup + embed parity); container half already in Go" },
           { name: "Intents engine", status: "go", note: "internal/intents: cron evaluator + stack-aware executor + shared locks + Discord embed; Node opted out, kept for rollback" },
+          { name: "App version scan (runner apps)", status: "go", note: "internal/imagesync/appversion.go + scheduler; triggerBatchJob(APP_VERSION_SCAN) gap closed" },
           { name: "Auth (login/logout/verify/me)", status: "node", phase: 7, note: "revoked_tokens shared; Go already mirrors token scheme" },
           { name: "Config import / export", status: "node", phase: 7, note: "portainerInstances keys = file-format contract" },
           { name: "OAuth / SSO", status: "node", phase: 7, note: "Authentik + generic OIDC providers" },
@@ -150,7 +151,7 @@
           { name: "Node db/ layer (per domain)", status: "dead", note: "sunsets domain-by-domain as routes migrate" },
           { name: "dockerHubImageVersions (legacy)", status: "dead", note: "read-only legacy table; Go writes registry_image_versions" },
           { name: "graphqlWsProxy.js", status: "dead", note: "obsolete after reverse-proxy cutover to Go" },
-          { name: "Node batchSystem (tracked-apps only)", status: "dead", note: "Go scheduler drives tracked-apps jobs; Node handler opt-out (getScheduled=false), kept for rollback" },
+          { name: "Node batchSystem (all job types)", status: "dead", note: "Go scheduler drives all 3 jobs; Node handlers opted out (getScheduled=false) or unregistered; kept for rollback" },
           { name: "Node intent engine (services/intents/)", status: "dead", note: "evaluator opted out (GO_INTENTS_ENGINE) + stale-cleanup disabled in BatchManager; kept for rollback" },
 
           { name: "Node repositories/ + validation mw", status: "removed", note: "orphaned after controller deletions" },
@@ -164,10 +165,10 @@
           { n: 3, name: "Data viewer + sync + upgrade + subscriptions in Go", done: true },
           { n: "3+", name: "Portainer fully removed (schema/Go/client/Node)", done: true },
           { n: "3+", name: "Node REST container stack pruned + dead-code sweep", done: true },
-          { n: 4, name: "Runner agent protocol → Go (SSE → WS/GraphQL)", done: false },
+          { n: 4, name: "Runner agent protocol → Go (SSE → WS/GraphQL)", done: true },
           { n: 5, name: "Tracked apps + registry scanning + Discord → Go", done: true },
           { n: 6, name: "Intents engine → Go (evaluator/executor/matcher/locks)", done: true },
-          { n: "6c", name: "App-version scan + triggerBatchJob gap → Go", done: false },
+          { n: "6c", name: "App-version scan + triggerBatchJob gap → Go", done: true },
           { n: 7, name: "Auth/OAuth/avatars/config import-export → Go", done: false },
           { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
         ],

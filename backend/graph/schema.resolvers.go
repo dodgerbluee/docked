@@ -1586,14 +1586,24 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 	if jobType != nil {
 		jt = dbEnumValue(string(*jobType))
 	}
-	// Only tracked-apps-check is implemented here; container inventory sync
-	// (docker-hub-pull) goes through pullContainers and the remaining job
-	// types live in the Node backend.
-	if jt != "tracked-apps-check" {
+	// tracked-apps-check and app-version-scan are Go-owned batch jobs;
+	// container inventory sync (docker-hub-pull) goes through pullContainers
+	// and the remaining job types have no Go implementation.
+	var acquire func(context.Context, int64, bool) (int64, error)
+	var execute func(context.Context, int64, int64) error
+	switch jt {
+	case "tracked-apps-check":
+		if r.Sync == nil {
+			return nil, fmt.Errorf("tracked-app checks are unavailable")
+		}
+		acquire, execute = r.Sync.TrackedAcquire, r.Sync.TrackedExecuteAndComplete
+	case "app-version-scan":
+		if r.Sync == nil {
+			return nil, fmt.Errorf("app version scans are unavailable")
+		}
+		acquire, execute = r.Sync.AppVersionAcquire, r.Sync.AppVersionExecuteAndComplete
+	default:
 		return nil, fmt.Errorf("batch job %s is not supported by the Go API; use the primary server", jt)
-	}
-	if r.Sync == nil {
-		return nil, fmt.Errorf("tracked-app checks are unavailable")
 	}
 	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
 		return nil, err
@@ -1601,15 +1611,15 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 
 	// Same guard stack as Node's BatchManager.executeJob: the 'running'
 	// batch_run row is created synchronously, the scan runs async.
-	batchID, err := r.Sync.TrackedAcquire(ctx, uid, true)
+	batchID, err := acquire(ctx, uid, true)
 	if err != nil {
 		releaseIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey)
 		return nil, err
 	}
 
 	go func() {
-		if err := r.Sync.TrackedExecuteAndComplete(context.WithoutCancel(ctx), uid, batchID); err != nil {
-			slog.Error("manual tracked-apps scan failed", "userId", uid, "runId", batchID, "error", err)
+		if err := execute(context.WithoutCancel(ctx), uid, batchID); err != nil {
+			slog.Error("manual batch scan failed", "jobType", jt, "userId", uid, "runId", batchID, "error", err)
 		}
 	}()
 

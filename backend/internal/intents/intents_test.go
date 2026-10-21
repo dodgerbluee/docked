@@ -310,7 +310,8 @@ func TestFindMatchingContainers(t *testing.T) {
 	}
 	got := names(out.Matched)
 	if got != "db-source,live-updated" {
-		t.Errorf("matched = [%s], want [live-updated,db-source]", got)	}
+		t.Errorf("matched = [%s], want [live-updated,db-source]", got)
+	}
 	if len(out.Excluded) != 0 {
 		t.Errorf("excluded should be empty without trackExcluded, got %d", len(out.Excluded))
 	}

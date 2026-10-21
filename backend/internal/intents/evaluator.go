@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	evaluateInterval  = 60 * time.Second
+	evaluateInterval     = 60 * time.Second
 	evaluateStartupDelay = 10 * time.Second
 )
 

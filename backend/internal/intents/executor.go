@@ -158,7 +158,7 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 		e.updateLastEvaluated(ctx, intent, userID, execID, opts.TriggerTime)
 		return &Summary{
 			ExecutionID: execID, IntentName: intent.Name, TriggerType: triggerType,
-			Status: "completed",
+			Status:            "completed",
 			ContainersMatched: matched, ContainersSkipped: matched,
 			DurationMs: time.Since(start).Milliseconds(), Containers: results,
 		}, nil
@@ -255,7 +255,7 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 
 	summary := &Summary{
 		ExecutionID: execID, IntentName: intent.Name, TriggerType: triggerType,
-		Status: finalStatus,
+		Status:            finalStatus,
 		ContainersMatched: matched, ContainersUpgraded: upgraded,
 		ContainersFailed: failed, ContainersSkipped: skipped,
 		DurationMs: time.Since(start).Milliseconds(), Containers: results,

@@ -27,9 +27,9 @@ type Scheduler struct {
 }
 
 // schedulableJobTypes are the batch jobs the Go scheduler drives. Node's
-// Scheduler.getSchedulableJobTypes excludes both (handlers opt out), so
+// Scheduler.getSchedulableJobTypes excludes all three (handlers opt out), so
 // there is no double-scheduling across the two processes.
-var schedulableJobTypes = []string{imagesync.JobType, imagesync.TrackedJobType}
+var schedulableJobTypes = []string{imagesync.JobType, imagesync.TrackedJobType, imagesync.AppVersionJobType}
 
 func New(svc *imagesync.Service) *Scheduler {
 	return &Scheduler{svc: svc, lastRun: make(map[string]time.Time)}
@@ -161,9 +161,12 @@ func isSchedulable(jobType string) bool {
 // roughly a minute.
 func (s *Scheduler) runJob(ctx context.Context, userID int64, jobType string, intervalMinutes int, key string) {
 	var err error
-	if jobType == imagesync.TrackedJobType {
+	switch jobType {
+	case imagesync.TrackedJobType:
 		_, err = s.svc.RunWithLockTracked(ctx, userID, false)
-	} else {
+	case imagesync.AppVersionJobType:
+		_, err = s.svc.RunWithLockAppVersion(ctx, userID, false)
+	default:
 		_, err = s.svc.RunWithLock(ctx, userID, false)
 	}
 
