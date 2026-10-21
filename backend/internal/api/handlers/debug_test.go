@@ -6,6 +6,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -399,5 +400,33 @@ func TestDebugRunnerProxy(t *testing.T) {
 	rec = doDebugReq(t, router, http.MethodGet, "/api/debug/runner/2/health", admin, nil)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+// Every named query in the debug DB catalog must execute against the real
+// migrated schema. Several catalog queries were inherited from Node with
+// columns/tables that no longer exist; this test keeps them honest as the
+// schema evolves.
+func TestDBQueryCatalogMatchesMigratedSchema(t *testing.T) {
+	database, err := db.Open(t.TempDir() + "/catalog-schema.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	if err := db.Migrate(context.Background(), database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	for _, name := range dbQueryOrder {
+		sqlText, ok := dbQueryCatalog[name]
+		if !ok {
+			t.Fatalf("catalog order entry %q has no query", name)
+		}
+		rows, err := database.QueryContext(context.Background(), sqlText)
+		if err != nil {
+			t.Errorf("catalog query %q fails against migrated schema: %v", name, err)
+			continue
+		}
+		rows.Close()
 	}
 }
