@@ -7,5 +7,4 @@ package-lock.json
 .DS_Store
 .env
 .env.local
-docker-entrypoint.sh
 

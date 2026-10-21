@@ -4,6 +4,11 @@
 
 This guide provides practical information for developers working on the Docked backend application.
 
+> **Note (2026-10):** The backend now lives in `backend/` (Go: chi + gqlgen). The
+> setup below reflects the Go backend. Later Node-era walkthroughs in this
+> document (`server/controllers`, `server/repositories`, …) are kept for
+> historical reference only — they no longer match the code.
+
 ## Table of Contents
 
 - [Getting Started](#getting-started)
@@ -21,8 +26,8 @@ This guide provides practical information for developers working on the Docked b
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- SQLite3 (usually bundled with Node.js)
+- Go 1.26+ (backend)
+- Node.js 22+ and npm (frontend tooling only)
 - Git
 
 ### Initial Setup
@@ -37,11 +42,11 @@ This guide provides practical information for developers working on the Docked b
 2. **Install dependencies:**
 
    ```bash
-   cd server
-   npm install
+   npm run install-all   # root + client (frontend)
+   cd backend && go mod download
    ```
 
-3. **Configure environment:**
+3. **Configure environment (repo root):**
 
    ```bash
    cp .env.example .env
@@ -49,60 +54,52 @@ This guide provides practical information for developers working on the Docked b
    ```
 
 4. **Initialize database:**
-   The database will be automatically created and initialized on first run.
+   The database (`$DATA_DIR/users.db`) is created and migrated automatically on first run.
 
 5. **Start development server:**
    ```bash
    npm run dev
    ```
 
-The server will start on `http://localhost:3001` (or port specified in `.env`).
+The Go backend starts on `http://localhost:4000` (or `PORT`/`ADDR` from `.env`); the Vite dev server proxies `/api` and `/graphql` to it.
 
 ## Development Setup
 
 ### Environment Variables
 
-Create a `.env` file in the `server/` directory:
+Create a `.env` file in the repository root (the Go backend loads it from the working directory):
 
 ```env
 # Server Configuration
-PORT=3001
+PORT=4000            # ADDR (e.g. ":4000") wins over PORT when both are set
 NODE_ENV=development
 
 # JWT Configuration
 JWT_SECRET=your-secret-key-here
-JWT_REFRESH_SECRET=your-refresh-secret-key-here
+JWT_REFRESH_SECRET=your-refresh-secret-key-here   # defaults to JWT_SECRET + "-refresh"
 
 # Database
-DB_PATH=./data/docked.db
-
-# Logging
-LOG_LEVEL=debug
-
-# API Configuration
-API_URL=http://localhost:3001
+DATA_DIR=./data      # DB file is $DATA_DIR/users.db (DATABASE_PATH overrides)
 ```
 
 ### Development Scripts
 
 ```bash
-# Start development server with auto-reload
+# Start Go backend + Vite frontend together (repo root)
 npm run dev
 
-# Start production server
-npm start
+# Backend only
+cd backend && go run ./cmd/api
 
-# Run tests
-npm test
+# Backend tests
+cd backend && go test ./...
 
-# Run tests with coverage
-npm run test:coverage
+# Frontend tests
+cd client && npm test
 
-# Run linter
-npm run lint
-
-# Generate database schema documentation
-npm run docs:schema
+# Format check / fix (JS/JSON/CSS/MD)
+npm run format:check
+npm run format
 ```
 
 ### IDE Setup
@@ -119,16 +116,20 @@ The project uses ESLint for code quality. Configuration is in `.eslintrc.js`.
 ## Project Structure
 
 ```
-server/
-├── controllers/        # HTTP request handlers
-├── services/          # Business logic
-├── repositories/       # Data access layer
-├── db/                # Database layer
-├── middleware/        # Express middleware
-├── routes/            # Route definitions
-├── utils/             # Utility functions
-├── config/            # Configuration
-└── constants/         # Application constants
+backend/
+├── cmd/api/            # Binary entrypoint (migrate, then serve)
+├── graph/              # gqlgen resolvers, models, helpers
+├── internal/
+│   ├── api/            # chi router, REST handlers, middleware
+│   ├── auth/           # JWT issue/verify, revocation
+│   ├── config/         # Env loading (ADDR/PORT, DATA_DIR, JWT, OAuth)
+│   ├── db/             # SQLite access + migrations
+│   ├── imagesync/      # Digest/release resolution, notifications
+│   ├── intents/        # Intent schedule/match/execute engine
+│   ├── registry/       # Release + digest caches
+│   ├── runner/         # Runner Docker API ops, version poller
+│   └── scheduler/      # Batch job scheduling
+└── go.mod
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.

@@ -21,7 +21,6 @@ console.log("🔍 Validating release readiness...\n");
 console.log("Checking version consistency...");
 const packageFiles = [
   { path: "package.json", name: "root" },
-  { path: "server/package.json", name: "server" },
   { path: "client/package.json", name: "client" },
 ];
 
@@ -82,11 +81,11 @@ try {
 // Check if tests pass
 console.log("\nChecking tests...");
 try {
-  console.log("Running server tests...");
-  execSync("cd server && npm test -- --passWithNoTests", { stdio: "inherit" });
-  console.log("✓ Server tests passed");
+  console.log("Running Go backend tests...");
+  execSync("cd backend && go test ./...", { stdio: "inherit" });
+  console.log("✓ Go backend tests passed");
 } catch (error) {
-  errors.push("Server tests failed");
+  errors.push("Go backend tests failed");
 }
 
 try {

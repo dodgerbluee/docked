@@ -69,21 +69,20 @@ cd docked
 npm run install-all
 ```
 
-3. Configure backend:
+3. Configure backend (repo root):
 
 ```bash
-cd server
 cp .env.example .env
 # Edit .env with your settings
 ```
 
-4. Run development server:
+4. Run development mode (Go backend on `:4000` + Vite dev server):
 
 ```bash
 npm run dev
 ```
 
-Access at `http://localhost:3000` (frontend) and `http://localhost:3001` (backend API)
+Access at `http://localhost:3002` (frontend, proxied to the Go backend)
 
 ## Usage
 
@@ -114,9 +113,13 @@ Access at `http://localhost:3000` (frontend) and `http://localhost:3001` (backen
 
 ### Environment Variables
 
-- `PORT` - Application port (default: 3000)
+- `PORT` - Application port (default: 3001 in the container, 4000 for `go run`)
+- `ADDR` - Listen address override (wins over `PORT`)
+- `JWT_SECRET` - Token signing secret (set a strong random value in production)
 - `TZ` - Timezone (default: UTC)
 - `DATA_DIR` - Data directory path (default: /data)
+- `DOCKED_URL` - External URL advertised to runners (when auto-detected URLs won't work)
+- `OAUTH_*` - Optional OAuth/SSO configuration (see `.env.example`)
 
 ### Application Settings
 
@@ -128,10 +131,10 @@ Configure through the web UI:
 
 ## Architecture
 
-- **Backend**: Node.js/Express REST API
+- **Backend**: Go (chi + gqlgen) serving the REST API and GraphQL/WebSocket endpoint
 - **Frontend**: React with modern UI components
-- **Database**: SQLite (can be configured for PostgreSQL/MySQL)
-- **Integration**: Portainer API for container management
+- **Database**: SQLite (single file under `DATA_DIR`)
+- **Integration**: Docker Engine API via connected runners
 
 ## Contributing
 
@@ -149,7 +152,7 @@ Found a bug or have a recommendation? [Open an issue](https://github.com/dodgerb
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run tests (`npm test`)
+4. Run tests (`cd backend && go test ./...`, `cd client && npm test`)
 5. Commit using [Conventional Commits](https://www.conventionalcommits.org/)
 6. Push and open a Pull Request
 

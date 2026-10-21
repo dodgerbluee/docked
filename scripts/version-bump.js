@@ -31,7 +31,7 @@ if (!semverRegex.test(version)) {
   process.exit(1);
 }
 
-const packageFiles = ["package.json", "server/package.json", "client/package.json"];
+const packageFiles = ["package.json", "client/package.json"];
 
 console.log(`Updating version to ${version}...\n`);
 

@@ -17,8 +17,8 @@
 /CHANGELOG.md @docked-maintainers
 /RELEASE.md @docked-maintainers
 
-# Server code
-/server/ @docked-maintainers @backend-team
+# Backend code (Go)
+/backend/ @docked-maintainers @backend-team
 
 # Client code
 /client/ @docked-maintainers @frontend-team
