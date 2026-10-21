@@ -70,14 +70,16 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs })
     };
 
     // Primary signal: phase events scoped to this operation.
-    const stream = graphqlClient.subscribe(CONTAINER_UPGRADE_PROGRESS_SUBSCRIPTION, {});
-    unsubscribe = () => stream.unsubscribe();
-    stream.subscribe((result) => {
-      const ev = result.data?.containerUpgradeProgress;
-      if (!ev || ev.operationId !== operationId) return;
-      if (ev.phase === "COMPLETED") succeed();
-      else if (ev.phase === "FAILED") fail(ev.message);
-    });
+    // NOTE: urql's Client exposes `subscription()` (Observable), not `subscribe()`.
+    const sub = graphqlClient
+      .subscription(CONTAINER_UPGRADE_PROGRESS_SUBSCRIPTION, {})
+      .subscribe((result) => {
+        const ev = result.data?.containerUpgradeProgress;
+        if (!ev || ev.operationId !== operationId) return;
+        if (ev.phase === "COMPLETED") succeed();
+        else if (ev.phase === "FAILED") fail(ev.message);
+      });
+    unsubscribe = () => sub.unsubscribe();
 
     // Fallback signal: the Go upgrade worker writes a terminal upgradeHistory
     // row for every attempt; poll for it in case the subscription missed the
