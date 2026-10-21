@@ -61,6 +61,29 @@ func main() {
 	// twin of Node runnerController's startup cleanup + 30-minute interval.
 	go handlers.StartEnrollmentMaintenance(ctx, database)
 
+	// OAuth state housekeeping: the Go twin of Node server.js's
+	// cleanExpiredOAuthStates (once at startup, then hourly).
+	go func() {
+		sweep := func() {
+			if n, err := db.CleanExpiredOAuthStates(ctx, database); err != nil {
+				slog.Error("failed to clean expired oauth states", "error", err)
+			} else if n > 0 {
+				slog.Info("cleaned expired oauth states", "count", n)
+			}
+		}
+		sweep()
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sweep()
+			}
+		}
+	}()
+
 	// Mark intent executions interrupted by a restart as failed (Node's
 	// cleanupStaleIntentExecutions in BatchManager.start). Runs before the
 	// evaluator starts so stale rows never shadow fresh executions.

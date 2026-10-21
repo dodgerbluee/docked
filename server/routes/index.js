@@ -34,7 +34,6 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 
 const versionController = require("../controllers/versionController");
-const oauthController = require("../controllers/oauthController");
 const { createGoRunnerProxy } = require("../utils/goRunnerProxy");
 const debugRouter = require("./debug");
 const { asyncHandler } = require("../middleware/errorHandler");
@@ -203,11 +202,13 @@ const goRunnerProxy = createGoRunnerProxy();
 router.post("/auth/login", authLimiter, goRunnerProxy);
 router.post("/auth/create-user-with-config", authLimiter, goRunnerProxy);
 
-// OAuth/SSO routes (public - always registered; providers checked at runtime)
-router.get("/auth/oauth/providers", publicLimiter, asyncHandler(oauthController.getProviders));
-router.get("/auth/oauth/login", oauthLimiter, asyncHandler(oauthController.initiateLogin));
-router.get("/auth/oauth/callback", oauthLimiter, asyncHandler(oauthController.handleCallback));
-router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.completeAccountLink));
+// OAuth/SSO routes are served by the Go backend (internal/api/handlers/oauth.go);
+// Node keeps the edge limiters and streams the redirects/cookies through.
+// The controller file stays on disk for rollback.
+router.get("/auth/oauth/providers", publicLimiter, goRunnerProxy);
+router.get("/auth/oauth/login", oauthLimiter, goRunnerProxy);
+router.get("/auth/oauth/callback", oauthLimiter, goRunnerProxy);
+router.post("/auth/oauth/link", oauthLimiter, goRunnerProxy);
 
 /**
  * @swagger

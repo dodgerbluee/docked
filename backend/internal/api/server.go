@@ -27,6 +27,7 @@ import (
 	"github.com/dockedapp/backend/internal/events"
 	"github.com/dockedapp/backend/internal/imagesync"
 	"github.com/dockedapp/backend/internal/intents"
+	"github.com/dockedapp/backend/internal/oauth"
 	runnerpkg "github.com/dockedapp/backend/internal/runner"
 )
 
@@ -234,6 +235,12 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	destructiveLimiter := apimiddleware.NewRateLimiter(10, time.Minute, 10000)
 	authLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
 	avatarLimiter := apimiddleware.NewRateLimiter(100, 15*time.Minute, 10000)
+	oauthLimiter := apimiddleware.NewRateLimiter(10, 15*time.Minute, 10000)
+	oauthPublicLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
+
+	// SSO provider registry (DB-configured providers with env fallback),
+	// lazily refreshed so GraphQL SSO CRUD is picked up without restarts.
+	oauthRegistry := oauth.NewRegistry(database, cfg.OAuth)
 
 	r.Route("/api", func(r chi.Router) {
 		// Agent endpoints: unauthenticated (dockhand authenticates via
@@ -254,6 +261,18 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		r.With(apimiddleware.RateLimit(authLimiter, apimiddleware.RESTTooManyRequests)).
 			Post("/auth/create-user-with-config", handlers.CreateUserWithConfig(database, cfg.JWTSecret))
 		r.Get("/auth/verify", handlers.VerifyToken(database, cfg.JWTSecret))
+
+		// OAuth/SSO endpoints (phase 7d). Node keeps the edge oauthLimiter
+		// and proxies; budgets mirror Node's express-rate-limit placement
+		// (publicLimiter on the providers list, oauthLimiter on the flow).
+		r.With(apimiddleware.RateLimit(oauthPublicLimiter, apimiddleware.RESTTooManyRequests)).
+			Get("/auth/oauth/providers", handlers.GetOAuthProviders(oauthRegistry, database))
+		r.With(apimiddleware.RateLimit(oauthLimiter, apimiddleware.RESTTooManyRequests)).
+			Get("/auth/oauth/login", handlers.OAuthLogin(oauthRegistry, cfg.OAuth, database))
+		r.With(apimiddleware.RateLimit(oauthLimiter, apimiddleware.RESTTooManyRequests)).
+			Get("/auth/oauth/callback", handlers.OAuthCallback(oauthRegistry, cfg.OAuth, database, cfg.JWTSecret))
+		r.With(apimiddleware.RateLimit(oauthLimiter, apimiddleware.RESTTooManyRequests)).
+			Post("/auth/oauth/link", handlers.OAuthLink(database, cfg.JWTSecret))
 
 		// Browser-facing enrollment endpoints behind the strict auth twin of
 		// Node's authenticate (signature + user exists + not revoked), plus

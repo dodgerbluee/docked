@@ -116,9 +116,9 @@
       // ─────────────────────────────────────────────────────────────────────────
       const DATA = {
         updated: "2026-10-21",
-        prodVersion: "3.28.1-dev",
-        nodeLoc: 29325, // server/ JS excl. __tests__
-        goLoc: 67433,   // backend/ Go incl. generated
+        prodVersion: "3.29.3-dev",
+        nodeLoc: 29326, // server/ JS excl. __tests__
+        goLoc: 71901,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -142,7 +142,7 @@
           { name: "App version scan (runner apps)", status: "go", note: "internal/imagesync/appversion.go + scheduler; triggerBatchJob(APP_VERSION_SCAN) gap closed" },
           { name: "Auth (login/logout/verify/bootstrap)", status: "go", note: "handlers/auth.go REST twin; Node = limiters + proxy; revoked_tokens shared" },
           { name: "Config import / export", status: "go", note: "handlers/authExport.go; portainerInstances keys = file-format contract" },
-          { name: "OAuth / SSO", status: "node", phase: 7, note: "Authentik + generic OIDC providers" },
+          { name: "OAuth / SSO", status: "go", note: "internal/oauth (OIDC+PKCE) + handlers/oauth.go; Node = limiters + proxy; oauth_states shared" },
           { name: "Avatars", status: "go", note: "serve routes in handlers/avatars.go (404 vs Node default-file fallback); upload/delete via GraphQL" },
           { name: "WS bridge (graphqlWsProxy)", status: "node", phase: 8, note: "dies when proxy points /graphql at Go directly" },
           { name: "Debug router", status: "node", phase: 8, note: "port to Go or retire at cutover" },
@@ -155,6 +155,7 @@
           { name: "Node intent engine (services/intents/)", status: "dead", note: "evaluator opted out (GO_INTENTS_ENGINE) + stale-cleanup disabled in BatchManager; kept for rollback" },
 
           { name: "Node authController/avatarController", status: "dead", note: "unrouted after auth/export/avatar cutover; kept for rollback" },
+          { name: "Node oauthController + services/oauth/", status: "dead", note: "unrouted after 7d cutover; kept for rollback (db/oauth.js cleanup still live)" },
           { name: "Node repositories/ + validation mw", status: "removed", note: "orphaned after controller deletions" },
           { name: "Orphaned client components", status: "removed", note: "41 files: RunnerUpgradeModal, old settings tabs, dead batch/containers/summary clusters" },
           { name: "containerDetailsService / nginxProxyManager", status: "removed", note: "Portainer-era upgrade paths" },
@@ -171,7 +172,7 @@
           { n: 6, name: "Intents engine → Go (evaluator/executor/matcher/locks)", done: true },
           { n: "6c", name: "App-version scan + triggerBatchJob gap → Go", done: true },
           { n: "7a-c", name: "Auth REST + config export + avatars → Go", done: true },
-          { n: 7, name: "OAuth/SSO → Go", done: false },
+          { n: "7d", name: "OAuth/SSO → Go (OIDC flow + linking)", done: true },
           { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
         ],
         punch: [

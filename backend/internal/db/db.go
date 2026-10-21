@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -67,6 +68,28 @@ func Open(path string) (*sql.DB, error) {
 	}
 	if _, err := database.Exec(`CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)`); err != nil {
 		return nil, fmt.Errorf("ensure revoked tokens index: %w", err)
+	}
+	// oauth_states backs the SSO CSRF/PKCE flow (Node migrations 0003/0004
+	// create it today; Go writes it too, so it must survive the Node cutover).
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS oauth_states (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		state TEXT UNIQUE NOT NULL,
+		code_verifier TEXT NOT NULL,
+		nonce TEXT NOT NULL,
+		redirect_uri TEXT,
+		provider_name TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return nil, fmt.Errorf("ensure oauth states: %w", err)
+	}
+	// Pre-0004 databases lack provider_name; add it when missing (the
+	// duplicate-column error is expected and ignored).
+	if _, err := database.Exec(`ALTER TABLE oauth_states ADD COLUMN provider_name TEXT`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column name") {
+		return nil, fmt.Errorf("ensure oauth states provider_name: %w", err)
+	}
+	if _, err := database.Exec(`CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at)`); err != nil {
+		return nil, fmt.Errorf("ensure oauth states index: %w", err)
 	}
 
 	return database, nil

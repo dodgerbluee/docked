@@ -56,6 +56,27 @@ func GetAllOAuthProviders(ctx context.Context, database *sql.DB) ([]OAuthProvide
 	return result, rows.Err()
 }
 
+// GetEnabledOAuthProviders returns enabled providers ordered by name,
+// matching Node's oauthProviders.js query used by the SSO login flow.
+func GetEnabledOAuthProviders(ctx context.Context, database *sql.DB) ([]OAuthProviderRow, error) {
+	rows, err := database.QueryContext(ctx,
+		"SELECT "+oauthProviderCols+" FROM oauth_providers WHERE enabled = 1 ORDER BY name ASC")
+	if err != nil {
+		return nil, fmt.Errorf("get enabled oauth providers: %w", err)
+	}
+	defer rows.Close()
+
+	var result []OAuthProviderRow
+	for rows.Next() {
+		r, err := scanOAuthProvider(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("scan oauth provider: %w", err)
+		}
+		result = append(result, *r)
+	}
+	return result, rows.Err()
+}
+
 func GetOAuthProviderByName(ctx context.Context, database *sql.DB, name string) (*OAuthProviderRow, error) {
 	row := database.QueryRowContext(ctx,
 		"SELECT "+oauthProviderCols+" FROM oauth_providers WHERE name = ?", name)
