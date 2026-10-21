@@ -1,5 +1,24 @@
 package domain
 
+import "strings"
+
+// ProviderFromImageRepo maps an image repository (no tag) to the registry
+// provider vocabulary used by deployed_images.registry and intent registry
+// filters. Mirrors imagesync.detectProvider; lives here because both the
+// runner and imagesync packages need it and imagesync imports runner.
+func ProviderFromImageRepo(repo string) string {
+	switch {
+	case strings.HasPrefix(repo, "ghcr.io/"):
+		return "ghcr"
+	case strings.HasPrefix(repo, "registry.gitlab.com/"):
+		return "gitlab"
+	case strings.HasPrefix(repo, "gcr.io/"):
+		return "gcr"
+	default:
+		return "dockerhub"
+	}
+}
+
 // Container is the API representation of a Docker container with update info.
 type Container struct {
 	ID    string `json:"id"` // Docker container ID

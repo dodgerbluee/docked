@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/domain"
 	"github.com/dockedapp/backend/internal/registry"
 )
 
@@ -39,16 +40,7 @@ func extractImageInfo(imageName string) (repo, tag string) {
 // directly, lscr.io and bare names map to dockerhub, anything else (quay...)
 // has no provider.
 func detectProvider(repo string) string {
-	switch {
-	case strings.HasPrefix(repo, "ghcr.io/"):
-		return "ghcr"
-	case strings.HasPrefix(repo, "registry.gitlab.com/"):
-		return "gitlab"
-	case strings.HasPrefix(repo, "gcr.io/"):
-		return "gcr"
-	default:
-		return "dockerhub"
-	}
+	return domain.ProviderFromImageRepo(repo)
 }
 
 // configImage digs Config.Image out of a Docker inspect document.

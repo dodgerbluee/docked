@@ -75,3 +75,29 @@ func TestFetchContainerRowsMatchesContainerToRow(t *testing.T) {
 		t.Errorf("unknown image got registry data: %+v", batched[2].LatestVersion)
 	}
 }
+
+// Live runner rows must carry a Registry so intent registry include/exclude
+// filters apply to them; previously the column was empty and every registry
+// filter silently failed on live containers.
+func TestLiveRowsCarryRegistryForIntentMatching(t *testing.T) {
+	rr := db.RunnerRow{ID: 7, Name: "r1", URL: "http://runner.invalid"}
+	cases := []struct{ image, want string }{
+		{"ghcr.io/acme/app:1", "ghcr"},
+		{"registry.gitlab.com/grp/app:2", "gitlab"},
+		{"gcr.io/proj/app", "gcr"},
+		{"postgres:15", "dockerhub"},
+		{"lscr.io/linuxserver/radarr", "dockerhub"},
+	}
+	for _, tc := range cases {
+		row := containerRowBase(rr, domain.Container{ID: "x", Name: "n", Image: tc.image})
+		if !row.Registry.Valid || row.Registry.String != tc.want {
+			t.Errorf("image %q: Registry = %v, want %q", tc.image, row.Registry, tc.want)
+		}
+	}
+	// A known registry_data provider refines the image-prefix guess.
+	row := containerRowBase(rr, domain.Container{ID: "x", Name: "n", Image: "quay.io/minio/minio:1"})
+	applyRegistryData(&row, &db.RegistryData{Provider: sql.NullString{String: "quay", Valid: true}})
+	if row.Registry.String != "quay" {
+		t.Errorf("registry_data provider should refine Registry, got %q", row.Registry.String)
+	}
+}

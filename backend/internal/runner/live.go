@@ -60,6 +60,11 @@ func applyRegistryData(row *db.ContainerRow, d *db.RegistryData) {
 	row.LatestPublishDate = d.LatestPublishDate
 	row.Provider = d.Provider
 	row.LastChecked = d.LastChecked
+	// registry_data.provider is more accurate than the image-prefix guess
+	// (e.g. quay), so it also refines the intent-matching Registry column.
+	if d.Provider.Valid {
+		row.Registry = d.Provider
+	}
 }
 
 // containerRowBase builds the registry-free part of the DB-row shape.
@@ -67,14 +72,18 @@ func containerRowBase(rr db.RunnerRow, c domain.Container) db.ContainerRow {
 	repo, tag := splitImageRepoTag(c.Image)
 
 	row := db.ContainerRow{
-		ContainerID:     c.ID,
-		ContainerName:   c.Name,
-		ImageName:       sqlNullStr(c.Image),
-		ImageRepo:       sqlNullStr(repo),
-		ImageTag:        sqlNullStr(tag),
-		Status:          sqlNullStr(c.Status),
-		State:           sqlNullStr(c.State),
-		StackName:       sqlNullStrPtr(c.StackName),
+		ContainerID:   c.ID,
+		ContainerName: c.Name,
+		ImageName:     sqlNullStr(c.Image),
+		ImageRepo:     sqlNullStr(repo),
+		ImageTag:      sqlNullStr(tag),
+		Status:        sqlNullStr(c.Status),
+		State:         sqlNullStr(c.State),
+		StackName:     sqlNullStrPtr(c.StackName),
+		// Registry drives intent registry include/exclude matching; live
+		// containers have no deployed_images row, so derive it from the
+		// image prefix (applyRegistryData refines it when known).
+		Registry:        sqlNullStr(domain.ProviderFromImageRepo(repo)),
 		RunnerID:        sql.NullInt64{Int64: rr.ID, Valid: true},
 		RunnerName:      sqlNullStr(rr.Name),
 		RunnerURL:       sqlNullStr(rr.URL),

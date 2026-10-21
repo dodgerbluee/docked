@@ -96,12 +96,24 @@ func (ev *Evaluator) evaluateUserScheduledIntents(ctx context.Context, userID in
 			"intentId", intent.ID, "intentName", intent.Name, "reason", due.Reason, "userId", userID)
 
 		// Pre-mark last_evaluated_at to the cron trigger point BEFORE
-		// dispatch: the next tick computes the FOLLOWING cron point.
+		// dispatch: the next tick computes the FOLLOWING cron point. The
+		// claim is atomic (conditional UPDATE), so when several processes
+		// share the DB only the winner dispatches; losers skip and the
+		// next tick re-derives the same due state harmlessly.
 		if due.TriggerTime != nil {
 			at := due.TriggerTime.UTC().Format(isoMillis)
-			if err := db.SetIntentLastEvaluatedAt(ctx, ev.DB, intent.ID, userID, at, -1); err != nil {
-				slog.Warn("failed to pre-mark intent lastEvaluatedAt (non-fatal)",
+			claimed, err := db.ClaimIntentEvaluation(ctx, ev.DB, intent.ID, userID, at)
+			if err != nil {
+				slog.Warn("intent evaluation claim failed — skipping this tick (retries next tick)",
 					"intentId", intent.ID, "error", err)
+				ev.inProgressClear(intent.ID)
+				continue
+			}
+			if !claimed {
+				slog.Debug("skipping intent — another process claimed this trigger point",
+					"intentId", intent.ID, "intentName", intent.Name)
+				ev.inProgressClear(intent.ID)
+				continue
 			}
 		}
 		ev.dispatch(ctx, &intent, userID, due.TriggerTime)

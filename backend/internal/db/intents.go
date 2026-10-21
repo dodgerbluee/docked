@@ -179,7 +179,30 @@ func SetIntentLastEvaluatedAt(ctx context.Context, database *sql.DB, intentID, u
 	return err
 }
 
+// ClaimIntentEvaluation atomically advances last_evaluated_at to evaluatedAt
+// only while it is still behind that point. With several processes sharing
+// the SQLite DB this is the cross-process guard that keeps a cron point from
+// firing twice (the evaluator's inProgress map only covers one process).
+// Returns true when this caller won the claim.
+func ClaimIntentEvaluation(ctx context.Context, database *sql.DB, intentID, userID int64, evaluatedAt string) (bool, error) {
+	res, err := database.ExecContext(ctx,
+		`UPDATE intents SET last_evaluated_at = ?
+		 WHERE id = ? AND user_id = ?
+		   AND (last_evaluated_at IS NULL OR last_evaluated_at < ?)`,
+		evaluatedAt, intentID, userID, evaluatedAt)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
 // UnmarshalStringArr decodes a JSON array string from the DB into a []string.
+// NULL/invalid decodes to nil ("unset"); "[]" decodes to an empty non-nil
+// slice ("explicitly empty": matches nothing).
 func UnmarshalStringArr(s sql.NullString) []string {
 	if !s.Valid || s.String == "" {
 		return nil
@@ -191,8 +214,11 @@ func UnmarshalStringArr(s sql.NullString) []string {
 	return arr
 }
 
+// marshalJSONArr encodes an intent filter list for the DB. A nil slice means
+// "unset" and stores NULL (matches everything); an explicitly empty slice
+// stores "[]" which the matcher treats as matching nothing.
 func marshalJSONArr(arr []string) *string {
-	if len(arr) == 0 {
+	if arr == nil {
 		return nil
 	}
 	data, _ := json.Marshal(arr)

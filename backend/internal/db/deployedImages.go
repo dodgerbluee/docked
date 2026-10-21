@@ -121,20 +121,26 @@ func containerHasUpdate(c ContainerRow) bool {
 	return true
 }
 
+// intentIncludes ANDs the inclusion criteria. An UNSET criterion (nil, i.e.
+// NULL in the DB) constrains nothing; an EXPLICITLY EMPTY list ("[]") matches
+// nothing — a user who includes zero containers gets zero matches, not all.
 func intentIncludes(c ContainerRow, containers, images, sources, stacks, registries []string) bool {
-	if len(containers) > 0 && !matchesAnyGlob(c.ContainerName, containers) {
+	if containers != nil && (len(containers) == 0 || !matchesAnyGlob(c.ContainerName, containers)) {
 		return false
 	}
-	if len(images) > 0 && !matchesAnyGlob(c.ImageName.String, images) {
+	if images != nil && (len(images) == 0 || !matchesAnyGlob(c.ImageName.String, images)) {
 		return false
 	}
-	if len(stacks) > 0 && !matchesAnyGlob(c.StackName.String, stacks) {
+	if stacks != nil && (len(stacks) == 0 || !matchesAnyGlob(c.StackName.String, stacks)) {
 		return false
 	}
-	if len(registries) > 0 && !matchesAnyGlob(c.Registry.String, registries) {
+	if registries != nil && (len(registries) == 0 || !matchesAnyGlob(c.Registry.String, registries)) {
 		return false
 	}
-	if len(sources) > 0 {
+	if sources != nil {
+		if len(sources) == 0 {
+			return false
+		}
 		key := ""
 		if c.SourceInstanceID.Valid {
 			key = "portainer:" + strconv.FormatInt(c.SourceInstanceID.Int64, 10)
