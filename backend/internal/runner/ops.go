@@ -37,12 +37,12 @@ func (e *HTTPError) Error() string {
 
 func doRunner(ctx context.Context, rr db.RunnerRow, method, path string, query url.Values, body any, timeout time.Duration) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	var rdr io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
+			cancel()
 			return nil, fmt.Errorf("encode request body: %w", err)
 		}
 		rdr = bytes.NewReader(encoded)
@@ -53,6 +53,7 @@ func doRunner(ctx context.Context, rr db.RunnerRow, method, path string, query u
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, rdr)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+rr.APIKey)
@@ -61,14 +62,35 @@ func doRunner(ctx context.Context, rr db.RunnerRow, method, path string, query u
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("runner request failed: %w", err)
 	}
 	if resp.StatusCode >= 400 {
+		defer cancel()
 		defer resp.Body.Close()
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return nil, &HTTPError{Code: resp.StatusCode, Body: strings.TrimSpace(string(snippet))}
 	}
+	// The timeout must cover the body read, not just the headers: a
+	// defer cancel() here would fire the moment doRunner returns and abort
+	// any response body still in flight (large/slow runner payloads failed
+	// with "context canceled"). Context ownership transfers to Body.Close().
+	resp.Body = &cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
 	return resp, nil
+}
+
+// cancelOnClose ties a request's timeout context to its response body: the
+// context stays alive while the caller streams the body and is released when
+// the body is closed.
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnClose) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
 }
 
 // InspectContainer returns the full Docker Engine inspect document
