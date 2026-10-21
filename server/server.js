@@ -25,7 +25,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { rateLimit } = require("express-rate-limit");
-const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
 const config = require("./config");
@@ -34,7 +33,6 @@ const { errorHandler } = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
 const responseFormatter = require("./middleware/responseFormatter");
 const logger = require("./utils/logger");
-const swaggerSpec = require("./config/swagger");
 
 logger.debug("Starting server module load", { module: "server" });
 
@@ -173,15 +171,9 @@ logger.info("Global rate limiter enabled: 300 req/min per IP", {
   module: "server",
 });
 
-// API Documentation
-app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customCss: ".swagger-ui .topbar { display: none }",
-    customSiteTitle: "Docked API Documentation",
-  })
-);
+// API documentation (swagger UI) retired in phase 8b: no client referenced
+// it, and the REST surface is moving to Go where the JSDoc swagger comments
+// no longer generate anything. config/swagger.js stays on disk for rollback.
 
 // Serve static files from React app
 // In production: always serve

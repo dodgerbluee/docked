@@ -56,6 +56,44 @@ func GetActiveUpgradeLockOwner(ctx context.Context, database *sql.DB, targetKey 
 	return owner, true, nil
 }
 
+// UpgradeLockRow is one live entry in the cross-process upgrade lock table
+// (debug introspection view of what Node's in-memory lock manager used to
+// expose).
+type UpgradeLockRow struct {
+	Key       string
+	Owner     string
+	CreatedAt string
+	ExpiresAt string
+}
+
+// ListActiveUpgradeLocks returns every non-expired lock.
+func ListActiveUpgradeLocks(ctx context.Context, database *sql.DB) ([]UpgradeLockRow, error) {
+	rows, err := database.QueryContext(ctx,
+		`SELECT target_key, owner, created_at, expires_at
+		 FROM upgrade_locks WHERE expires_at > CURRENT_TIMESTAMP ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("list upgrade locks: %w", err)
+	}
+	defer rows.Close()
+	var out []UpgradeLockRow
+	for rows.Next() {
+		var l UpgradeLockRow
+		if err := rows.Scan(&l.Key, &l.Owner, &l.CreatedAt, &l.ExpiresAt); err != nil {
+			return nil, fmt.Errorf("scan upgrade lock: %w", err)
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// CountActiveUpgradeLocks reports how many locks are currently held.
+func CountActiveUpgradeLocks(ctx context.Context, database *sql.DB) (int, error) {
+	var n int
+	err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM upgrade_locks WHERE expires_at > CURRENT_TIMESTAMP`).Scan(&n)
+	return n, err
+}
+
 // ClaimIdempotencyKey accepts a client key once per user and operation type.
 // Claims expire after 24 hours to bound storage while covering normal retries.
 func ClaimIdempotencyKey(ctx context.Context, database *sql.DB, userID int64, operationType string, key *string) (bool, error) {

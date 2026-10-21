@@ -48,6 +48,13 @@ func (c *DigestCache) Set(key string, result *DigestResult) {
 	c.items[key] = cacheEntry{result: result, expiresAt: time.Now().Add(c.ttl)}
 }
 
+// Size reports the live entry count for debug introspection.
+func (c *DigestCache) Size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.items)
+}
+
 func (c *DigestCache) Delete(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

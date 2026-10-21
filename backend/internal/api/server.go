@@ -6,6 +6,9 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -54,6 +57,17 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	r.Use(middleware.RealIP)
 	r.Use(apimiddleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	// Edge surface (phase 8b): helmet + cors ports, applied globally like
+	// Node's server.js. Gated behind EDGE_SERVE because during the
+	// transition Node is still the edge: it applies its own helmet/cors and
+	// pipes proxied Go responses through, which would duplicate (and
+	// intersect) the security headers. Set EDGE_SERVE=true when Go becomes
+	// the edge (phase 8c).
+	if cfg.Edge.ServeEdge {
+		r.Use(apimiddleware.SecurityHeaders(cfg.Edge))
+		r.Use(apimiddleware.CORS(cfg.Edge.CORSOrigins))
+	}
 
 	// Configure auth secret
 	auth.SetSecret(cfg.JWTSecret)
@@ -242,7 +256,48 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// lazily refreshed so GraphQL SSO CRUD is picked up without restarts.
 	oauthRegistry := oauth.NewRegistry(database, cfg.OAuth)
 
+	// Global safety net (Node's globalLimiter): 300 req/min per IP across
+	// the whole /api surface; per-route limiters below stay stricter for
+	// sensitive endpoints. Localhost is exempt outside production, matching
+	// Node's skip function.
+	globalLimiter := apimiddleware.NewRateLimiter(300, time.Minute, 10000)
+	globalLimit := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			key := apimiddleware.ClientKeyFromRequest(req)
+			if cfg.Edge.NodeEnv != "production" && isLocalKey(key) {
+				next.ServeHTTP(w, req)
+				return
+			}
+			if !globalLimiter.Allow(key) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				w.Write([]byte(`{"success":false,"error":"Too many requests, please try again later."}`))
+				return
+			}
+			next.ServeHTTP(w, req)
+		})
+	}
+	versionLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
+
 	r.Route("/api", func(r chi.Router) {
+		r.Use(globalLimit)
+
+		// Health + version (Node's healthController/versionController). The
+		// version endpoint keeps Node's publicLimiter budget (20/15min).
+		r.Get("/health", handlers.Health())
+		r.With(apimiddleware.RateLimit(versionLimiter, apimiddleware.RESTTooManyRequests)).
+			Get("/version", handlers.Version(cfg))
+
+		// Admin debug surface (Node's debugController). Auth twin of Node's
+		// authenticate, then the debug_endpoints_enabled gate inside
+		// DebugRoutes rejects everything when the setting is off.
+		r.Group(func(r chi.Router) {
+			r.Use(auth.StrictMiddleware(cfg.JWTSecret, database))
+			r.Route("/debug", func(r chi.Router) {
+				handlers.DebugRoutes(r, database, cfg, syncSvc)
+			})
+		})
+
 		// Agent endpoints: unauthenticated (dockhand authenticates via
 		// enrollment token / API key inside the handlers).
 		r.Group(func(r chi.Router) {
@@ -312,8 +367,66 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		})
 	})
 
+	// Static SPA serving + history fallback (Node's express.static(publicPath)
+	// plus the index.html fallback middleware). Enabled whenever the build
+	// directory exists; the edge keeps pointing at Node until phase 8c, so
+	// this is dormant until the cutover.
+	r.NotFound(notFoundJSON)
+	if st, err := os.Stat(cfg.Edge.StaticDir); err == nil && st.IsDir() {
+		r.Handle("/*", spaHandler(cfg.Edge.StaticDir))
+		slog.Info("static SPA serving enabled", "dir", cfg.Edge.StaticDir)
+	}
+
 	slog.Info("GraphQL server ready", "endpoint", "/graphql", "playground", "/playground")
 	return &Server{Handler: r, Intents: intentEval}
+}
+
+// isLocalKey matches Node's globalLimiter skip list (localhost in dev).
+func isLocalKey(key string) bool {
+	switch key {
+	case "::1", "127.0.0.1", "::ffff:127.0.0.1":
+		return true
+	}
+	return false
+}
+
+func notFoundJSON(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(`{"success":false,"error":"Not found"}`))
+}
+
+// spaHandler ports Node's static pipeline: express.static (serve the file
+// when it exists, default index.html inside directories) followed by the
+// SPA fallback that hands index.html to every unmatched non-/api route.
+func spaHandler(dir string) http.HandlerFunc {
+	fileServer := http.FileServer(http.Dir(dir))
+	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			notFoundJSON(w, r)
+			return
+		}
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			candidate := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
+			if st, err := os.Stat(candidate); err == nil {
+				if !st.IsDir() {
+					fileServer.ServeHTTP(w, r)
+					return
+				}
+				if ist, err := os.Stat(filepath.Join(candidate, "index.html")); err == nil && !ist.IsDir() {
+					fileServer.ServeHTTP(w, r)
+					return
+				}
+			}
+		}
+		// SPA fallback (Node sends index.html for any unmatched route).
+		index := filepath.Join(dir, "index.html")
+		if _, err := os.Stat(index); err != nil {
+			notFoundJSON(w, r)
+			return
+		}
+		http.ServeFile(w, r, index)
+	}
 }
 
 func bearerToken(r *http.Request) (string, bool) {

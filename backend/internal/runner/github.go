@@ -32,6 +32,20 @@ var (
 	releaseTTL     = time.Hour
 )
 
+// ReleaseCacheSize reports the live entry count for debug introspection.
+func ReleaseCacheSize() int {
+	releaseCacheMu.Lock()
+	defer releaseCacheMu.Unlock()
+	return len(releaseCache)
+}
+
+// ClearReleaseCache empties the runner release cache (debug cache-clear).
+func ClearReleaseCache() {
+	releaseCacheMu.Lock()
+	defer releaseCacheMu.Unlock()
+	releaseCache = map[string]cachedRelease{}
+}
+
 // LatestReleaseTag returns the latest release tag_name for a GitHub repo
 // ("owner/name"). ok=false means the lookup failed (the caller decides the
 // fallback, matching Node's try/catch → "latest" / null semantics).

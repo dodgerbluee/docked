@@ -64,6 +64,13 @@ func ClearReleaseCache() {
 	releaseCache = map[string]releaseCacheEntry{}
 }
 
+// ReleaseCacheSize reports the live entry count for debug introspection.
+func ReleaseCacheSize() int {
+	releaseCacheMu.Lock()
+	defer releaseCacheMu.Unlock()
+	return len(releaseCache)
+}
+
 // parseGitHubRepo ports parseGitHubRepo.
 func parseGitHubRepo(repoInput string) (owner, repo string, ok bool) {
 	trimmed := strings.TrimSpace(repoInput)

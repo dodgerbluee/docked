@@ -93,6 +93,51 @@ func (c *cancelOnClose) Close() error {
 	return err
 }
 
+// DebugProxyRequest forwards an arbitrary request to the runner (used by the
+// admin debug proxy). Unlike doRunner it never converts non-2xx statuses to
+// errors: the status and parsed JSON body are returned verbatim, mirroring
+// Node's debugController.proxyToRunner (axios validateStatus: () => true).
+func DebugProxyRequest(ctx context.Context, rr db.RunnerRow, method, path string, query url.Values, body any) (int, any, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var rdr io.Reader
+	if body != nil && method != http.MethodGet && method != http.MethodHead {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return 0, nil, fmt.Errorf("encode request body: %w", err)
+		}
+		rdr = bytes.NewReader(encoded)
+	}
+	u := rr.URL + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, rdr)
+	if err != nil {
+		return 0, nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+rr.APIKey)
+	if rdr != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("runner request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return 0, nil, fmt.Errorf("read runner response: %w", err)
+	}
+	// axios hands back parsed JSON when the content is JSON, raw text otherwise.
+	var parsed any
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		parsed = string(data)
+	}
+	return resp.StatusCode, parsed, nil
+}
+
 // InspectContainer returns the full Docker Engine inspect document
 // (GET /containers/{id}/json), mirroring Node's runnerDockerService.
 func InspectContainer(ctx context.Context, rr db.RunnerRow, containerID string) (map[string]any, error) {

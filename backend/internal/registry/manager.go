@@ -36,6 +36,13 @@ func NewManager(database *sql.DB) *Manager {
 	}
 }
 
+// DigestCacheSize reports the shared digest cache entry count (debug
+// introspection).
+func (m *Manager) DigestCacheSize() int { return m.cache.Size() }
+
+// ClearDigestCache empties the shared digest cache (debug cache-clear).
+func (m *Manager) ClearDigestCache() { m.cache.Clear() }
+
 // GetProvider picks the provider for an image repo (per-repo cached).
 func (m *Manager) GetProvider(imageRepo string) Provider {
 	m.mu.Lock()

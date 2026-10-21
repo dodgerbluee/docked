@@ -117,8 +117,8 @@
       const DATA = {
         updated: "2026-10-21",
         prodVersion: "3.29.3-dev",
-        nodeLoc: 29326, // server/ JS excl. __tests__
-        goLoc: 74074,   // backend/ Go incl. generated
+        nodeLoc: 29280, // server/ JS excl. __tests__
+        goLoc: 75901,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -145,8 +145,10 @@
           { name: "OAuth / SSO", status: "go", note: "internal/oauth (OIDC+PKCE) + handlers/oauth.go; Node = limiters + proxy; oauth_states shared" },
           { name: "Avatars", status: "go", note: "serve routes in handlers/avatars.go (404 vs Node default-file fallback); upload/delete via GraphQL" },
           { name: "WS bridge (graphqlWsProxy)", status: "node", phase: 8, note: "dies when proxy points /graphql at Go directly" },
-          { name: "Debug router", status: "node", phase: 8, note: "port to Go or retire at cutover" },
-          { name: "health / version", status: "node", phase: 8, note: "stays REST — becomes Go plain-HTTP handlers" },
+          { name: "Debug router", status: "go", note: "handlers/debug.go: same gate (debug_endpoints_enabled) + admin check + read-only SQL + runner proxy; Node = authenticate + passthrough" },
+          { name: "health / version", status: "go", note: "handlers/system.go (Go process stats); Node = version limiter + passthrough" },
+          { name: "Edge: helmet + CORS + globalLimiter + static SPA", status: "go", note: "middleware/edge.go + server.go; EDGE_SERVE gates headers until 8c cutover" },
+          { name: "/api-docs swagger UI", status: "removed", note: "no client references; retired in 8b (config/swagger.js kept for rollback)" },
           { name: "DB migration system", status: "go", note: "ensureSchema + 15 migrations ported (internal/db/migrate*.go); entrypoint gates Node on Go readiness" },
 
           { name: "Node db/ layer (per domain)", status: "dead", note: "sunsets domain-by-domain as routes migrate" },
@@ -175,6 +177,7 @@
           { n: "7a-c", name: "Auth REST + config export + avatars → Go", done: true },
           { n: "7d", name: "OAuth/SSO → Go (OIDC flow + linking)", done: true },
           { n: "8a", name: "DB migration system → Go (ensure block + 15 migrations)", done: true },
+          { n: "8b", name: "health/version/debug + edge surface (helmet/CORS/limiter/SPA) → Go", done: true },
           { n: 8, name: "Proxy cutover: WS bridge + debug + health/version → Node = 0", done: false },
         ],
         punch: [

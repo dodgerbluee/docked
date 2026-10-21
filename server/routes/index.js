@@ -33,14 +33,16 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const versionController = require("../controllers/versionController");
 const { createGoRunnerProxy } = require("../utils/goRunnerProxy");
-const debugRouter = require("./debug");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
 const logger = require("../utils/logger");
+
+// Transparent proxy to the Go backend (utils/goRunnerProxy.js). Declared up
+// here because the health/version mounts below already use it.
+const goRunnerProxy = createGoRunnerProxy();
 
 // Rate limiters for specific routes
 // Avatar routes rate limiter: 100 requests per 15 minutes per IP
@@ -98,51 +100,10 @@ const oauthLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Server is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: ok
- */
-router.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
-
-/**
- * @swagger
- * /version:
- *   get:
- *     summary: Get application version
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Application version information
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 version:
- *                   type: string
- *                   nullable: true
- *                   example: "1.0.0"
- *                 environment:
- *                   type: string
- *                   example: "production"
- */
-router.get("/version", publicLimiter, versionController.getVersion);
+// Health + version are served by the Go backend (phase 8b); Node keeps the
+// edge limiter for version and streams the responses through.
+router.get("/health", goRunnerProxy);
+router.get("/version", publicLimiter, goRunnerProxy);
 
 /**
  * @swagger
@@ -197,8 +158,6 @@ router.get("/version", publicLimiter, versionController.getVersion);
 // Auth REST routes are served by the Go backend (internal/api/handlers/auth.go);
 // Node keeps the edge limiters and streams the responses through. The
 // controller files stay on disk for rollback.
-const goRunnerProxy = createGoRunnerProxy();
-
 router.post("/auth/login", authLimiter, goRunnerProxy);
 router.post("/auth/create-user-with-config", authLimiter, goRunnerProxy);
 
@@ -310,7 +269,10 @@ router.get("/runners/:runnerId/apps", goRunnerProxy);
 router.get("/runners/:runnerId/apps/history", goRunnerProxy);
 router.post("/runners/:runnerId/apps/:appName/operations/:opName/run", writeLimiter, goRunnerProxy);
 
-// Debug routes (admin-only introspection, mounted after authenticate middleware)
-router.use("/debug", debugRouter);
+// Debug routes (admin-only introspection, mounted after authenticate
+// middleware). Served by the Go backend (phase 8b); Node keeps the edge
+// authenticate gate and streams responses through. routes/debug.js and
+// debugController.js stay on disk for rollback until phase 8d.
+router.use("/debug", goRunnerProxy);
 
 module.exports = router;
