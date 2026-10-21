@@ -206,6 +206,44 @@
   line-height: 1.6;
 }
 
+/* Version comparison (current vs available) on the confirm stage */
+.versionCompare {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 20px 0;
+}
+
+.versionBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 110px;
+}
+
+.versionLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.versionValue {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.versionArrow {
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
+}
+
 /* Confirmation Stage */
 .confirmStage {
   animation: fadeIn 0.3s ease-out;

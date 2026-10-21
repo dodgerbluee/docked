@@ -313,6 +313,23 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
               <AlertCircle size={48} className={styles.warningIcon} />
             </div>
             <h3 className={styles.title}>Upgrade Container?</h3>
+            {(container?.currentVersion || container?.newVersion) && (
+              <div className={styles.versionCompare}>
+                <div className={styles.versionBox}>
+                  <span className={styles.versionLabel}>Current</span>
+                  <span className={styles.versionValue}>
+                    {container.currentVersion || container.currentTag || "unknown"}
+                  </span>
+                </div>
+                <span className={styles.versionArrow}>→</span>
+                <div className={styles.versionBox}>
+                  <span className={styles.versionLabel}>Upgrade to</span>
+                  <span className={styles.versionValue}>
+                    {container.newVersion || container.latestTag || "latest"}
+                  </span>
+                </div>
+              </div>
+            )}
             {container &&
             (containerName?.toLowerCase().includes("nginx-proxy-manager") ||
               containerName?.toLowerCase().includes("npm") ||

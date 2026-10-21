@@ -2,7 +2,6 @@ import React, { useCallback } from "react";
 import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
-import { showToast } from "../../utils/toast";
 import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/containersPage";
 import { useContainerImageInfo } from "./ContainerCardDetails/hooks/useContainerImageInfo";
 import ContainerVersionDisplay from "./ContainerCardDetails/components/ContainerVersionDisplay";
@@ -29,22 +28,22 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   const { imageVersion, imageNameWithoutVersion, handleVersionClick, handleImageClick } =
     useContainerImageInfo(container);
 
-  // Handle container name click - copy name to clipboard
-  const handleContainerNameClick = useCallback(
-    async (e) => {
-      e.stopPropagation();
+  // Whether this card can open the upgrade/rebuild confirm popup right now.
+  // For "Up to Date" cards (showUpdates === false), only allow opening if
+  // developer mode is enabled; for "Updates" cards, allow as normal.
+  const canOpenUpgrade =
+    !isPortainer && !upgrading && !!onUpgrade && (showUpdates || developerModeEnabled);
 
-      if (container.name) {
-        try {
-          await navigator.clipboard.writeText(container.name);
-          showToast("Container name copied", "info");
-        } catch (err) {
-          console.error("Failed to copy container name to clipboard:", err);
-          showToast("Failed to copy container name", "error");
-        }
+  // Handle container name click - open the upgrade confirm popup (current vs
+  // available version), same as clicking the card body.
+  const handleContainerNameClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      if (canOpenUpgrade) {
+        onUpgrade(container);
       }
     },
-    [container.name]
+    [canOpenUpgrade, onUpgrade, container]
   );
 
   // Handle card click to open upgrade/rebuild modal
@@ -64,26 +63,15 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
         // Check for specific interactive elements by class or data attributes
         (target.closest &&
           (target.closest(`.${styles.checkbox}`) ||
-            target.closest(`.${styles.containerName}`) ||
             target.closest(`.${styles.imageHeader}`) ||
             target.closest(`.${styles.versionText}`) ||
             target.closest(`.${styles.portainerBadge}`)));
 
-      // For "Up to Date" cards (showUpdates === false), only allow clicking if developer mode is enabled
-      // For "Updates" cards (showUpdates === true), allow clicking as normal
-      const canClickUpToDateCard = showUpdates || developerModeEnabled;
-
-      if (
-        !isPortainer &&
-        !upgrading &&
-        !isInteractiveElement &&
-        onUpgrade &&
-        canClickUpToDateCard
-      ) {
+      if (canOpenUpgrade && !isInteractiveElement) {
         onUpgrade(container);
       }
     },
-    [isPortainer, upgrading, onUpgrade, container, showUpdates, developerModeEnabled]
+    [canOpenUpgrade, onUpgrade, container]
   );
 
   // Render instance badge — runner name tag
