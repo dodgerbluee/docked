@@ -93,6 +93,22 @@ func CountRunnerEvents(ctx context.Context, database *sql.DB, runnerID int64, ev
 	return count, err
 }
 
+// PruneRunnerEvents keeps the newest keepPerRunner events per runner and
+// deletes the rest. Parity with Node's db/runnerEvents.pruneRunnerEvents.
+func PruneRunnerEvents(ctx context.Context, database *sql.DB, keepPerRunner int) (int64, error) {
+	res, err := database.ExecContext(ctx,
+		`DELETE FROM runner_events WHERE id NOT IN (
+          SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY runner_id ORDER BY created_at DESC) as rn
+            FROM runner_events
+          ) WHERE rn <= ?
+        )`, keepPerRunner)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // UpdateRunnerLastSeen bumps the runner's last_seen timestamp.
 func UpdateRunnerLastSeen(ctx context.Context, database *sql.DB, runnerID int64) error {
 	_, err := database.ExecContext(ctx,

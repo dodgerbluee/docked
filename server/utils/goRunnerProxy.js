@@ -22,20 +22,8 @@ const http = require("http");
 // different stub without reloading the module.
 const goBackend = () => process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
 
-function createGoRunnerProxy({ preflight, onUpstream2xx } = {}) {
+function createGoRunnerProxy() {
   return async function goRunnerProxy(req, res) {
-    // Optional bridge hooks for state that still lives in Node (e.g. the
-    // version poller's backoff). preflight runs before the request is
-    // forwarded so it can observe pre-mutation DB state.
-    let bridgeData;
-    if (preflight) {
-      try {
-        bridgeData = await preflight(req);
-      } catch {
-        bridgeData = undefined;
-      }
-    }
-
     const targetUrl = `${goBackend()}${req.originalUrl}`;
 
     const headers = {
@@ -64,13 +52,6 @@ function createGoRunnerProxy({ preflight, onUpstream2xx } = {}) {
         proxyRes.destroy();
         proxyReq.destroy();
       });
-      if (onUpstream2xx && proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
-        try {
-          onUpstream2xx(req, proxyRes, bridgeData);
-        } catch {
-          /* bridge bookkeeping must never break the proxied response */
-        }
-      }
     });
 
     proxyReq.on("error", (err) => {

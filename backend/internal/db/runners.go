@@ -38,6 +38,26 @@ func scanRunner(row interface{ Scan(...any) error }) (RunnerRow, error) {
 	return r, err
 }
 
+// GetAllEnabledRunners returns enabled runners across ALL users — the poller
+// is a system-wide job. Parity with Node's db.getAllRunnersWithKeys.
+func GetAllEnabledRunners(ctx context.Context, database *sql.DB) ([]RunnerRow, error) {
+	rows, err := database.QueryContext(ctx,
+		"SELECT "+runnerCols+" FROM runners WHERE enabled = 1 ORDER BY created_at ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RunnerRow
+	for rows.Next() {
+		r, err := scanRunner(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // GetEnabledRunners returns all enabled runners for the given user.
 func GetEnabledRunners(ctx context.Context, database *sql.DB, userID int64) ([]RunnerRow, error) {
 	rows, err := database.QueryContext(ctx,

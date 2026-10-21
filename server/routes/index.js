@@ -38,8 +38,6 @@ const avatarController = require("../controllers/avatarController");
 const versionController = require("../controllers/versionController");
 const oauthController = require("../controllers/oauthController");
 const { createGoRunnerProxy } = require("../utils/goRunnerProxy");
-const { getRunnerByApiKey } = require("../db/runners");
-const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
 const debugRouter = require("./debug");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
@@ -230,29 +228,13 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
 // Migrated to the Go backend; Node keeps the edge limiters and streams the
-// responses through (see utils/goRunnerProxy.js).
+// responses through (see utils/goRunnerProxy.js). The version poller also
+// lives in Go now, so heartbeat URL-change backoff happens in-process there.
 const goRunnerProxy = createGoRunnerProxy();
-
-// The version poller still lives in Node, so the heartbeat bridge mirrors the
-// old in-controller backoff reset: when the heartbeat reports a URL different
-// from the one stored before Go updates it, reset that runner's poll backoff.
-const heartbeatProxy = createGoRunnerProxy({
-  preflight: async (req) => {
-    if (!req.body || !req.body.apiKey) return null;
-    const runner = await getRunnerByApiKey(req.body.apiKey);
-    return runner ? { runnerId: runner.id, storedUrl: runner.url } : null;
-  },
-  onUpstream2xx: (req, proxyRes, info) => {
-    if (!info) return;
-    let reported = String((req.body && req.body.url) || "");
-    while (reported.endsWith("/")) reported = reported.slice(0, -1);
-    if (reported && info.storedUrl !== reported) resetRunnerBackoff(info.runnerId);
-  },
-});
 
 router.get("/runners/install/:token", publicLimiter, goRunnerProxy);
 router.post("/runners/register", publicLimiter, goRunnerProxy);
-router.post("/runners/heartbeat", publicLimiter, heartbeatProxy);
+router.post("/runners/heartbeat", publicLimiter, goRunnerProxy);
 router.post("/runners/re-enroll", publicLimiter, goRunnerProxy);
 
 // Protected routes - require authentication

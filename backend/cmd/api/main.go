@@ -16,6 +16,7 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
 	"github.com/dockedapp/backend/internal/imagesync"
+	"github.com/dockedapp/backend/internal/runner"
 	"github.com/dockedapp/backend/internal/scheduler"
 )
 
@@ -50,13 +51,19 @@ func main() {
 	// Batch scheduler (docker-hub-pull) runs alongside the HTTP server.
 	go scheduler.New(syncSvc).Start(ctx)
 
+	// Runner version poller (dockhand release badge + docker status), the Go
+	// twin of Node's runnerVersionPoller. Heartbeat URL changes reset its
+	// per-runner backoff in-process via the shared instance.
+	versionPoller := runner.NewVersionPoller(database)
+	go versionPoller.Start(ctx)
+
 	// Enrollment token housekeeping (DB cleanup + in-memory sweep), the Go
 	// twin of Node runnerController's startup cleanup + 30-minute interval.
 	go handlers.StartEnrollmentMaintenance(ctx, database)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,
-		Handler:      api.NewServer(cfg, database, hub, syncSvc),
+		Handler:      api.NewServer(cfg, database, hub, syncSvc, versionPoller),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

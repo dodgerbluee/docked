@@ -26,14 +26,16 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
 	"github.com/dockedapp/backend/internal/imagesync"
+	runnerpkg "github.com/dockedapp/backend/internal/runner"
 )
 
 // NewServer builds the chi router with all middleware and routes registered.
 // The GraphQL endpoint is mounted at /graphql; the playground at /playground.
 // hub is the event hub shared by subscription resolvers and the Node bridge;
 // syncSvc drives the docker-hub-pull container sync (may be nil, in which
-// case pullContainers reports it as unavailable).
-func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *imagesync.Service) http.Handler {
+// case pullContainers reports it as unavailable). poller backs the runner
+// version poller; heartbeat URL changes reset its per-runner backoff.
+func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *imagesync.Service, poller *runnerpkg.VersionPoller) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -216,7 +218,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			r.Use(apimiddleware.RateLimit(agentLimiter, apimiddleware.RESTTooManyRequests))
 			r.Get("/runners/install/{token}", handlers.ServeInstallScript(cfg.DockedURL))
 			r.Post("/runners/register", handlers.RegisterRunner(database))
-			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database))
+			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database, poller))
 			r.Post("/runners/re-enroll", handlers.ReEnrollRunner(database))
 		})
 

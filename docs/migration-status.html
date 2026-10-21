@@ -117,8 +117,8 @@
       const DATA = {
         updated: "2026-10-21",
         prodVersion: "3.27.0-dev",
-        nodeLoc: 29537, // server/ JS excl. __tests__
-        goLoc: 61567,   // backend/ Go incl. generated
+        nodeLoc: 29295, // server/ JS excl. __tests__
+        goLoc: 62195,   // backend/ Go incl. generated
         domains: [
           // status: go | node | dead | removed   — phase = target migration phase (node only)
           { name: "Container list / reads", status: "go", note: "GraphQL containerGroup; UI zero REST" },
@@ -135,7 +135,7 @@
 
           { name: "Runner agent protocol + enrollment", status: "go", note: "install/register/heartbeat/re-enroll/enrollment in Go; Node = edge limiters + streaming proxy" },
           { name: "Runner user proxy routes", status: "go", note: "operations/apps/history + 3 SSE streams in Go (runnerUser.go); Node = limiters + authenticate + streaming proxy" },
-          { name: "Runner version poller", status: "node", phase: 4, note: "runnerVersionPoller.js (phase 4c → Go scheduler)" },
+          { name: "Runner version poller", status: "go", note: "internal/runner/versionpoller.go; heartbeat backoff reset in-process" },
           { name: "Tracked apps + scanning", status: "node", phase: 5, note: "batch handlers, registry providers, github/gitlab services" },
           { name: "Discord: tracked apps", status: "node", phase: 5, note: "discordService.js (container half already in Go)" },
           { name: "Intents engine (Node)", status: "node", phase: 6, note: "evaluator/executor/matching; portainer:<id> keys need migration care" },

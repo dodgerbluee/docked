@@ -296,7 +296,7 @@ func newTestEnv(t *testing.T, seed bool) *testEnv {
 
 	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0"}
 	hub := events.NewHub()
-	env.ts = httptest.NewServer(NewServer(cfg, database, hub, imagesync.NewService(database, hub)))
+	env.ts = httptest.NewServer(NewServer(cfg, database, hub, imagesync.NewService(database, hub), nil))
 	t.Cleanup(func() {
 		env.ts.Close()
 		database.Close()

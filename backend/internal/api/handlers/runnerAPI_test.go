@@ -96,7 +96,7 @@ func newRunnerTestRouter(database *sql.DB) http.Handler {
 			r.Use(middleware.RateLimit(agentLimiter, middleware.RESTTooManyRequests))
 			r.Get("/runners/install/{token}", ServeInstallScript(""))
 			r.Post("/runners/register", RegisterRunner(database))
-			r.Post("/runners/heartbeat", HeartbeatRunner(database))
+			r.Post("/runners/heartbeat", HeartbeatRunner(database, nil))
 			r.Post("/runners/re-enroll", ReEnrollRunner(database))
 		})
 		r.Group(func(r chi.Router) {

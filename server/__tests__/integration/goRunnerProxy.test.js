@@ -5,9 +5,9 @@
  * backend; Node keeps the edge limiters and forwards. These tests pin the
  * forwarding contract: original URL, Authorization passthrough, XFF
  * overwrite (never append), X-Forwarded-Proto/Host for Go's URL builder,
- * JSON body re-serialization, streaming response passthrough, the
- * preflight/onUpstream2xx heartbeat bridge hooks, and the 502 envelope when
- * the Go backend is unreachable.
+ * JSON body re-serialization, streaming response passthrough, upstream
+ * teardown on client disconnect, and the 502 envelope when the Go backend
+ * is unreachable.
  */
 
 const http = require("http");
@@ -67,27 +67,20 @@ describe("goRunnerProxy bridge", () => {
   });
 
   let app;
-  let bridgeEvents;
 
   beforeEach(() => {
     seen = [];
     upstreamMode = "ok";
     upstreamClosed = false;
-    bridgeEvents = [];
 
     const plain = createGoRunnerProxy();
-    const heartbeat = createGoRunnerProxy({
-      preflight: (req) => ({ storedUrl: "http://old:7777", runnerId: 7 }),
-      onUpstream2xx: (req, proxyRes, info) =>
-        bridgeEvents.push({ phase: "2xx", body: req.body, info, status: proxyRes.statusCode }),
-    });
 
     app = express();
     app.use(express.json());
     app.get("/api/runners/install/:token", plain);
     app.get("/api/runners/enrollment-status", plain);
     app.post("/api/runners/register", plain);
-    app.post("/api/runners/heartbeat", heartbeat);
+    app.post("/api/runners/heartbeat", plain);
     app.post("/api/runners/:runnerId/containers/:containerId/upgrade", plain);
   });
 
@@ -143,25 +136,6 @@ describe("goRunnerProxy bridge", () => {
     upstreamMode = "fail";
     const res = await request(app).post("/api/runners/register").send({}).expect(500);
     expect(res.body).toEqual({ success: false, error: "upstream boom" });
-  });
-
-  it("runs preflight + onUpstream2xx on success but not on upstream failure", async () => {
-    const res = await request(app)
-      .post("/api/runners/heartbeat")
-      .send({ apiKey: "k1", url: "http://10.0.0.9:7777/" })
-      .expect(200);
-    expect(res.body.success).toBe(true);
-    expect(bridgeEvents).toHaveLength(1);
-    expect(bridgeEvents[0].info).toEqual({ storedUrl: "http://old:7777", runnerId: 7 });
-    expect(bridgeEvents[0].body).toEqual({ apiKey: "k1", url: "http://10.0.0.9:7777/" });
-
-    upstreamMode = "fail";
-    bridgeEvents.length = 0;
-    await request(app)
-      .post("/api/runners/heartbeat")
-      .send({ apiKey: "k1", url: "http://x:1" })
-      .expect(500);
-    expect(bridgeEvents).toHaveLength(0);
   });
 
   it("returns a 502 JSON envelope when the Go backend is unreachable", async () => {

@@ -115,7 +115,10 @@ func RegisterRunner(database *sql.DB) http.HandlerFunc {
 // HeartbeatRunner handles POST /api/runners/heartbeat: periodic dockhand
 // liveness report, authenticated by the runner's API key in the body. Keeps
 // last_seen, docker status, and (when the box moved) the stored URL fresh.
-func HeartbeatRunner(database *sql.DB) http.HandlerFunc {
+// A URL change also clears the version poller's backoff for that runner —
+// the old URL may have been causing ping failures (Node's resetRunnerBackoff
+// bridge hook, now in-process).
+func HeartbeatRunner(database *sql.DB, poller *runnerpkg.VersionPoller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			APIKey   string `json:"apiKey"`
@@ -167,6 +170,7 @@ func HeartbeatRunner(database *sql.DB) http.HandlerFunc {
 		if urlChanged {
 			slog.Info("runner URL changed via heartbeat",
 				"runnerID", rn.ID, "name", rn.Name, "from", rn.URL, "to", canonicalURL)
+			poller.ResetBackoff(rn.ID)
 			if err := db.UpdateRunnerURL(r.Context(), database, rn.ID, canonicalURL); err == nil {
 				details, _ := json.Marshal(map[string]any{"from": rn.URL, "to": canonicalURL})
 				_ = db.InsertRunnerEvent(r.Context(), database, rn.ID, db.EventURLChange,
