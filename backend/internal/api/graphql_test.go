@@ -1782,6 +1782,28 @@ func TestUploadAvatarRequiresMultipartTransport(t *testing.T) {
 	}
 }
 
+// The AroundOperations guard caps per-request cost so aliasing/list fan-out
+// cannot amplify DB and network work without bound. The client's heaviest
+// real queries sit far below the budget; a 600-way aliased list blows past it.
+func TestQueryComplexityGuard(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	// Static cost model: each aliased `trackedApps { id }` costs 2, so 5100
+	// aliases blow the 10000 budget.
+	heavy := "query { " + strings.Repeat("a: trackedApps { id } ", 5100) + " }"
+	resp := env.gql(t, admin, heavy, nil)
+	if !resp.hasErrorContaining("query too complex") {
+		t.Fatalf("over-budget query accepted; errors=%v", resp.Errors)
+	}
+
+	// A normal query must still pass the same guard.
+	resp = env.gql(t, admin, "query { version { version } }", nil)
+	if len(resp.Errors) != 0 {
+		t.Fatalf("normal query rejected: %v", resp.Errors)
+	}
+}
+
 // --- small DB helpers used by assertions ---
 
 func dbRole(t *testing.T, database *sql.DB, id int64) string {

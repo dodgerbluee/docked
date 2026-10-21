@@ -1206,7 +1206,7 @@ type Mutation {
   login(input: LoginInput!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   refreshToken(input: RefreshTokenInput!): AuthPayload!
-  logout: SuccessResult!
+  logout(refreshToken: String): SuccessResult!
   updatePassword(input: UpdatePasswordInput!): SuccessResult!
   updateUsername(input: UpdateUsernameInput!): UpdateUsernameResult!
 

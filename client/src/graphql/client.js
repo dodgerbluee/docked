@@ -60,13 +60,20 @@ export function revokeCurrentSession() {
   if (!token) {
     return;
   }
+  // OAuth sessions also store a refresh token; hand it to the server so the
+  // whole session dies, not just the (short-lived) access token.
+  const refreshToken = localStorage.getItem("refreshToken");
   fetch("/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query: "mutation { logout { success } }" }),
+    body: JSON.stringify({
+      query:
+        "mutation ($refreshToken: String) { logout(refreshToken: $refreshToken) { success } }",
+      variables: { refreshToken: refreshToken || null },
+    }),
     keepalive: true,
   }).catch(() => {});
 }

@@ -89,18 +89,34 @@ func tailFileLines(path string, maxLines int) (string, int64, error) {
 	return strings.Join(lines, "\n"), size, nil
 }
 
-// forwardSubscription bridges a hub channel to a gqlgen subscription
-// output channel. It terminates (and runs cleanup) when the subscription
-// context is cancelled, so hub subscribers are released on disconnect.
-func forwardSubscription[T any](ctx context.Context, in <-chan T, cleanup func()) <-chan *T {
+// forwardSubscription copies hub events into the output channel. It
+// terminates (and runs cleanup) when the subscription context is cancelled,
+// so hub subscribers are released on disconnect. The optional revalidate
+// hook runs on a timer: when it fails (token expired/revoked, user gone)
+// the stream is terminated, so a dead session cannot keep streaming events
+// on a long-lived websocket.
+func forwardSubscription[T any](ctx context.Context, in <-chan T, cleanup func(), revalidate func() error) <-chan *T {
 	out := make(chan *T, 1)
 	go func() {
 		defer close(out)
 		defer cleanup()
+		var ticker *time.Ticker
+		if revalidate != nil {
+			ticker = time.NewTicker(subscriptionRevalidateInterval)
+			defer ticker.Stop()
+		}
+		var tick <-chan time.Time
+		if ticker != nil {
+			tick = ticker.C
+		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-tick:
+				if err := revalidate(); err != nil {
+					return
+				}
 			case v := <-in:
 				val := v
 				select {

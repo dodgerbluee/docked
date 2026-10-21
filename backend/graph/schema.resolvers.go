@@ -291,8 +291,11 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 }
 
 // Logout is the resolver for the logout field.
-func (r *mutationResolver) Logout(ctx context.Context) (*model.SuccessResult, error) {
+func (r *mutationResolver) Logout(ctx context.Context, refreshToken *string) (*model.SuccessResult, error) {
 	r.revokeCurrentToken(ctx)
+	if refreshToken != nil && *refreshToken != "" {
+		r.revokeRefreshToken(ctx, *refreshToken)
+	}
 	return &model.SuccessResult{Success: true, Message: strPtr("Logged out")}, nil
 }
 
@@ -3428,7 +3431,7 @@ func (r *subscriptionResolver) ContainersUpdated(ctx context.Context) (<-chan *m
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeContainersUpdated(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // ContainerUpgradeProgress is the resolver for the containerUpgradeProgress field.
@@ -3438,7 +3441,7 @@ func (r *subscriptionResolver) ContainerUpgradeProgress(ctx context.Context) (<-
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeUpgradeProgress(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // BatchJobProgress is the resolver for the batchJobProgress field.
@@ -3448,7 +3451,7 @@ func (r *subscriptionResolver) BatchJobProgress(ctx context.Context) (<-chan *mo
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeBatchJob(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // IntentExecutionProgress is the resolver for the intentExecutionProgress field.
@@ -3458,7 +3461,7 @@ func (r *subscriptionResolver) IntentExecutionProgress(ctx context.Context) (<-c
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeIntentExecution(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // RunnerStatusChanged is the resolver for the runnerStatusChanged field.
@@ -3468,7 +3471,7 @@ func (r *subscriptionResolver) RunnerStatusChanged(ctx context.Context) (<-chan 
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeRunnerStatus(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // OperationProgress is the resolver for the operationProgress field.
@@ -3478,7 +3481,7 @@ func (r *subscriptionResolver) OperationProgress(ctx context.Context) (<-chan *m
 		return nil, err
 	}
 	ch, unsub := r.Hub.SubscribeOperation(uid)
-	return forwardSubscription(ctx, ch, unsub), nil
+	return forwardSubscription(ctx, ch, unsub, r.subscriptionGuard(ctx)), nil
 }
 
 // UpgradeHistory is the resolver for the upgradeHistory field.

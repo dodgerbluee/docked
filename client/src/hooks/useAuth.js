@@ -41,6 +41,7 @@ export const useAuth = () => {
   // Handle logout - defined early so it can be used in validation
   const handleLogout = useCallback(() => {
     localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("username");
     localStorage.removeItem("userRole");
     localStorage.removeItem("instanceAdmin");

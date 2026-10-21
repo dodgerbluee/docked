@@ -766,8 +766,8 @@ export const REFRESH_TOKEN_MUTATION = /* GraphQL */ `
 `;
 
 export const LOGOUT_MUTATION = /* GraphQL */ `
-  mutation Logout {
-    logout {
+  mutation Logout($refreshToken: String) {
+    logout(refreshToken: $refreshToken) {
       success
       message
     }

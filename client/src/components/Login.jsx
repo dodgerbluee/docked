@@ -37,6 +37,7 @@ function Login({ onLogin }) {
   // Clear any stale auth data when component mounts
   useEffect(() => {
     localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("username");
     // Clear axios defaults
     delete axios.defaults.headers.common["Authorization"];

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/dockedapp/backend/internal/auth"
+	"github.com/dockedapp/backend/internal/db"
 )
 
 // TestSubscriptionWSTransport verifies the graphql-ws handshake end to end:
@@ -139,5 +141,77 @@ func TestSubscriptionWSTransport(t *testing.T) {
 			}
 		}
 		t.Fatal("timed out waiting for subscription event")
+	})
+
+	// InitFunc only runs at handshake time; the AroundOperations guard must
+	// re-validate the connection's token on every operation so a token
+	// revoked (or expired) mid-connection cannot start new work.
+	t.Run("revoked token rejected on live connection", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c, _, err := websocket.Dial(ctx, wsURL, dialOpts)
+		if err != nil {
+			t.Fatalf("dial: %v", err)
+		}
+		defer c.CloseNow()
+
+		init, _ := json.Marshal(map[string]any{
+			"type":    "connection_init",
+			"payload": map[string]any{"token": admin},
+		})
+		if err := c.Write(ctx, websocket.MessageText, init); err != nil {
+			t.Fatalf("write init: %v", err)
+		}
+		_, data, err := c.Read(ctx)
+		if err != nil || !bytes.Contains(data, []byte(`"connection_ack"`)) {
+			t.Fatalf("expected connection_ack, got err=%v data=%s", err, data)
+		}
+
+		// A subscribe while the session is still valid must be accepted.
+		subOK, _ := json.Marshal(map[string]any{
+			"id":      "sub-ok",
+			"type":    "subscribe",
+			"payload": map[string]any{"query": "subscription { containersUpdated { sourceIds containerCount } }"},
+		})
+		if err := c.Write(ctx, websocket.MessageText, subOK); err != nil {
+			t.Fatalf("write subscribe: %v", err)
+		}
+
+		// Revoke the connection's access token out from under it.
+		uid, exp, err := auth.ValidateTokenClaims(admin, testSecret)
+		if err != nil {
+			t.Fatalf("validate claims: %v", err)
+		}
+		if err := db.RevokeToken(ctx, env.database, admin, uid, exp); err != nil {
+			t.Fatalf("revoke: %v", err)
+		}
+
+		// A new operation on the same (still-open) connection must be rejected.
+		subRevoked, _ := json.Marshal(map[string]any{
+			"id":      "sub-revoked",
+			"type":    "subscribe",
+			"payload": map[string]any{"query": "subscription { containersUpdated { sourceIds containerCount } }"},
+		})
+		if err := c.Write(ctx, websocket.MessageText, subRevoked); err != nil {
+			t.Fatalf("write subscribe (revoked): %v", err)
+		}
+
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			_, data, err := c.Read(ctx)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if bytes.Contains(data, []byte(`"ka"`)) {
+				continue // keep-alive
+			}
+			if bytes.Contains(data, []byte(`"sub-revoked"`)) {
+				if !bytes.Contains(data, []byte(`"errors"`)) {
+					t.Fatalf("revoked-session operation was not rejected: %s", data)
+				}
+				return
+			}
+		}
+		t.Fatal("timed out waiting for rejection of revoked-session operation")
 	})
 }

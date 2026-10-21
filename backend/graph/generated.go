@@ -378,7 +378,7 @@ type ComplexityRoot struct {
 		GenerateInstanceAdminToken   func(childComplexity int, username string) int
 		GenerateRegistrationCode     func(childComplexity int) int
 		Login                        func(childComplexity int, input model.LoginInput) int
-		Logout                       func(childComplexity int) int
+		Logout                       func(childComplexity int, refreshToken *string) int
 		PullContainers               func(childComplexity int, runnerID *string) int
 		RefreshToken                 func(childComplexity int, input model.RefreshTokenInput) int
 		RegenerateInstanceAdminToken func(childComplexity int, username string) int
@@ -842,7 +842,7 @@ type MutationResolver interface {
 	Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error)
 	Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error)
 	RefreshToken(ctx context.Context, input model.RefreshTokenInput) (*model.AuthPayload, error)
-	Logout(ctx context.Context) (*model.SuccessResult, error)
+	Logout(ctx context.Context, refreshToken *string) (*model.SuccessResult, error)
 	UpdatePassword(ctx context.Context, input model.UpdatePasswordInput) (*model.SuccessResult, error)
 	UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.UpdateUsernameResult, error)
 	GenerateRegistrationCode(ctx context.Context) (*model.BootstrapResult, error)
@@ -2578,7 +2578,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.Mutation.Logout(childComplexity), true
+		args, err := ec.field_Mutation_logout_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.Logout(childComplexity, args["refreshToken"].(*string)), true
 	case "Mutation.pullContainers":
 		if e.ComplexityRoot.Mutation.PullContainers == nil {
 			break
@@ -6243,7 +6248,7 @@ type Mutation {
   login(input: LoginInput!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   refreshToken(input: RefreshTokenInput!): AuthPayload!
-  logout: SuccessResult!
+  logout(refreshToken: String): SuccessResult!
   updatePassword(input: UpdatePasswordInput!): SuccessResult!
   updateUsername(input: UpdateUsernameInput!): UpdateUsernameResult!
 
@@ -8271,6 +8276,20 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_logout_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "refreshToken",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["refreshToken"] = arg0
 	return args, nil
 }
 
@@ -14802,7 +14821,8 @@ func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.
 			return ec.fieldContext_Mutation_logout(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Mutation().Logout(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().Logout(ctx, fc.Args["refreshToken"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
@@ -14812,7 +14832,7 @@ func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Mutation_logout(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_logout(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -14821,6 +14841,17 @@ func (ec *executionContext) fieldContext_Mutation_logout(_ context.Context, fiel
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_SuccessResult(ctx, field)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_logout_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }

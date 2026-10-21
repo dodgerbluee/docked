@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/complexity"
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
@@ -33,6 +35,53 @@ import (
 	"github.com/dockedapp/backend/internal/oauth"
 	runnerpkg "github.com/dockedapp/backend/internal/runner"
 )
+
+// wsConnectionCtxKey marks a context derived from a websocket
+// connection-init (set by InitFunc) so the per-operation guard can tell WS
+// traffic apart from plain HTTP requests.
+type wsConnectionCtxKey struct{}
+
+// Cost + depth budgets for the AroundOperations guard. The client's heaviest
+// legitimate queries (paged containers with relation fields) stay far below
+// these; the budgets exist to stop malicious alias/list fan-out.
+const (
+	maxQueryComplexity = 10000
+	maxQueryDepth      = 15
+)
+
+// queryDepth measures the maximum selection-set nesting of a parsed query,
+// following inline fragments and named fragment spreads.
+func queryDepth(doc *ast.QueryDocument) int {
+	deepest := 0
+	var walk func(ast.SelectionSet, int)
+	walk = func(sels ast.SelectionSet, depth int) {
+		if depth > deepest {
+			deepest = depth
+		}
+		for _, sel := range sels {
+			switch node := sel.(type) {
+			case *ast.Field:
+				if len(node.SelectionSet) == 0 {
+					continue
+				}
+				walk(node.SelectionSet, depth+1)
+			case *ast.InlineFragment:
+				walk(node.SelectionSet, depth)
+			case *ast.FragmentSpread:
+				for _, frag := range doc.Fragments {
+					if frag.Name == node.Name {
+						walk(frag.SelectionSet, depth)
+						break
+					}
+				}
+			}
+		}
+	}
+	for _, op := range doc.Operations {
+		walk(op.SelectionSet, 0)
+	}
+	return deepest
+}
 
 // Server bundles the HTTP handler with the background services the process
 // owner (main.go) must start alongside it.
@@ -89,7 +138,8 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	if syncSvc != nil {
 		syncSvc.OnScanComplete = intentEval.EvaluateImmediateIntents
 	}
-	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
+	execSchema := graph.NewExecutableSchema(graph.Config{Resolvers: resolver})
+	srv := handler.New(execSchema)
 	srv.AddTransport(transport.Websocket{
 		// Auth is the JWT in connectionParams (see InitFunc), not cookies, so
 		// the default same-origin handshake check only breaks proxied setups
@@ -126,6 +176,14 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			if revoked, err := db.IsTokenRevoked(ctx, database, token); err != nil || revoked {
 				return reject("invalid token")
 			}
+			// Stash the raw token like the HTTP middleware does: the
+			// per-operation revalidation middleware and the subscription
+			// watchdog need exactly the token this connection presented.
+			ctx = auth.ContextWithRawToken(ctx, token)
+			// Mark the connection so the per-operation guard knows to
+			// re-validate (HTTP requests carry their own bearer tokens and
+			// already pass through the revocation-aware middleware).
+			ctx = context.WithValue(ctx, wsConnectionCtxKey{}, true)
 			return auth.ContextWithUserID(ctx, userID), nil, nil
 		},
 	})
@@ -137,6 +195,44 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.AutomaticPersistedQuery{
 		Cache: lru.New[string](100),
+	})
+
+	// Per-operation hardening. Websocket auth rides the connectionParams
+	// token and InitFunc only runs at handshake time, so a token that
+	// expires or is revoked mid-connection must not keep executing
+	// operations: re-validate the connection's token on every operation.
+	// (HTTP requests already pass through the revocation-aware auth
+	// middleware, so only WS connections pay for the extra checks.)
+	srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
+		reject := func(msg string) graphql.ResponseHandler {
+			return func(c context.Context) *graphql.Response {
+				return graphql.ErrorResponse(c, "%s", msg)
+			}
+		}
+		if ctx.Value(wsConnectionCtxKey{}) != nil {
+			raw := auth.RawTokenFromContext(ctx)
+			uid, err := auth.ValidateToken(raw, cfg.JWTSecret)
+			if err != nil {
+				return reject("session expired")
+			}
+			if revoked, err := db.IsTokenRevoked(ctx, database, raw); err != nil || revoked {
+				return reject("session revoked")
+			}
+			if u, err := db.GetUserByID(ctx, database, uid); err != nil || u == nil {
+				return reject("session invalid")
+			}
+		}
+		// Cost + depth budgets: cap aliasing/list fan-out amplification of
+		// the DB and network work a single request can trigger.
+		if opCtx := graphql.GetOperationContext(ctx); opCtx != nil && opCtx.Operation != nil {
+			if cost := complexity.Calculate(ctx, execSchema, opCtx.Operation, opCtx.Variables); cost > maxQueryComplexity {
+				return reject("query too complex")
+			}
+			if depth := queryDepth(opCtx.Doc); depth > maxQueryDepth {
+				return reject("query nesting too deep")
+			}
+		}
+		return next(ctx)
 	})
 
 	// Auth middleware for GraphQL: extracts JWT and puts userID in context
