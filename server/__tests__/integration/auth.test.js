@@ -13,6 +13,11 @@ describe("Authentication API", () => {
   const testPassword = process.env.ADMIN_PASSWORD || "admin";
 
   beforeAll(async () => {
+    // On a fresh CI tmpdir the DB file has no tables yet; server.js defers
+    // initializeDatabase via setImmediate, so wait for it before touching the DB.
+    const { waitForDatabaseInit } = require("../../db/connection");
+    await waitForDatabaseInit();
+
     // Create a test admin user if it doesn't exist
     const { createUser, getUserByUsername: getUserByUsernameLocal } = require("../../db/index");
     try {

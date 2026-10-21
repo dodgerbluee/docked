@@ -9,6 +9,11 @@ describe("Containers API", () => {
   let authToken;
 
   beforeAll(async () => {
+    // On a fresh CI tmpdir the DB file has no tables yet; server.js defers
+    // initializeDatabase via setImmediate, so wait for it before touching the DB.
+    const { waitForDatabaseInit } = require("../../db/connection");
+    await waitForDatabaseInit();
+
     // Create a test admin user if it doesn't exist
     const { createUser, getUserByUsername } = require("../../db/index");
     const testUsername = "admin";

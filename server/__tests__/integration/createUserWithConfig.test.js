@@ -38,6 +38,10 @@ describe("POST /api/auth/create-user-with-config gates", () => {
   const password = "testpass-1234";
 
   beforeAll(async () => {
+    // Wait for startup init so the users/settings tables exist on a fresh tmpdir.
+    const { waitForDatabaseInit } = require("../../db/connection");
+    await waitForDatabaseInit();
+
     // The shared test DB file persists across runs and may predate this
     // table; create it the same way db/connection.js does at startup.
     await new Promise((resolve, reject) => {
