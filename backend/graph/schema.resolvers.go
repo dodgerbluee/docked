@@ -3495,12 +3495,16 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	withUpdates := 0
 	if rows, err := db.GetContainers(ctx, r.DB, uid); err == nil {
 		rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
-		seen := make(map[int64]bool, len(rows))
+		seen := make(map[string]bool, len(rows))
 		for i := range rows {
-			if seen[rows[i].ID] {
+			// Dedup by container identity, NOT row ID: live-merged runner
+			// rows are synthetic (ID 0), so an ID-keyed set collapses them
+			// all into one entry.
+			key := fmt.Sprintf("%d|%d|%s", rows[i].RunnerID.Int64, rows[i].EndpointID.Int64, rows[i].ContainerID)
+			if seen[key] {
 				continue
 			}
-			seen[rows[i].ID] = true
+			seen[key] = true
 			if db.ContainerHasUpdate(rows[i]) {
 				withUpdates++
 			}
