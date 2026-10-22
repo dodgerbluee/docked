@@ -438,6 +438,54 @@ func TestUpgradePipelineRecreatesDependentsOnSuccess(t *testing.T) {
 	}
 }
 
+// The dependent was already REMOVED, so a transient create error must be
+// retried, not swallowed: the old code reported a clean success with the
+// dependent permanently gone.
+func TestUpgradePipelineDependentRecreateRetriesTransientFailure(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	f.seed("dep-1", dependentInspectDoc())
+	f.failCreate["arr"] = 1 // first recreate attempt fails, retry must recover (dependent creates use the bare name)
+
+	r := &Resolver{DB: database}
+	if err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil); err != nil {
+		t.Fatalf("transient dependent create failure must be retried, got: %v", err)
+	}
+	if f.findByName("arr") == nil {
+		t.Fatal("dependent must be recreated after the retry succeeds")
+	}
+}
+
+// If recreation is exhausted (3 attempts), the operation must NOT report a
+// clean success: we removed the dependent, so its loss has to surface. The
+// upgraded provider stays up (rolling it back would be worse).
+func TestUpgradePipelineReportsFailureWhenDependentRecreateExhausts(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	f.seed("dep-1", dependentInspectDoc())
+	f.failCreate["arr"] = 99 // every attempt fails
+
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil {
+		t.Fatal("lost dependent must fail the operation, not report success")
+	}
+	if !strings.Contains(err.Error(), "arr") || !strings.Contains(err.Error(), "dependent") {
+		t.Errorf("error = %v, want it to name the lost dependent", err)
+	}
+	provider := f.findByName("gluetun")
+	if provider == nil || jStr(jObj(provider, "State"), "Status") != "running" {
+		t.Error("the successfully upgraded provider must stay up")
+	}
+	if f.findByName("arr") != nil {
+		t.Error("dependent must be gone after exhausted recreation attempts")
+	}
+}
+
 // Without dependents the old restore() was a no-op: a pull failure left the
 // service stopped forever and a create failure left it deleted. The pipeline
 // must put the service back unconditionally, not just when dependents exist.

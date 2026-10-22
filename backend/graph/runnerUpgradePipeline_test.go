@@ -426,4 +426,30 @@ func TestPreserveAnonymousVolumes(t *testing.T) {
 	if len(b3) != 1 || b3[0] != "anon9:/anon:rw" {
 		t.Errorf("binds with HostConfig.Mounts = %v, want only the anonymous volume re-added", b3)
 	}
+
+	// ANONYMOUS --mount (type=volume, empty Source): echoed verbatim into
+	// the create, Docker allocates a brand-new EMPTY volume and the data is
+	// orphaned. The entry must be pinned to the existing volume name from
+	// the inspect Mounts list.
+	details4 := map[string]any{
+		"Mounts": []any{
+			map[string]any{"Type": "volume", "Name": "gen77", "Source": "gen77", "Destination": "/data", "Mode": "rw"},
+		},
+	}
+	origMount := map[string]any{"Type": "volume", "Source": "", "Target": "/data", "ReadOnly": false}
+	hc4 := map[string]any{"Mounts": []any{origMount}}
+	preserveAnonymousVolumes(details4, hc4)
+	pinned, _ := hc4["Mounts"].([]any)
+	if len(pinned) != 1 {
+		t.Fatalf("Mounts = %v, want the single pinned entry", pinned)
+	}
+	if src := jStr(pinned[0].(map[string]any), "Source"); src != "gen77" {
+		t.Errorf("anonymous mount Source = %q, want pinned volume name gen77", src)
+	}
+	if origMount["Source"] != "" {
+		t.Error("must not mutate the inspect document (shallow copy aliasing)")
+	}
+	if b, ok := hc4["Binds"].([]any); ok && len(b) != 0 {
+		t.Errorf("pinned mount must not also be re-added as a bind: %v", b)
+	}
 }
