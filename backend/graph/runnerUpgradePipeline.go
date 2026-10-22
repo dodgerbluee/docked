@@ -568,7 +568,7 @@ type depContainer struct {
 }
 
 // findDependentContainers lists containers whose network_mode references the
-// target by name and which are currently running.
+// target by name or full ID and which are currently running.
 func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cleanName string) []depContainer {
 	list, err := runner.FetchContainers(ctx, rr)
 	if err != nil {
@@ -585,7 +585,11 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 			continue
 		}
 		nm := jStr(jObj(details, "HostConfig"), "NetworkMode")
-		if networkModeRef(nm) == cleanName && restartStatus(details) == "running" {
+		// Match by name OR full container ID: dependents created by compose
+		// or `docker run --net container:<64-hex-id>` reference the provider
+		// by ID, and name-only matching silently skipped them — rollback then
+		// left them wired to the deleted old provider ID.
+		if networkModeMatches(nm, cleanName, targetID, targetID) && restartStatus(details) == "running" {
 			deps = append(deps, depContainer{ID: c.ID, Name: c.Name, Details: details})
 		}
 	}

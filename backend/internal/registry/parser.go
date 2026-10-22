@@ -21,14 +21,6 @@ type ParsedImage struct {
 // knownRegistries matches the order used by the Node parser.
 var knownRegistries = []string{"ghcr.io", "gcr.io", "quay.io", "registry.gitlab.com", "docker.io"}
 
-// cleanImageName removes incomplete @sha256 markers (no colon) from image names.
-func cleanImageName(imageName string) string {
-	if strings.Contains(imageName, "@sha256") && !strings.Contains(imageName, "@sha256:") {
-		return strings.Replace(imageName, "@sha256", "", 1)
-	}
-	return imageName
-}
-
 // SplitRepoTag splits a Docker image reference into (repo, tag). The tag
 // separator is the LAST ":" that appears after the last "/", so registry
 // ports are never mistaken for tags: "localhost:5000/app" is an untagged
@@ -52,7 +44,16 @@ func ParseImageName(imageName string) (*ParsedImage, error) {
 		return nil, errors.New("invalid image name provided")
 	}
 
-	cleaned := cleanImageName(imageName)
+	// Strip the digest suffix with the canonical rule (everything from the
+	// first "@") so "nginx:stable@sha256:<hash>" parses as repo "nginx",
+	// tag "stable" — the SAME key SplitRepoTag produces. imagesync uses both
+	// parsers (one for the lookup key, one for the persisted components),
+	// and divergent digest handling made persisted observations impossible to
+	// correlate with live inventory.
+	cleaned := imageName
+	if idx := strings.Index(cleaned, "@"); idx >= 0 {
+		cleaned = cleaned[:idx]
+	}
 
 	// extractTag: the tag separator is the last ":" AFTER the last "/", so
 	// registry ports (localhost:5000/app) are not mis-split into a bogus tag.

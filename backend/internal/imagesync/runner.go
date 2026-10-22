@@ -298,10 +298,12 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		// available" ones. Storing only on hasUpdate left a stale
 		// latest_digest after a successful up-to-date scan, which later
 		// inventory comparisons could re-flag as a phantom update. A failed
-		// lookup (ExistsInRegistry=false) deliberately does NOT overwrite
-		// stored data.
+		// lookup deliberately does NOT overwrite stored data: provider
+		// failures can surface as non-nil, digest-less placeholders
+		// (processProviderResult/ensureProvider), and writing those would
+		// NULL out a previously known latest digest.
 		var version *db.VersionData
-		if info.ExistsInRegistry {
+		if info.ExistsInRegistry && info.LatestDigestFull != nil {
 			latestTag := info.LatestTag
 			if latestTag == "" {
 				latestTag = parsed.Tag

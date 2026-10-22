@@ -21,7 +21,10 @@ func TestParseImageName(t *testing.T) {
 		{"quay", "quay.io/prometheus/node-exporter:v1.8.0", "quay.io/prometheus/node-exporter", "quay.io", "prometheus", "node-exporter", "v1.8.0"},
 		{"lscr maps to docker.io namespace", "lscr.io/linuxserver/heimdall:latest", "lscr.io/linuxserver/heimdall", "docker.io", "lscr.io", "linuxserver/heimdall", "latest"},
 		{"docker.io prefix", "docker.io/library/nginx:alpine", "library/nginx", "docker.io", "library", "nginx", "alpine"},
-		{"digest form (naive split, same as Node)", "nginx@sha256:abc123", "nginx@sha256", "docker.io", "", "nginx@sha256", "abc123"},
+		// Digest suffix stripped by the canonical rule — same key SplitRepoTag
+		// produces, so persisted observations correlate with live inventory.
+		{"digest form", "nginx@sha256:abc123", "nginx", "docker.io", "", "nginx", "latest"},
+		{"tagged digest form", "nginx:stable@sha256:abc123", "nginx", "docker.io", "", "nginx", "stable"},
 		// Registry port must not be mistaken for a tag: the old split(":")
 		// produced repo "localhost" with tag "5000/app".
 		{"port-qualified untagged", "localhost:5000/app", "localhost:5000/app", "docker.io", "localhost:5000", "app", "latest"},

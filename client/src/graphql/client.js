@@ -23,30 +23,51 @@ export const wsClient = createWsClient({
   shouldRetry: (code) => code !== 4401 && code !== 4403,
 });
 
-export const graphqlClient = createClient({
-  url: "/graphql",
-  exchanges: [
-    subscriptionExchange({
-      // graphql-ws's subscribe() returns an unsubscribe fn; urql expects an
-      // observable-ish { subscribe(sink) => { unsubscribe } } adapter.
-      forwardSubscription: (operation) => ({
-        subscribe: (sink) => ({
-          unsubscribe: wsClient.subscribe(
-            { query: operation.query, variables: operation.variables },
-            sink
-          ),
+function buildClient() {
+  return createClient({
+    url: "/graphql",
+    exchanges: [
+      subscriptionExchange({
+        // graphql-ws's subscribe() returns an unsubscribe fn; urql expects an
+        // observable-ish { subscribe(sink) => { unsubscribe } } adapter.
+        forwardSubscription: (operation) => ({
+          subscribe: (sink) => ({
+            unsubscribe: wsClient.subscribe(
+              { query: operation.query, variables: operation.variables },
+              sink
+            ),
+          }),
         }),
       }),
-    }),
-    fetchExchange,
-  ],
-  fetchOptions: () => {
-    const token = localStorage.getItem("authToken");
-    return {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    };
-  },
-});
+      fetchExchange,
+    ],
+    fetchOptions: () => {
+      const token = localStorage.getItem("authToken");
+      return {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      };
+    },
+  });
+}
+
+// A swappable urql instance behind a stable facade. urql deduplicates identical
+// in-flight queries WITHIN one client instance: if the instance survived a
+// logout, user B's first request could be handed user A's in-flight response.
+// resetGraphQLClient() gives every session its own instance, isolating
+// operations across user switches.
+let activeClient = buildClient();
+
+export const graphqlClient = {
+  query: (doc, vars) => activeClient.query(doc, vars),
+  mutation: (doc, vars) => activeClient.mutation(doc, vars),
+  subscription: (doc, vars) => activeClient.subscription(doc, vars),
+  subscribe: (doc, vars, policy) => activeClient.subscribe(doc, vars, policy),
+};
+
+/** Replace the active urql client (call on logout AND login). */
+export function resetGraphQLClient() {
+  activeClient = buildClient();
+}
 
 // Fire-and-forget logout revocation. Reads the token synchronously (before the
 // caller clears localStorage) and posts the logout mutation with it captured in

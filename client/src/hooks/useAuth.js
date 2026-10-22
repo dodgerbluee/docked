@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { clearAllCaches } from "../utils/cacheRegistry";
+import { resetGraphQLClient } from "../graphql/client";
 
 /**
  * Custom hook for authentication state and operations
@@ -51,7 +52,10 @@ export const useAuth = () => {
     setInstanceAdmin(false);
     setIsAuthenticated(false);
     delete axios.defaults.headers.common["Authorization"];
-    // Clear module-level caches to prevent cross-user data leaks
+    // Swap the urql instance so in-flight operations of the dead session can
+    // never be deduplicated into the next one, then clear module-level caches
+    // to prevent cross-user data leaks.
+    resetGraphQLClient();
     clearAllCaches();
   }, []);
 
@@ -120,6 +124,9 @@ export const useAuth = () => {
 
   // Handle login
   const handleLogin = useCallback((token, user, role, isInstanceAdmin = false) => {
+    // Fresh urql instance per session: no in-flight operation from a previous
+    // session (or an anonymous page load) can be deduplicated into this one.
+    resetGraphQLClient();
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);

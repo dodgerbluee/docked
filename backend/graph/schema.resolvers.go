@@ -1445,7 +1445,16 @@ func (r *mutationResolver) ClearTrackedAppCache(ctx context.Context) (*model.Suc
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.DB.ExecContext(ctx, "DELETE FROM registry_image_versions WHERE user_id = ?", uid)
+	// Reset the user's tracked-app latest metadata so the next scan re-fetches
+	// live. Deleting registry_image_versions here (the old behavior) wiped the
+	// CONTAINER registry observations — unrelated data that silently reset
+	// every container's update detection to zero.
+	_, err = r.DB.ExecContext(ctx,
+		`UPDATE tracked_apps
+		    SET latest_version = NULL, latest_digest = NULL, has_update = 0,
+		        latest_version_publish_date = NULL, last_checked = NULL,
+		        updated_at = CURRENT_TIMESTAMP
+		  WHERE user_id = ?`, uid)
 	if err != nil {
 		return nil, err
 	}
