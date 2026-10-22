@@ -346,7 +346,11 @@ func OAuthLink(database *sql.DB, secret string) http.HandlerFunc {
 		linkToken, _ := body["linkToken"].(string)
 		password, _ := body["password"].(string)
 
-		parser := jwt.NewParser(jwt.WithIssuer("docked"), jwt.WithAudience("docked-oauth-link"))
+		parser := jwt.NewParser(
+			jwt.WithIssuer("docked"),
+			jwt.WithAudience("docked-oauth-link"),
+			jwt.WithStrictDecoding(), // canonical form only (see auth parsers)
+		)
 		token, err := parser.Parse(linkToken, func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
