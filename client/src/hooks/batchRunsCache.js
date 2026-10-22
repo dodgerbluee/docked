@@ -17,10 +17,16 @@ import { registerCacheClear } from "../utils/cacheRegistry";
 
 let _latestRunsByJobType = null;
 let _inflight = null;
+// Bumped on every clear. In-flight requests capture the generation they
+// started in; if it changed by completion time, their result belongs to a
+// dead session and must not repopulate the cache (or null out a newer
+// session's in-flight tracker).
+let _generation = 0;
 
 // Module-level caches hold one user's batch runs; they must not survive
 // logout into the next session in the same tab.
 export function clearBatchRunsCache() {
+  _generation += 1;
   _latestRunsByJobType = null;
   _inflight = null;
 }
@@ -56,10 +62,17 @@ export function fetchLatestRunsByJobType() {
     return _inflight;
   }
 
+  const gen = _generation;
   _inflight = graphqlClient
     .query(BATCH_RUNS_QUERY, { first: 50 })
     .toPromise()
     .then((result) => {
+      if (gen !== _generation) {
+        // A logout happened mid-flight: this response belongs to the dead
+        // session (possibly another user's data) and must not repopulate
+        // the cache for the new one.
+        return null;
+      }
       if (!result.error && result.data?.batchRuns?.items) {
         // Items come back newest-first, so the first item per job type wins.
         const runs = {};
@@ -76,11 +89,14 @@ export function fetchLatestRunsByJobType() {
     })
     .catch((err) => {
       console.error("Error fetching batch runs by job type:", err);
-      return _latestRunsByJobType;
+      return gen === _generation ? _latestRunsByJobType : null;
     })
     .finally(() => {
-      // Clear the in-flight tracker so subsequent polls make a fresh request
-      _inflight = null;
+      // Clear the in-flight tracker so subsequent polls make a fresh
+      // request — but never null out a NEWER session's in-flight promise.
+      if (gen === _generation) {
+        _inflight = null;
+      }
     });
 
   return _inflight;

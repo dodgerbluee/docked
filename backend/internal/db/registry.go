@@ -17,14 +17,23 @@ type RegistryData struct {
 	LastChecked       sql.NullString
 }
 
+// CanonicalRepoKey normalizes a docker.io repo for registry lookups, the
+// same way the containers↔registry_image_versions SQL join does
+// (REPLACE(x, 'docker.io/', ”)). Scans store Hub repos without the host
+// ("library/nginx"), while live Docker refs may carry it
+// ("docker.io/library/nginx"); without this the live join misses.
+func CanonicalRepoKey(repo string) string {
+	return strings.TrimPrefix(repo, "docker.io/")
+}
+
 // GetRegistryData looks up the latest registry version info for a given image repo/tag.
 func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageRepo, imageTag string) (*RegistryData, error) {
 	row := database.QueryRowContext(ctx,
 		`SELECT latest_digest, latest_version, tag, latest_publish_date, provider, last_checked
 		 FROM registry_image_versions
-		 WHERE user_id = ? AND image_repo = ? AND (tag = ? OR tag IS NULL)
+		 WHERE user_id = ? AND REPLACE(image_repo, 'docker.io/', '') = ? AND (tag = ? OR tag IS NULL)
 		 LIMIT 1`,
-		userID, imageRepo, imageTag)
+		userID, CanonicalRepoKey(imageRepo), imageTag)
 
 	var d RegistryData
 	err := row.Scan(&d.LatestDigest, &d.LatestVersion, &d.LatestTag,
@@ -69,6 +78,9 @@ func GetRegistryDataMap(ctx context.Context, database *sql.DB, userID int64) (*R
 			return nil, fmt.Errorf("scan registry data map: %w", err)
 		}
 		d.LatestTag = tag
+		// Key on the canonical (host-stripped) repo so live lookups with a
+		// docker.io-prefixed ref still hit rows stored without it.
+		repo = CanonicalRepoKey(repo)
 		if tag.Valid {
 			m.exact[repo+"\x00"+tag.String] = &d
 		} else {
@@ -84,6 +96,7 @@ func GetRegistryDataMap(ctx context.Context, database *sql.DB, userID int64) (*R
 // Get returns the registry row matching (repo, tag) with the same precedence
 // as GetRegistryData, or nil when nothing matches.
 func (m *RegistryDataMap) Get(repo, tag string) *RegistryData {
+	repo = CanonicalRepoKey(repo)
 	if d, ok := m.exact[repo+"\x00"+tag]; ok {
 		return d
 	}

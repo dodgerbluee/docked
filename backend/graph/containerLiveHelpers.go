@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -193,4 +194,33 @@ func sqlNullStrPtr(s *string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *s, Valid: *s != ""}
+}
+
+// containerIdentityKey keys a container row by what it IS, not by its
+// (possibly synthetic) row ID: live-merged runner rows all carry ID 0, so
+// an ID-keyed dedup would collapse them into one entry.
+func containerIdentityKey(row *db.ContainerRow) string {
+	return strconv.FormatInt(row.RunnerID.Int64, 10) + "|" + strconv.FormatInt(row.EndpointID.Int64, 10) + "|" + row.ContainerID
+}
+
+// dedupeContainerRows collapses join duplicates (a container matching more
+// than one registry_image_versions row) to one row per container, keeping a
+// flagged row over an unflagged one so update counts and lists agree: if ANY
+// join row for a container says an update is available, the container is
+// shown and counted as updatable.
+func dedupeContainerRows(rows []db.ContainerRow) []db.ContainerRow {
+	out := make([]db.ContainerRow, 0, len(rows))
+	index := make(map[string]int, len(rows))
+	for i := range rows {
+		key := containerIdentityKey(&rows[i])
+		if at, ok := index[key]; ok {
+			if db.ContainerHasUpdate(rows[i]) && !db.ContainerHasUpdate(out[at]) {
+				out[at] = rows[i]
+			}
+			continue
+		}
+		index[key] = len(out)
+		out = append(out, rows[i])
+	}
+	return out
 }

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
@@ -79,6 +80,25 @@ func TestFetchIndexDigestNotFound(t *testing.T) {
 // Credential-scoped caches: two different tokens must fingerprint differently
 // (the GitLab digest cache key embeds this, so one user's private-image result
 // is never served to another user's credentialless check).
+// Docker Hub official single-word repos (nginx, redis, postgres) parse to a
+// bare imageRepo with no slash; CanHandle must claim them or no provider ever
+// checks them for updates.
+func TestDockerHubCanHandle(t *testing.T) {
+	p := NewDockerHubProvider(NewDigestCache(time.Hour))
+	yes := []string{"nginx", "redis", "postgres", "library/nginx", "docker.io/library/nginx", "user/repo", "lscr.io/linuxserver/jellyfin"}
+	for _, repo := range yes {
+		if !p.CanHandle(repo) {
+			t.Errorf("CanHandle(%q) = false, want true", repo)
+		}
+	}
+	no := []string{"ghcr.io/foo/bar", "mcr.microsoft.com/dotnet/runtime", "k8s.gcr.io/pause"}
+	for _, repo := range no {
+		if p.CanHandle(repo) {
+			t.Errorf("CanHandle(%q) = true, want false", repo)
+		}
+	}
+}
+
 func TestTokenFingerprint(t *testing.T) {
 	if TokenFingerprint("") != "anon" {
 		t.Error("empty token must fingerprint as anon")

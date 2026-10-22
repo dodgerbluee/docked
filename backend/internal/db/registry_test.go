@@ -77,3 +77,60 @@ func TestRegistryDataMapMatchesGetRegistryData(t *testing.T) {
 		t.Errorf("user 2 saw user 1's fallback row: %+v", d)
 	}
 }
+
+// Live Docker refs may carry the docker.io host ("docker.io/library/nginx")
+// while scans store Hub repos without it ("library/nginx") — and legacy rows
+// may have it. Both sides must canonicalize, or live enrichment misses and
+// hasUpdate goes false despite stored update data.
+func TestRegistryDataMapDockerHostCanonicalization(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+
+	seed := []struct {
+		repo string
+		tag  any
+		ver  string
+	}{
+		{"library/nginx", "latest", "nginx-ver"},
+		{"docker.io/library/redis", "latest", "redis-legacy-ver"},
+	}
+	for _, s := range seed {
+		if _, err := database.ExecContext(ctx,
+			`INSERT INTO registry_image_versions (user_id, image_repo, registry, repository, tag, latest_version)
+			 VALUES (1, ?, 'docker.io', 'repo', ?, ?)`,
+			s.repo, s.tag, s.ver); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	m, err := GetRegistryDataMap(ctx, database, 1)
+	if err != nil {
+		t.Fatalf("get map: %v", err)
+	}
+
+	cases := []struct {
+		repo, tag, want string
+	}{
+		{"docker.io/library/nginx", "latest", "nginx-ver"}, // live ref with host
+		{"library/nginx", "latest", "nginx-ver"},           // stored form
+		{"library/redis", "latest", "redis-legacy-ver"},    // legacy row had host
+		{"docker.io/library/redis", "latest", "redis-legacy-ver"},
+	}
+	for _, c := range cases {
+		d := m.Get(c.repo, c.tag)
+		got := ""
+		if d != nil {
+			got = d.LatestVersion.String
+		}
+		if got != c.want {
+			t.Errorf("Get(%q, %q) = %q, want %q", c.repo, c.tag, got, c.want)
+		}
+		q, err := GetRegistryData(ctx, database, 1, c.repo, c.tag)
+		if err != nil {
+			t.Fatalf("GetRegistryData(%q, %q): %v", c.repo, c.tag, err)
+		}
+		if q.LatestVersion.String != c.want {
+			t.Errorf("GetRegistryData(%q, %q) = %q, want %q", c.repo, c.tag, q.LatestVersion.String, c.want)
+		}
+	}
+}

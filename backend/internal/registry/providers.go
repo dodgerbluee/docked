@@ -50,6 +50,11 @@ func (p *DockerHubProvider) CanHandle(imageRepo string) bool {
 		!strings.HasPrefix(imageRepo, "ghcr.io/") {
 		return true
 	}
+	// Docker Hub official single-word repos (nginx, redis, postgres): the
+	// parser strips docker.io, so a bare name with no dot is a Hub image.
+	if !strings.Contains(imageRepo, ".") {
+		return true
+	}
 	// lscr.io images are mirrored on docker.io under the same path.
 	return strings.HasPrefix(imageRepo, "lscr.io/")
 }

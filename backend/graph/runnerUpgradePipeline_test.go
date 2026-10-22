@@ -49,10 +49,15 @@ func TestCleanHostConfigForCreate(t *testing.T) {
 	if shared {
 		t.Errorf("bridge network must not be shared")
 	}
-	for _, banned := range []string{"ContainerIDFile", "ResolvConfPath", "HostnamePath", "HostsPath", "Runtime", "RestartCount", "AutoRemove"} {
+	for _, banned := range []string{"ContainerIDFile", "ResolvConfPath", "HostnamePath", "HostsPath", "RestartCount", "AutoRemove"} {
 		if _, ok := clean[banned]; ok {
 			t.Errorf("%s must be stripped", banned)
 		}
+	}
+	// Runtime is a valid create field and carries sandbox isolation
+	// (runsc/kata): it must survive recreation, not be stripped.
+	if rt, _ := clean["Runtime"].(string); rt != "runc" {
+		t.Errorf("Runtime must be preserved, got %v", clean["Runtime"])
 	}
 	if rp, _ := clean["RestartPolicy"].(map[string]any); rp == nil || rp["Name"] != "no" {
 		t.Errorf("empty RestartPolicy.Name must normalize to \"no\", got %v", clean["RestartPolicy"])
@@ -339,7 +344,8 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 		// echoing these back makes the create fail.
 		"PortBindings":    map[string]any{"8080/tcp": []any{}},
 		"PublishAllPorts": true,
-		// Inspect bookkeeping the create endpoint rejects.
+		// Inspect bookkeeping the create endpoint rejects. Runtime is NOT
+		// one of them: it is a create field and carries sandbox isolation.
 		"Runtime":      "runc",
 		"RestartCount": float64(3),
 	}
@@ -366,10 +372,13 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 			t.Errorf("%s must be preserved (allowlist used to drop it)", kept)
 		}
 	}
-	for _, banned := range []string{"PortBindings", "PublishAllPorts", "Runtime", "RestartCount"} {
+	for _, banned := range []string{"PortBindings", "PublishAllPorts", "RestartCount"} {
 		if _, ok := clean[banned]; ok {
 			t.Errorf("%s must be stripped from the dependent create payload", banned)
 		}
+	}
+	if rt, _ := clean["Runtime"].(string); rt != "runc" {
+		t.Errorf("Runtime must be preserved (sandbox runtimes must not be downgraded), got %v", clean["Runtime"])
 	}
 	if priv, ok := clean["Privileged"].(bool); !ok || priv {
 		t.Errorf("Privileged must be kept as false")

@@ -314,6 +314,18 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 		return nil, fmt.Errorf("invalid refresh token")
 	}
 
+	// Single-use rotation: consume the presented refresh token so a stolen
+	// or replayed one cannot mint tokens after the legitimate holder has
+	// rotated (or logged out with) it.
+	exp := time.Now().Add(7 * 24 * time.Hour).Unix()
+	if claims.ExpiresAt != nil {
+		exp = claims.ExpiresAt.Unix()
+	}
+	if err := db.RevokeToken(ctx, r.DB, input.RefreshToken, user.ID, exp); err != nil {
+		slog.Error("refresh: revoke used refresh token failed", "error", err.Error())
+		return nil, fmt.Errorf("invalid refresh token")
+	}
+
 	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role, user.TokenVersion)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
@@ -2479,6 +2491,10 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 	}
 	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
 	rows = filterContainerRows(rows, filter)
+	// Join duplicates (multiple registry rows for one container) would show
+	// the same container twice and skew counts; collapse to one row per
+	// container, preferring a flagged row when flags disagree.
+	rows = dedupeContainerRows(rows)
 	total := len(rows)
 	if offset > total {
 		offset = total
@@ -2513,6 +2529,7 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 		return nil, err
 	}
 	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
+	rows = dedupeContainerRows(rows)
 
 	// Partition into stacks and standalone. Stacks are keyed by source + name
 	// so identically named stacks on different runners/endpoints stay apart.
@@ -3488,23 +3505,18 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	// containersWithUpdates must agree with the per-container flags the UI
 	// shows (tab badge, update lists): count through the SAME pipeline the
 	// containers connection uses — GetContainers + the live runner merge +
-	// the SAME containerHasUpdate logic. The standalone SQL compared
-	// deploy-time digests (di.image_digest, stale once an image is
-	// re-pulled) with a stricter repo/tag join, and inflated the number
-	// ~10x on real data (110 vs 10 on prod).
+	// identity dedup + the SAME containerHasUpdate logic. The standalone
+	// SQL compared deploy-time digests (di.image_digest, stale once an
+	// image is re-pulled) with a stricter repo/tag join, and inflated the
+	// number ~10x on real data (110 vs 10 on prod).
 	withUpdates := 0
 	if rows, err := db.GetContainers(ctx, r.DB, uid); err == nil {
 		rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
-		seen := make(map[string]bool, len(rows))
+		rows = dedupeContainerRows(rows)
+		// totalContainers reflects the same live-merged inventory the
+		// containers connection reports, not just persisted rows.
+		totalContainers = len(rows)
 		for i := range rows {
-			// Dedup by container identity, NOT row ID: live-merged runner
-			// rows are synthetic (ID 0), so an ID-keyed set collapses them
-			// all into one entry.
-			key := fmt.Sprintf("%d|%d|%s", rows[i].RunnerID.Int64, rows[i].EndpointID.Int64, rows[i].ContainerID)
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
 			if db.ContainerHasUpdate(rows[i]) {
 				withUpdates++
 			}

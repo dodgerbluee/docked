@@ -1530,10 +1530,16 @@ func TestUpgradeContainerWritesHistoryAndBlocksConcurrent(t *testing.T) {
 	if !ok {
 		t.Fatalf("create HostConfig missing: %v", createBody)
 	}
-	for _, banned := range []string{"Runtime", "AutoRemove", "RestartCount", "ResolvConfPath", "HostnamePath", "HostsPath", "ContainerIDFile"} {
+	// Runtime is deliberately NOT stripped: it is a valid create field and
+	// dropping it would downgrade sandbox runtimes (runsc/kata) to the
+	// daemon default on recreate.
+	for _, banned := range []string{"AutoRemove", "RestartCount", "ResolvConfPath", "HostnamePath", "HostsPath", "ContainerIDFile"} {
 		if _, present := hc[banned]; present {
 			t.Errorf("HostConfig must strip %s", banned)
 		}
+	}
+	if rt, _ := hc["Runtime"].(string); rt != "runc" {
+		t.Errorf("HostConfig.Runtime must be preserved (sandbox runtimes must not be downgraded), got %v", hc["Runtime"])
 	}
 	if hc["NetworkMode"] != "bridge" {
 		t.Errorf("HostConfig.NetworkMode = %v, want bridge", hc["NetworkMode"])

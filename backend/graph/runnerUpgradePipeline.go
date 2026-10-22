@@ -177,9 +177,12 @@ func cleanHostConfigForCreate(hostConfig map[string]any, containerName string) (
 		clean[k] = v
 	}
 	// Container-specific file paths and Docker-managed bookkeeping.
+	// NOTE: Runtime is deliberately KEPT: it is a valid create field, and
+	// dropping it silently downgrades containers pinned to a non-default
+	// sandbox runtime (e.g. runsc) to the daemon default on recreate.
 	for _, k := range []string{
 		"ContainerIDFile", "ResolvConfPath", "HostnamePath", "HostsPath",
-		"Runtime", "RestartCount", "AutoRemove",
+		"RestartCount", "AutoRemove",
 	} {
 		delete(clean, k)
 	}
@@ -810,9 +813,11 @@ func buildRecreateHostConfig(original map[string]any, prefix, newID string) map[
 	for k, v := range original {
 		clean[k] = v
 	}
+	// Runtime is KEPT here too (see cleanHostConfigForCreate): dropping it
+	// would downgrade runsc/kata dependents to the daemon default runtime.
 	for _, k := range []string{
 		"ContainerIDFile", "ResolvConfPath", "HostnamePath", "HostsPath",
-		"Runtime", "RestartCount", "AutoRemove",
+		"RestartCount", "AutoRemove",
 	} {
 		delete(clean, k)
 	}
