@@ -196,6 +196,10 @@ func providerInspectDoc() map[string]any {
 		"Id":    "prov-1",
 		"Name":  "/gluetun",
 		"State": runningState(),
+		// Top-level Image is the image ID the container actually runs from;
+		// a rollback must pin this, not the tag (which a mid-pipeline pull
+		// may already have moved to a new digest).
+		"Image": "sha256:0b1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5",
 		"Config": map[string]any{
 			"Image":  "qmcgaw/gluetun:v1",
 			"Labels": map[string]any{},
@@ -207,8 +211,9 @@ func providerInspectDoc() map[string]any {
 		"Mounts": []any{
 			map[string]any{"Type": "bind", "Source": "/host/cfg", "Destination": "/gluetun", "Mode": "rw"},
 			// Image-declared anonymous volume: absent from HostConfig.Binds,
-			// must be re-attached on recreate or the data is orphaned.
-			map[string]any{"Type": "volume", "Source": "anon777", "Destination": "/gluetun/anon", "Mode": "rw"},
+			// must be re-attached by NAME on recreate (Source is a host path
+			// that only exists on the engine host).
+			map[string]any{"Type": "volume", "Name": "anon777", "Source": "/var/lib/docker/volumes/anon777/_data", "Destination": "/gluetun/anon", "Mode": "rw"},
 		},
 		"NetworkSettings": map[string]any{"Networks": map[string]any{}},
 	}
@@ -260,6 +265,9 @@ func TestUpgradePipelineRestoresDependentsOnPullFailure(t *testing.T) {
 	if f.findByName("gluetun") == nil {
 		t.Error("provider must still exist after a pull failure")
 	}
+	if p := f.findByName("gluetun"); jStr(jObj(p, "State"), "Status") != "running" {
+		t.Error("provider was stopped by the pipeline; rollback must bring it back up before dependents can attach")
+	}
 	if f.findByName("arr") == nil {
 		t.Error("dependent must be restored after a failed upgrade")
 	}
@@ -287,8 +295,11 @@ func TestUpgradePipelineRollsBackProviderAndDependentsOnCreateFailure(t *testing
 	if provider == nil {
 		t.Fatal("provider must be rolled back into existence")
 	}
-	if img := jStr(jObj(provider, "Config"), "Image"); img != "qmcgaw/gluetun:v1" {
-		t.Errorf("rolled-back provider image = %q, want the original qmcgaw/gluetun:v1", img)
+	// The rollback pins the INSPECTED image ID: the tag may already point at
+	// the freshly pulled (broken) digest, so recreating from Config.Image
+	// would roll forward instead of back.
+	if img := jStr(jObj(provider, "Config"), "Image"); !strings.HasPrefix(img, "sha256:0b1d2e3f") {
+		t.Errorf("rolled-back provider image = %q, want the inspected image ID sha256:0b1d2e3f...", img)
 	}
 	dep := f.findByName("arr")
 	if dep == nil {
@@ -328,9 +339,12 @@ func TestUpgradePipelinePreservesAnonymousVolumes(t *testing.T) {
 		if s, ok := b.(string); ok && strings.HasPrefix(s, "anon777:/gluetun/anon") {
 			found = true
 		}
+		if s, ok := b.(string); ok && strings.Contains(s, "/var/lib/docker") {
+			t.Errorf("anonymous volume re-attached by host path, not volume name: %q", s)
+		}
 	}
 	if !found {
-		t.Errorf("anonymous volume not re-attached; Binds = %v", binds)
+		t.Errorf("anonymous volume not re-attached by name; Binds = %v", binds)
 	}
 	// The explicit bind mount must not be duplicated.
 	var dupes int
@@ -341,5 +355,52 @@ func TestUpgradePipelinePreservesAnonymousVolumes(t *testing.T) {
 	}
 	if dupes != 1 {
 		t.Errorf("bind mount duplicated %d times in %v", dupes, binds)
+	}
+}
+
+// The pipeline removes network_mode dependents before stopping the provider;
+// the post-upgrade sweep only sees containers that still exist, so the
+// SUCCESS path must recreate the removed dependents from their snapshots —
+// otherwise a successful upgrade leaves them permanently gone.
+func TestUpgradePipelineRecreatesDependentsOnSuccess(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	f.seed("dep-1", dependentInspectDoc())
+
+	r := &Resolver{DB: database}
+	if err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil); err != nil {
+		t.Fatalf("happy-path pipeline errored: %v", err)
+	}
+
+	provider := f.findByName("gluetun")
+	if provider == nil {
+		t.Fatal("upgraded provider missing")
+	}
+	if jStr(jObj(provider, "State"), "Status") != "running" {
+		t.Error("upgraded provider must be running")
+	}
+	dep := f.findByName("arr")
+	if dep == nil {
+		t.Fatal("dependent must be recreated after a successful upgrade")
+	}
+	if jStr(jObj(dep, "State"), "Status") != "running" {
+		t.Error("recreated dependent must be started")
+	}
+	wantNM := "container:" + jStr(provider, "Id")
+	if nm := jStr(jObj(dep, "HostConfig"), "NetworkMode"); nm != wantNM {
+		t.Errorf("recreated dependent NetworkMode = %q, want %q", nm, wantNM)
+	}
+	// The post-upgrade sweep must not remove+recreate the dependent a second
+	// time (one create for arr total).
+	var arrCreates int
+	for _, rec := range f.createRecords() {
+		if strings.TrimPrefix(rec.Name, "/") == "arr" {
+			arrCreates++
+		}
+	}
+	if arrCreates != 1 {
+		t.Errorf("dependent created %d times, want exactly 1", arrCreates)
 	}
 }

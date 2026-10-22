@@ -354,11 +354,19 @@ func preserveAnonymousVolumes(details map[string]any, cleanHC map[string]any) {
 		if !ok || jStr(mm, "Type") != "volume" {
 			continue
 		}
-		src, dst := jStr(mm, "Source"), jStr(mm, "Destination")
-		if src == "" || dst == "" || covered[dst] || covered[src] {
+		name, src, dst := jStr(mm, "Name"), jStr(mm, "Source"), jStr(mm, "Destination")
+		// Re-attach by volume NAME: Source is the host path
+		// (/var/lib/docker/volumes/<name>/_data), and binding that path
+		// breaks on remote runners / non-default docker roots. A name bind
+		// is what Docker itself round-trips.
+		key := name
+		if key == "" {
+			key = src
+		}
+		if key == "" || dst == "" || covered[dst] || covered[key] || covered[src] {
 			continue
 		}
-		bind := src + ":" + dst
+		bind := key + ":" + dst
 		if mode := jStr(mm, "Mode"); mode != "" {
 			bind += ":" + mode
 		}
@@ -543,7 +551,13 @@ func stopAndRemoveDependentContainers(ctx context.Context, rr db.RunnerRow, deps
 // on a failed pipeline. Best-effort: every step logs and continues.
 func restoreRemovedDependents(ctx context.Context, rr db.RunnerRow, deps []depContainer, cleanName string, providerDetails map[string]any) {
 	ctx = context.WithoutCancel(ctx)
-	originalImage := jStr(jObj(providerDetails, "Config"), "Image")
+	// Prefer the INSPECTED image ID (top-level Image): the pipeline may have
+	// pulled the tag onto a new digest before failing, so recreating from
+	// Config.Image could roll the provider FORWARD instead of back.
+	originalImage := jStr(providerDetails, "Image")
+	if originalImage == "" {
+		originalImage = jStr(jObj(providerDetails, "Config"), "Image")
+	}
 
 	// Dependents reference the provider container; make sure one exists
 	// under the original name (the pipeline may have failed after removing
@@ -567,6 +581,13 @@ func restoreRemovedDependents(ctx context.Context, rr db.RunnerRow, deps []depCo
 		providerID = id
 		if err := runner.StartContainer(ctx, rr, providerID); err != nil {
 			log.Printf("upgrade rollback: provider %s recreated but failed to start: %v", cleanName, err)
+		}
+	} else if details, err := runner.InspectContainer(ctx, rr, providerID); err == nil && restartStatus(details) != "running" {
+		// The pipeline stopped the provider before failing (pull/remove
+		// path): dependents recreated with network_mode:container:<id>
+		// cannot start against a stopped provider, so bring it back up.
+		if err := runner.StartContainer(ctx, rr, providerID); err != nil {
+			log.Printf("upgrade rollback: provider %s exists but failed to start: %v", cleanName, err)
 		}
 	}
 
@@ -1010,9 +1031,11 @@ func restartSingleContainer(ctx context.Context, rr db.RunnerRow, d depAfter) er
 }
 
 // restartDependentContainers is the post-upgrade dependent restart entry
-// point. Skipped entirely when the upgraded container itself consumes a shared
-// network (it is a consumer, not a provider).
-func restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool) error {
+// point. Skipped entirely when the upgraded container itself consumes a
+// shared network (it is a consumer, not a provider). preRestored names were
+// just recreated from pre-stop snapshots by the success path; skipping them
+// keeps the sweep from remove+recreating them a second time.
+func restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool, preRestored map[string]bool) error {
 	if shared {
 		return nil
 	}
@@ -1028,6 +1051,9 @@ func restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cle
 
 	var netDeps, otherDeps []depAfter
 	for _, d := range deps {
+		if preRestored[strings.TrimPrefix(d.Name, "/")] {
+			continue
+		}
 		if d.Reason == "network_mode" {
 			netDeps = append(netDeps, d)
 		} else {
@@ -1227,7 +1253,18 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 
 	// Dependent restarts must not fail an otherwise successful upgrade.
 	setPhase(phase, model.UpgradePhaseRestartingDependents)
-	if err := restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared); err != nil {
+	preRestored := map[string]bool{}
+	if len(deps) > 0 {
+		// The up-front removal deleted these dependents; the post-upgrade
+		// sweep only sees containers that still exist, so recreate them
+		// from their pre-stop snapshots against the new provider first.
+		waitForUpgradedContainerHealth(ctx, *rr, newID)
+		restoreRemovedDependents(ctx, *rr, deps, cleanName, details)
+		for _, d := range deps {
+			preRestored[d.Name] = true
+		}
+	}
+	if err := restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored); err != nil {
 		log.Printf("upgrade %s: restart dependent containers failed: %v", cleanName, err)
 	}
 	if shared {
