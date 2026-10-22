@@ -70,8 +70,7 @@ export function revokeCurrentSession() {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      query:
-        "mutation ($refreshToken: String) { logout(refreshToken: $refreshToken) { success } }",
+      query: "mutation ($refreshToken: String) { logout(refreshToken: $refreshToken) { success } }",
       variables: { refreshToken: refreshToken || null },
     }),
     keepalive: true,
