@@ -31,7 +31,13 @@ export async function upgradeRunnerContainer(container, { timeoutMs = DEFAULT_TI
 
   const res = await graphqlClient.mutation(UPGRADE_CONTAINER_MUTATION, { input }).toPromise();
   if (res.error || !res.data?.upgradeContainer) {
-    throw new Error(res.error?.message || "Upgrade request failed");
+    const err = new Error(res.error?.message || "Upgrade request failed");
+    // A server-side GraphQL rejection (blocklist, authz, limiter) is a
+    // DEFINITIVE failure — unlike a transport drop, the upgrade never
+    // started. Tag it so the caller's network-recovery path can't turn
+    // it into a false success.
+    if (res.error?.graphQLErrors?.length) err.operationError = true;
+    throw err;
   }
 
   return await waitForUpgradeOutcome({
@@ -66,7 +72,12 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs })
     };
     const fail = (message) => {
       clearTimeout(timeoutTimer);
-      finish(reject, new Error(message || "Upgrade failed"));
+      // Terminal FAILED from the server: definitive, not a dropped
+      // connection (see operationError in upgradeRunnerContainer).
+      finish(
+        reject,
+        Object.assign(new Error(message || "Upgrade failed"), { operationError: true })
+      );
     };
 
     // Primary signal: phase events scoped to this operation.

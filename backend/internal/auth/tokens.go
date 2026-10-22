@@ -118,6 +118,7 @@ func VerifyRefreshToken(tokenString string) (*RefreshClaims, error) {
 		jwt.WithAudience("docked-users"),
 		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithStrictDecoding(), // see Middleware: block re-encoded-token revocation bypass
 	)
 
 	token, err := parser.ParseWithClaims(tokenString, &RefreshClaims{}, func(_ *jwt.Token) (any, error) {

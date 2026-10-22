@@ -43,6 +43,7 @@ func ValidateTokenWithVersion(tokenString, secret string) (userID, tokenVersion,
 		jwt.WithAudience("docked-users"),
 		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithStrictDecoding(), // see Middleware: block re-encoded-token revocation bypass
 	)
 
 	claims := &accessClaims{}

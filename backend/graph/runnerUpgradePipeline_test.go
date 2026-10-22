@@ -295,12 +295,15 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 	original := map[string]any{
 		"NetworkMode": "container:oldid",
 		"Binds":       []any{"/data:/data"},
-		"Memory":      float64(0),       // falsy -> default 0, kept as number
-		"CapAdd":      []any{},          // empty -> dropped
-		"LogConfig":   map[string]any{}, // empty -> dropped
-		"Privileged":  false,            // falsy -> default false, kept as bool
-		"ShmSize":     float64(0),       // falsy -> default 67108864
-		"Ulimits":     nil,              // null -> default [] -> dropped
+		// --mount volumes live here; dropping them silently strips the
+		// dependent's bind/volume data on recreate.
+		"Mounts":     []any{map[string]any{"Type": "bind", "Source": "/etc/cfg", "Target": "/etc/cfg"}},
+		"Memory":     float64(0),       // falsy -> default 0, kept as number
+		"CapAdd":     []any{},          // empty -> dropped
+		"LogConfig":  map[string]any{}, // empty -> dropped
+		"Privileged": false,            // falsy -> default false, kept as bool
+		"ShmSize":    float64(0),       // falsy -> default 67108864
+		"Ulimits":    nil,              // null -> default [] -> dropped
 	}
 	clean := buildRecreateHostConfig(original, "container:", "newid")
 	if clean["NetworkMode"] != "container:newid" {
@@ -311,6 +314,9 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 	}
 	if binds, ok := clean["Binds"].([]any); !ok || len(binds) != 1 {
 		t.Errorf("Binds = %v", clean["Binds"])
+	}
+	if mounts, ok := clean["Mounts"].([]any); !ok || len(mounts) != 1 {
+		t.Errorf("Mounts must be preserved (compose --mount depends on it), got %v", clean["Mounts"])
 	}
 	for _, dropped := range []string{"CapAdd", "LogConfig", "Ulimits"} {
 		if _, ok := clean[dropped]; ok {

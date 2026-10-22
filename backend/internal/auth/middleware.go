@@ -28,6 +28,10 @@ func Middleware(secret string) func(http.Handler) http.Handler {
 	parser := jwt.NewParser(
 		jwt.WithIssuer("docked"),
 		jwt.WithValidMethods([]string{"HS256"}),
+		// Canonical base64url only: lenient decoding lets a revoked token be
+		// re-encoded (same signature bytes, different text) to slip past the
+		// raw-token-hash revocation lookup.
+		jwt.WithStrictDecoding(),
 	)
 
 	return func(next http.Handler) http.Handler {

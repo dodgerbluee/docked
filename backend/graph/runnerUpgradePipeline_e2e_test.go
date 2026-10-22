@@ -34,7 +34,12 @@ type fakeRunner struct {
 	// failCreate maps a create name to how many times it must fail before
 	// succeeding (models a transient engine error mid-pipeline).
 	failCreate map[string]int
-	creates    []createRecord
+	// inspectFailAfter allows the first N inspects of a container ID to
+	// succeed, then fails every later one (models an inspect that flakes
+	// between dependent discovery and snapshot).
+	inspectFailAfter map[string]int
+	inspectCount     map[string]int
+	creates          []createRecord
 
 	srv *httptest.Server
 }
@@ -46,7 +51,8 @@ type createRecord struct {
 
 func newFakeRunner(t *testing.T) *fakeRunner {
 	t.Helper()
-	f := &fakeRunner{byID: map[string]map[string]any{}, failCreate: map[string]int{}, createdIDs: map[string]bool{}}
+	f := &fakeRunner{byID: map[string]map[string]any{}, failCreate: map[string]int{}, createdIDs: map[string]bool{},
+		inspectFailAfter: map[string]int{}, inspectCount: map[string]int{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /containers", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -66,7 +72,13 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 	mux.HandleFunc("GET /containers/{id}/json", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		doc, ok := f.byID[r.PathValue("id")]
+		id := r.PathValue("id")
+		f.inspectCount[id]++
+		if limit, ok := f.inspectFailAfter[id]; ok && f.inspectCount[id] > limit {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"message": "inspect flaked"})
+			return
+		}
+		doc, ok := f.byID[id]
 		if !ok {
 			writeJSON(w, http.StatusNotFound, map[string]any{"message": "no such container"})
 			return
@@ -540,5 +552,52 @@ func TestUpgradePipelineRollbackSurvivesExpiredContext(t *testing.T) {
 	}
 	if jStr(jObj(p, "State"), "Status") != "running" {
 		t.Error("rollback under an expired ctx must still restart the original, got " + jStr(jObj(p, "State"), "Status"))
+	}
+}
+
+// A dependent's inspect can flake BETWEEN post-upgrade discovery and the
+// snapshot loop in handleNetworkModeContainers. Removing it there strands it
+// forever: recreation skips containers with no snapshot. A transient inspect
+// failure must leave the dependent untouched.
+func TestUpgradePipelineNetworkModeDepSurvivesInspectFlake(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	// Stopped dependent: not captured (and so not removed) pre-upgrade; it
+	// reaches handleNetworkModeContainers via the post-upgrade sweep.
+	depDoc := dependentInspectDoc()
+	depDoc["State"] = map[string]any{"Status": "exited", "Running": false}
+	f.seed("dep-1", depDoc)
+	// Inspect succeeds during pre-upgrade scan and post-upgrade discovery,
+	// then flakes exactly when the snapshot loop runs.
+	f.inspectFailAfter["dep-1"] = 2
+
+	err := (&mutationResolver{&Resolver{DB: database}}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err != nil {
+		t.Fatalf("pipeline should succeed (dependent handling is best-effort): %v", err)
+	}
+	if f.findByName("arr") == nil {
+		t.Fatal("dependent with a failed inspect snapshot must NOT be removed (it could never be recreated)")
+	}
+}
+
+// restoreRemovedDependents must honor the caller's deadline instead of
+// stripping it with WithoutCancel: rollback already hands it a detached
+// context with its own budget, and an expired one must stop the work, not
+// silently run unbounded against the runner.
+func TestRestoreRemovedDependentsHonorsCallerDeadline(t *testing.T) {
+	f := newFakeRunner(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	time.Sleep(30 * time.Millisecond) // let it expire
+
+	restoreRemovedDependents(ctx, *pipelineRunnerRow(f.srv.URL),
+		[]depContainer{{ID: "dep-1", Name: "/arr", Details: dependentInspectDoc()}},
+		"gluetun", providerInspectDoc())
+
+	if recs := f.createRecords(); len(recs) != 0 {
+		t.Errorf("expired caller ctx must stop rollback work, got %d creates", len(recs))
 	}
 }

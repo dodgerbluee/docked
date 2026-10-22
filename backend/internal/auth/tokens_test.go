@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"bytes"
+	"encoding/base64"
 	"os"
 	"strings"
 	"testing"
@@ -152,5 +154,66 @@ func TestValidateTokenRejectsMissingClaims(t *testing.T) {
 	}
 	if _, err := ValidateToken(tok, secret); err == nil {
 		t.Fatal("token without expiry was accepted")
+	}
+}
+
+// TestStrictDecodingRejectsReEncodedToken guards the logout-revocation
+// boundary: revoked_tokens stores the SHA-256 of the RAW token text, so a
+// token re-encoded to different text that still verifies (lenient base64url
+// decoding ignores the slack bits in the last signature character: same
+// signature bytes, different string) slips past the hash lookup. WithStrictDecoding
+// must reject the non-canonical form outright.
+func TestStrictDecodingRejectsReEncodedToken(t *testing.T) {
+	const secret = "unit-secret"
+	SetSecret(secret)
+	t.Setenv("JWT_REFRESH_SECRET", secret+"-refresh")
+
+	access, refresh, err := GenerateTokens(42, "alice", "Member", 0)
+	if err != nil {
+		t.Fatalf("GenerateTokens: %v", err)
+	}
+
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	reencode := func(tok string) string {
+		parts := strings.Split(tok, ".")
+		sig := parts[2]
+		last := strings.IndexByte(alphabet, sig[len(sig)-1])
+		if last < 0 {
+			t.Fatalf("signature char %q not in base64url alphabet", sig[len(sig)-1])
+		}
+		// A 32-byte HMAC signature is 43 base64url chars: the last char
+		// carries 4 significant bits + 2 slack bits. Flip only the slack.
+		for delta := 1; delta <= 3; delta++ {
+			v := byte((last & 0b111100) | delta)
+			if int(v) != last {
+				return parts[0] + "." + parts[1] + "." + sig[:len(sig)-1] + string(alphabet[v])
+			}
+		}
+		t.Fatal("no re-encoding variant found")
+		return ""
+	}
+
+	mutated := reencode(access)
+	// Premise check: a lenient decoder sees the SAME signature bytes, so the
+	// old (non-strict) parser accepted this token and its hash missed the
+	// revocation table.
+	sigA, err1 := base64.RawURLEncoding.DecodeString(strings.Split(access, ".")[2])
+	sigB, err2 := base64.RawURLEncoding.DecodeString(strings.Split(mutated, ".")[2])
+	if err1 != nil || err2 != nil || !bytes.Equal(sigA, sigB) {
+		t.Fatal("premise broken: re-encoded signature does not decode identically")
+	}
+
+	if _, _, _, err := ValidateTokenWithVersion(mutated, secret); err == nil {
+		t.Fatal("re-encoded access token accepted: revocation bypass possible")
+	}
+	if _, err := VerifyRefreshToken(reencode(refresh)); err == nil {
+		t.Fatal("re-encoded refresh token accepted: revocation bypass possible")
+	}
+	// Canonical tokens must still validate.
+	if uid, _, _, err := ValidateTokenWithVersion(access, secret); err != nil || uid != 42 {
+		t.Fatalf("canonical access token rejected: %v", err)
+	}
+	if c, err := VerifyRefreshToken(refresh); err != nil || c.UserID != 42 {
+		t.Fatalf("canonical refresh token rejected: %v", err)
 	}
 }

@@ -567,7 +567,14 @@ func stopAndRemoveDependentContainers(ctx context.Context, rr db.RunnerRow, deps
 // may already be removed too, and the post-upgrade restart path never runs
 // on a failed pipeline. Best-effort: every step logs and continues.
 func restoreRemovedDependents(ctx context.Context, rr db.RunnerRow, deps []depContainer, cleanName string, providerDetails map[string]any) {
-	ctx = context.WithoutCancel(ctx)
+	// Respect the caller's budget: restore() already hands us a detached
+	// context with its own timeout. Only detach here when the caller gave
+	// no deadline at all (WithoutCancel would otherwise discard one).
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
 	// Prefer the INSPECTED image ID (top-level Image): the pipeline may have
 	// pulled the tag onto a new digest before failing, so recreating from
 	// Config.Image could roll the provider FORWARD instead of back.
@@ -767,9 +774,12 @@ func buildRecreateHostConfig(original map[string]any, prefix, newID string) map[
 		return def
 	}
 	clean := map[string]any{
-		"NetworkMode":    prefix + newID,
-		"RestartPolicy":  restartPolicyOr(original["RestartPolicy"]),
-		"Binds":          get("Binds", []any{}),
+		"NetworkMode":   prefix + newID,
+		"RestartPolicy": restartPolicyOr(original["RestartPolicy"]),
+		"Binds":         get("Binds", []any{}),
+		// --mount volumes live in HostConfig.Mounts; dropping them here
+		// silently strips a dependent's bind/volume data on recreate.
+		"Mounts":         get("Mounts", []any{}),
 		"Memory":         get("Memory", 0),
 		"MemorySwap":     get("MemorySwap", 0),
 		"CpuShares":      get("CpuShares", 0),
@@ -1009,6 +1019,12 @@ func handleNetworkModeContainers(ctx context.Context, rr db.RunnerRow, deps []de
 		detailsMap[d.ID] = details
 	}
 	for _, d := range deps {
+		if _, ok := detailsMap[d.ID]; !ok {
+			// No snapshot means no recreation: removing it here would
+			// destroy a working (or stopped) dependent's config for good
+			// over a transient inspect failure. Leave it alone.
+			continue
+		}
 		if err := runner.RemoveContainer(ctx, rr, d.ID, false); err != nil {
 			log.Printf("upgrade: could not remove dependent %s: %v", d.Name, err)
 		}

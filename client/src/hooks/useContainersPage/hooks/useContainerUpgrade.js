@@ -160,12 +160,13 @@ export const useContainerUpgrade = ({
       } catch (err) {
         if (apiError && isNginx) {
           const isNetworkError =
-            apiError.code === "ECONNREFUSED" ||
-            apiError.code === "ETIMEDOUT" ||
-            apiError.code === "ERR_NETWORK" ||
-            apiError.message?.includes("Network Error") ||
-            apiError.message?.includes("Failed to fetch") ||
-            !apiError.response;
+            !apiError.operationError &&
+            (apiError.code === "ECONNREFUSED" ||
+              apiError.code === "ETIMEDOUT" ||
+              apiError.code === "ERR_NETWORK" ||
+              apiError.message?.includes("Network Error") ||
+              apiError.message?.includes("Failed to fetch") ||
+              !apiError.response);
           if (isNetworkError) {
             const maxWait = TIMING.RECONNECT_MAX_WAIT;
             const pollInterval = TIMING.RECONNECT_POLL_INTERVAL;

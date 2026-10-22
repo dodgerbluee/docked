@@ -62,7 +62,35 @@ describe("upgradeRunnerContainer", () => {
         return { unsubscribe: () => {} };
       },
     });
-    await expect(upgradeRunnerContainer(source)).rejects.toThrow("pull denied");
+    const err = await upgradeRunnerContainer(source).catch((e) => e);
+    expect(err.message).toBe("pull denied");
+    // Terminal FAILED is a definitive server verdict: it must be tagged so
+    // the caller's network-recovery path can't turn it into a false success.
+    expect(err.operationError).toBe(true);
+  });
+
+  it("tags server-side GraphQL rejections (blocklist, authz, limiter) as operationError", async () => {
+    // urql surfaces GraphQL errors as a CombinedError with graphQLErrors —
+    // the server RESPONDED, the upgrade never started.
+    handlers.mutation = () =>
+      opResult({
+        error: {
+          graphQLErrors: [{ message: "container is blocklisted" }],
+          message: "container is blocklisted",
+        },
+      });
+    await upgradeRunnerContainer(source).catch((e) => {
+      expect(e.message).toBe("container is blocklisted");
+      expect(e.operationError).toBe(true);
+    });
+  });
+
+  it("does NOT tag transport failures (network recovery stays allowed)", async () => {
+    handlers.mutation = () =>
+      opResult({ error: { graphQLErrors: [], networkError: new Error("Failed to fetch") } });
+    await upgradeRunnerContainer(source).catch((e) => {
+      expect(e.operationError).toBeUndefined();
+    });
   });
 
   it("ignores events for other operations and falls back to upgradeHistory polling", async () => {
