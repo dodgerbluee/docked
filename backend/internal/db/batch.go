@@ -208,30 +208,59 @@ func CreateBatchRunIfNoneRunning(ctx context.Context, database *sql.DB, userID i
 	return res.LastInsertId()
 }
 
+// CompleteBatchRun finalizes a run. The completed_at IS NULL guard keeps
+// completion monotonic: a run already finalized (by a peer's stale-run
+// reaper, for example) is never re-written.
 func CompleteBatchRun(ctx context.Context, database *sql.DB, id int64, status string, checked, updated int, errMsg *string) error {
 	_, err := database.ExecContext(ctx,
 		`UPDATE batch_runs SET status=?, completed_at=CURRENT_TIMESTAMP,
 		 duration_ms=CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
 		 containers_checked=?, containers_updated=?, error_message=?
-		 WHERE id=?`,
+		 WHERE id=? AND completed_at IS NULL`,
 		status, checked, updated, errMsg, id)
 	return err
 }
 
+// ReapStaleBatchRun conditionally marks one 'running' batch run failed,
+// re-checking lease staleness INSIDE the UPDATE. The read-check-write pair
+// it replaces raced: a heartbeat landing between the staleness check and
+// the write used to get a healthy run marked failed anyway. Returns true
+// when this caller actually reaped the row.
+func ReapStaleBatchRun(ctx context.Context, database *sql.DB, id int64, staleSeconds int) (bool, error) {
+	res, err := database.ExecContext(ctx,
+		`UPDATE batch_runs
+		 SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
+			 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
+			 containers_checked = 0, containers_updated = 0,
+			 error_message = 'Job marked as failed: stale running job detected'
+		 WHERE id = ? AND status = 'running' AND completed_at IS NULL
+		   AND datetime(COALESCE(heartbeat_at, started_at)) < datetime('now', ?)`,
+		id, fmt.Sprintf("-%d seconds", staleSeconds))
+	if err != nil {
+		return false, fmt.Errorf("reap stale batch run: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
 // UpdateBatchRun finalizes a client-driven batch run (parity with Node's updateBatchRun:
 // status, duration from started_at, counts, error message, and logs; scoped by user).
+// The completed_at IS NULL guard keeps completion monotonic.
 func UpdateBatchRun(ctx context.Context, database *sql.DB, id, userID int64, status string, checked, updated int, errMsg, logs *string) error {
 	res, err := database.ExecContext(ctx,
 		`UPDATE batch_runs SET status = ?, completed_at = CURRENT_TIMESTAMP,
 		 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
 		 containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
-		 WHERE id = ? AND user_id = ?`,
+		 WHERE id = ? AND user_id = ? AND completed_at IS NULL`,
 		status, checked, updated, errMsg, logs, id, userID)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("batch run not found")
+		return fmt.Errorf("batch run not found or already finalized")
 	}
 	return nil
 }

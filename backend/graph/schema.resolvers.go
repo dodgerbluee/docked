@@ -1497,6 +1497,15 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 	}
 	appendArray := func(column string, values []string) {
 		if values == nil {
+			return // field absent: leave the column untouched
+		}
+		// Explicit empty list clears the dimension to NULL (inactive),
+		// mirroring db.marshalJSONArr on create: the intent form sends []
+		// for dimensions the user did not pick, and switching match types
+		// must clear the previously active dimension instead of leaving a
+		// stale AND filter behind.
+		if len(values) == 0 {
+			setClauses = append(setClauses, column+" = NULL")
 			return
 		}
 		encoded, _ := json.Marshal(values)

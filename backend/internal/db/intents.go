@@ -207,11 +207,20 @@ func SetIntentLastEvaluatedAt(ctx context.Context, database *sql.DB, intentID, u
 // the SQLite DB this is the cross-process guard that keeps a cron point from
 // firing twice (the evaluator's inProgress map only covers one process).
 // Returns true when this caller won the claim.
+//
+// The comparison goes through datetime() so rows written in SQLite's
+// CURRENT_TIMESTAMP layout ("YYYY-MM-DD HH:MM:SS") and Node's ISO layout
+// ("YYYY-MM-DDTHH:MM:SS.sssZ") order correctly — a raw string compare sorts
+// the space-separated form before the T-separated form for the same date.
+// An unparseable value is treated as claimable so a corrupt row cannot
+// wedge the intent forever.
 func ClaimIntentEvaluation(ctx context.Context, database *sql.DB, intentID, userID int64, evaluatedAt string) (bool, error) {
 	res, err := database.ExecContext(ctx,
 		`UPDATE intents SET last_evaluated_at = ?
 		 WHERE id = ? AND user_id = ?
-		   AND (last_evaluated_at IS NULL OR last_evaluated_at < ?)`,
+		   AND (last_evaluated_at IS NULL
+		        OR datetime(last_evaluated_at) IS NULL
+		        OR datetime(last_evaluated_at) < datetime(?))`,
 		evaluatedAt, intentID, userID, evaluatedAt)
 	if err != nil {
 		return false, err
@@ -238,10 +247,14 @@ func UnmarshalStringArr(s sql.NullString) []string {
 }
 
 // marshalJSONArr encodes an intent filter list for the DB. A nil slice means
-// "unset" and stores NULL (matches everything); an explicitly empty slice
-// stores "[]" which the matcher treats as matching nothing.
+// "unset" and stores NULL (dimension inactive). An explicitly empty slice is
+// normalized to NULL as well: the GraphQL clients (the intent form) send []
+// for dimensions the user did not pick, and storing "[]" there would make
+// the intent match nothing. The stored "[]" state is legacy-only; the matcher
+// still treats decoded "[]" as matching nothing so old rows never silently
+// match everything (see UnmarshalStringArr / intentIncludes).
 func marshalJSONArr(arr []string) *string {
-	if arr == nil {
+	if arr == nil || len(arr) == 0 {
 		return nil
 	}
 	data, _ := json.Marshal(arr)

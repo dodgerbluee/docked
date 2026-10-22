@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -312,5 +313,60 @@ func TestBatchRunLockHelpers(t *testing.T) {
 	}
 	if latest == nil || latest.ID != id2 || latest.Status != "completed" || !latest.CompletedAt.Valid {
 		t.Fatalf("unexpected latest run: %+v", latest)
+	}
+}
+
+// The stale-run reap must re-check lease staleness INSIDE the UPDATE: a
+// heartbeat landing at the last moment protects the run instead of a
+// read-check-write race marking a healthy run failed.
+func TestReapStaleBatchRunIsConditional(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	id, err := CreateBatchRun(ctx, database, 1, "docker-hub-pull", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Old start but a fresh heartbeat: the lease is alive, do not reap.
+	if _, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET started_at = datetime('now','-30 minutes'),
+		 heartbeat_at = datetime('now','-10 seconds') WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	reaped, err := ReapStaleBatchRun(ctx, database, id, 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reaped {
+		t.Fatal("run with a fresh heartbeat must not be reaped")
+	}
+	var status string
+	if err := database.QueryRowContext(ctx, `SELECT status FROM batch_runs WHERE id = ?`, id).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "running" {
+		t.Fatalf("status = %q, want running", status)
+	}
+
+	// Heartbeat goes silent past the threshold: the reap wins.
+	if _, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET heartbeat_at = datetime('now','-10 minutes') WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if reaped, err := ReapStaleBatchRun(ctx, database, id, 300); err != nil || !reaped {
+		t.Fatalf("stale run reap = (%v, %v), want true", reaped, err)
+	}
+	var errMsg sql.NullString
+	if err := database.QueryRowContext(ctx,
+		`SELECT status, error_message FROM batch_runs WHERE id = ?`, id).Scan(&status, &errMsg); err != nil {
+		t.Fatal(err)
+	}
+	if status != "failed" || !strings.Contains(errMsg.String, "stale running job detected") {
+		t.Errorf("reaped run: status=%q error=%v", status, errMsg)
+	}
+
+	// Re-reaping a finalized row is a no-op (completion is monotonic).
+	if reaped, err := ReapStaleBatchRun(ctx, database, id, 300); err != nil || reaped {
+		t.Fatalf("re-reap of finalized run = (%v, %v), want false", reaped, err)
 	}
 }

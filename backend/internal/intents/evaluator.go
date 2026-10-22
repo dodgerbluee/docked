@@ -101,8 +101,15 @@ func (ev *Evaluator) evaluateUserScheduledIntents(ctx context.Context, userID in
 		// share the DB only the winner dispatches; losers skip and the
 		// next tick re-derives the same due state harmlessly.
 		if due.TriggerTime != nil {
-			at := due.TriggerTime.UTC().Format(isoMillis)
-			claimed, err := db.ClaimIntentEvaluation(ctx, ev.DB, intent.ID, userID, at)
+			at := *due.TriggerTime
+			if due.Legacy {
+				// Legacy "fire now" paths carry wall-clock TriggerTime, which
+				// differs per process and would let every process win its own
+				// claim. Bucket to the evaluation interval so concurrent
+				// processes compute the same claim key.
+				at = at.Truncate(evaluateInterval)
+			}
+			claimed, err := db.ClaimIntentEvaluation(ctx, ev.DB, intent.ID, userID, at.UTC().Format(isoMillis))
 			if err != nil {
 				slog.Warn("intent evaluation claim failed — skipping this tick (retries next tick)",
 					"intentId", intent.ID, "error", err)

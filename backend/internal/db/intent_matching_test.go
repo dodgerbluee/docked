@@ -76,13 +76,14 @@ func TestIntentEmptyInclusionListMatchesNothing(t *testing.T) {
 		t.Error("unset inclusion lists should match everything")
 	}
 
-	// DB round-trip: [] stores "[]" and decodes back to a non-nil empty
-	// slice; nil stores NULL and decodes to nil.
-	encoded := marshalJSONArr([]string{})
-	if encoded == nil || *encoded != "[]" {
-		t.Fatalf("marshalJSONArr([]) = %v, want \"[]\"", encoded)
+	// DB round-trip under the write contract: an explicit empty list is
+	// normalized to NULL (the intent form sends [] for dimensions the user
+	// did not pick — storing "[]" there would match nothing). A legacy "[]"
+	// row still decodes to a non-nil empty slice and still matches nothing.
+	if encoded := marshalJSONArr([]string{}); encoded != nil {
+		t.Fatalf("marshalJSONArr([]) = %q, want NULL", *encoded)
 	}
-	if got := UnmarshalStringArr(sql.NullString{String: *encoded, Valid: true}); got == nil || len(got) != 0 {
+	if got := UnmarshalStringArr(sql.NullString{String: "[]", Valid: true}); got == nil || len(got) != 0 {
 		t.Errorf("UnmarshalStringArr(\"[]\") = %#v, want non-nil empty slice", got)
 	}
 	if v := marshalJSONArr(nil); v != nil {
@@ -134,5 +135,127 @@ func TestClaimIntentEvaluationIsAtomic(t *testing.T) {
 	won, _ = ClaimIntentEvaluation(ctx, database, id, 2, "2026-10-23T03:00:00.000Z")
 	if won {
 		t.Fatal("cross-user claim must lose")
+	}
+}
+
+// The claim comparison must be format-normalized: rows written in SQLite's
+// CURRENT_TIMESTAMP layout ("YYYY-MM-DD HH:MM:SS") sort BEFORE the ISO
+// "YYYY-MM-DDTHH:MM:SS.sssZ" layout under a raw string compare (space < T),
+// which would let an older cron point re-claim a newer evaluation.
+func TestClaimIntentEvaluationNormalizesTimestampFormats(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO intents (user_id, name, schedule_type, schedule_cron, enabled, last_evaluated_at)
+		 VALUES (1, 'nightly', 'scheduled', '0 3 * * *', 1, '2026-10-21 04:00:00')`); err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	if err := database.QueryRowContext(ctx, `SELECT id FROM intents WHERE user_id = 1`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+
+	// 03:00 is OLDER than the stored 04:00 evaluation and must lose, even
+	// though the raw strings compare "2026-10-21 04:00:00" < "2026-10-21T03:00:00.000Z".
+	if won, _ := ClaimIntentEvaluation(ctx, database, id, 1, "2026-10-21T03:00:00.000Z"); won {
+		t.Fatal("older cron point must lose against a CURRENT_TIMESTAMP-format last_evaluated_at")
+	}
+	if won, _ := ClaimIntentEvaluation(ctx, database, id, 1, "2026-10-21T05:00:00.000Z"); !won {
+		t.Fatal("newer cron point must win")
+	}
+	// A corrupt value must not wedge the intent forever: it is claimable.
+	if _, err := database.ExecContext(ctx, `UPDATE intents SET last_evaluated_at = 'garbage' WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if won, _ := ClaimIntentEvaluation(ctx, database, id, 1, "2026-10-21T06:00:00.000Z"); !won {
+		t.Fatal("unparseable last_evaluated_at must be claimable")
+	}
+}
+
+// CreateIntent normalizes explicit empty filter lists to NULL: the intent
+// form sends [] for every dimension the user did not pick, and a stored "[]"
+// would make the whole intent match nothing.
+func TestCreateIntentEmptyListsStoredNull(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	id, err := CreateIntent(ctx, database, 1, "ui-created", nil, true,
+		[]string{"web"}, []string{}, []string{}, []string{}, []string{},
+		[]string{}, []string{}, []string{}, []string{},
+		"scheduled", strPtr("0 3 * * *"), 1, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mc, mi, ms, mst, mr, ec, ei, est, er sql.NullString
+	if err := database.QueryRowContext(ctx,
+		`SELECT match_containers, match_images, match_sources, match_stacks, match_registries,
+		        exclude_containers, exclude_images, exclude_stacks, exclude_registries
+		 FROM intents WHERE id = ?`, id).
+		Scan(&mc, &mi, &ms, &mst, &mr, &ec, &ei, &est, &er); err != nil {
+		t.Fatal(err)
+	}
+	if !mc.Valid || mc.String != `["web"]` {
+		t.Errorf("match_containers = %v, want [\"web\"]", mc)
+	}
+	for name, v := range map[string]sql.NullString{
+		"match_images": mi, "match_sources": ms, "match_stacks": mst, "match_registries": mr,
+		"exclude_containers": ec, "exclude_images": ei, "exclude_stacks": est, "exclude_registries": er,
+	} {
+		if v.Valid {
+			t.Errorf("%s = %q, want NULL", name, v.String)
+		}
+	}
+}
+
+// Completion is monotonic: whichever terminal write lands first wins and
+// later writes (a late executor update vs a peer's cleanup) are no-ops.
+func TestIntentExecutionCompletionIsMonotonic(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO intents (user_id, name, schedule_type, enabled) VALUES (1, 'i', 'scheduled', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	var intentID int64
+	if err := database.QueryRowContext(ctx, `SELECT id FROM intents WHERE user_id = 1`).Scan(&intentID); err != nil {
+		t.Fatal(err)
+	}
+
+	execID, err := CreateIntentExecution(ctx, database, intentID, 1, "manual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateIntentExecution(ctx, database, execID, "completed", 3, 3, 0, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := MarkIntentExecutionFailed(ctx, database, execID, "peer cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	var errMsg sql.NullString
+	if err := database.QueryRowContext(ctx,
+		`SELECT status, error_message FROM intent_executions WHERE id = ?`, execID).Scan(&status, &errMsg); err != nil {
+		t.Fatal(err)
+	}
+	if status != "completed" || errMsg.Valid {
+		t.Errorf("after late failure write: status=%q error=%v, want completed/NULL", status, errMsg)
+	}
+
+	// Reverse order: the failure write wins and a late success must lose.
+	execID2, err := CreateIntentExecution(ctx, database, intentID, 1, "manual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MarkIntentExecutionFailed(ctx, database, execID2, "boom"); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateIntentExecution(ctx, database, execID2, "completed", 5, 5, 0, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRowContext(ctx,
+		`SELECT status, error_message FROM intent_executions WHERE id = ?`, execID2).Scan(&status, &errMsg); err != nil {
+		t.Fatal(err)
+	}
+	if status != "failed" || errMsg.String != "boom" {
+		t.Errorf("after late success write: status=%q error=%v, want failed/boom", status, errMsg)
 	}
 }

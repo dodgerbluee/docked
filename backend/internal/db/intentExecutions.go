@@ -123,13 +123,16 @@ func CreateIntentExecutionStatus(ctx context.Context, database *sql.DB, intentID
 
 // MarkIntentExecutionFailed records only status/error/duration, preserving
 // any partial counters already on the row (Node's updateIntentExecution
-// COALESCEs the counts).
+// COALESCEs the counts). The completed_at IS NULL guard makes completion
+// monotonic: a terminal row is never re-written, so a late executor update
+// can never resurrect (or overwrite) an execution another process already
+// finalized.
 func MarkIntentExecutionFailed(ctx context.Context, database *sql.DB, id int64, errMsg string) error {
 	_, err := database.ExecContext(ctx,
 		`UPDATE intent_executions SET status='failed', error_message=?,
 		 completed_at=CURRENT_TIMESTAMP,
 		 duration_ms=CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER)
-		 WHERE id=?`, errMsg, id)
+		 WHERE id=? AND completed_at IS NULL`, errMsg, id)
 	return err
 }
 
@@ -148,13 +151,17 @@ func CleanupStaleIntentExecutions(ctx context.Context, database *sql.DB) (int64,
 	return res.RowsAffected()
 }
 
+// UpdateIntentExecution finalizes an execution. The completed_at IS NULL
+// guard keeps completion monotonic: whichever terminal write lands first
+// (executor success, executor failure, or a peer's stale-execution cleanup)
+// wins, and later writes are no-ops.
 func UpdateIntentExecution(ctx context.Context, database *sql.DB, id int64, status string, matched, upgraded, failed, skipped int, errMsg *string) error {
 	_, err := database.ExecContext(ctx,
 		`UPDATE intent_executions SET status=?, containers_matched=?, containers_upgraded=?,
 		 containers_failed=?, containers_skipped=?, error_message=?,
 		 completed_at=CURRENT_TIMESTAMP,
 		 duration_ms=CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER)
-		 WHERE id=?`,
+		 WHERE id=? AND completed_at IS NULL`,
 		status, matched, upgraded, failed, skipped, errMsg, id)
 	return err
 }

@@ -84,21 +84,15 @@ func (s *Service) acquireRun(ctx context.Context, running map[int64]bool, userID
 	}
 
 	// Reap stale runs: a crashed process can leave a 'running' row behind.
+	// The reap is a single conditional UPDATE that re-checks lease staleness
+	// atomically, so a heartbeat landing at the last moment still protects
+	// the run (the read-check-write pair it replaces could mark a freshly
+	// heartbeated run failed).
 	if existing, err := db.GetRunningBatchRun(ctx, s.DB, userID, jobType); err != nil {
 		release()
 		return 0, err
 	} else if existing != nil {
-		// Lease-aware reap: measure silence since the last heartbeat when
-		// one exists, so a legitimately long run in another process is
-		// never marked failed mid-flight.
-		ref := existing.StartedAt
-		if existing.HeartbeatAt.Valid {
-			ref = existing.HeartbeatAt.String
-		}
-		if startedAt, perr := parseSQLiteTime(ref); perr == nil && time.Since(startedAt) > staleRunThreshold {
-			msg := "Job marked as failed: stale running job detected"
-			_ = db.CompleteBatchRun(ctx, s.DB, existing.ID, "failed", 0, 0, &msg)
-		}
+		_, _ = db.ReapStaleBatchRun(ctx, s.DB, existing.ID, int(staleRunThreshold.Seconds()))
 	}
 
 	runID, err := db.CreateBatchRunIfNoneRunning(ctx, s.DB, userID, jobType, isManual)
@@ -171,11 +165,6 @@ func (s *Service) RunWithLock(ctx context.Context, userID int64, isManual bool) 
 		return 0, err
 	}
 	return runID, s.ExecuteAndComplete(ctx, userID, runID)
-}
-
-// parseSQLiteTime parses timestamp strings from SQLite (see db.ParseSQLiteTime).
-func parseSQLiteTime(s string) (time.Time, error) {
-	return db.ParseSQLiteTime(s)
 }
 
 // heartbeatRun ticks a lease heartbeat against the batch_runs row until the

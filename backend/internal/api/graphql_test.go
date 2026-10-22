@@ -1126,7 +1126,11 @@ func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
 	}
 }
 
-// TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone
+// TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone pins the update
+// contract: non-empty lists persist, an explicit empty list CLEARS the
+// dimension to NULL (the intent form sends [] for dimensions the user did
+// not pick, and a stored "[]" would make the intent match nothing), and an
+// omitted field leaves the column untouched.
 func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
@@ -1154,7 +1158,8 @@ func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 		t.Fatalf("updateIntent errored: %+v", r.Errors)
 	}
 
-	var matchContainers, matchRegistries, excludeImages, excludeRegistries string
+	var matchContainers, matchRegistries, excludeRegistries string
+	var excludeImages sql.NullString
 	var dryRun int
 	err = env.database.QueryRow(`SELECT match_containers, match_registries, exclude_images,
 		exclude_registries, dry_run FROM intents WHERE id = ?`, id).
@@ -1163,9 +1168,21 @@ func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 		t.Fatalf("read intent update: %v", err)
 	}
 	if matchContainers != `["web-*"]` || matchRegistries != `["ghcr.io"]` ||
-		excludeImages != `[]` || excludeRegistries != `["quay.io"]` || dryRun != 1 {
-		t.Fatalf("intent safety fields not persisted: containers=%s registries=%s excludeImages=%s excludeRegistries=%s dryRun=%d",
+		excludeImages.Valid || excludeRegistries != `["quay.io"]` || dryRun != 1 {
+		t.Fatalf("intent safety fields not persisted: containers=%s registries=%s excludeImages=%v excludeRegistries=%s dryRun=%d",
 			matchContainers, matchRegistries, excludeImages, excludeRegistries, dryRun)
+	}
+
+	// An omitted field must leave the column untouched (nil = no change).
+	if r2 := env.gql(t, admin, `mutation($id: ID!, $in: UpdateIntentInput!){ updateIntent(id: $id, input: $in){ id } }`,
+		map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"name": "safe2"}}); len(r2.Errors) != 0 {
+		t.Fatalf("updateIntent (name only) errored: %+v", r2.Errors)
+	}
+	if err = env.database.QueryRow(`SELECT match_containers FROM intents WHERE id = ?`, id).Scan(&matchContainers); err != nil {
+		t.Fatalf("read intent after partial update: %v", err)
+	}
+	if matchContainers != `["web-*"]` {
+		t.Fatalf("omitted matchContainers was modified: %s", matchContainers)
 	}
 
 	unsupported := env.gql(t, admin, `mutation($id: ID!, $in: UpdateIntentInput!){ updateIntent(id: $id, input: $in){ id } }`,

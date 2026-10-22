@@ -17,6 +17,11 @@ type DueResult struct {
 	IsDue       bool
 	Reason      string
 	TriggerTime *time.Time
+	// Legacy marks the "fire now because last_evaluated_at is missing or
+	// unparseable" paths, where TriggerTime is wall-clock rather than a
+	// real cron point. The evaluator buckets those claims so concurrent
+	// processes compute the SAME claim key and only one of them wins.
+	Legacy bool
 }
 
 // parseCron accepts the 5-field standard form (plus @descriptors) and the
@@ -53,7 +58,7 @@ func IsIntentDue(intent *db.IntentRow, now time.Time) DueResult {
 		if perr != nil {
 			// Unparseable legacy value — treat like the missing case so the
 			// intent doesn't get stuck forever.
-			return DueResult{IsDue: true, TriggerTime: &now, Reason: "unparseable last_evaluated_at (legacy)"}
+			return DueResult{IsDue: true, TriggerTime: &now, Legacy: true, Reason: "unparseable last_evaluated_at (legacy)"}
 		}
 		next := sched.Next(lastEval)
 		if !next.IsZero() && !next.After(now) {
@@ -63,7 +68,7 @@ func IsIntentDue(intent *db.IntentRow, now time.Time) DueResult {
 	}
 
 	// Never evaluated (legacy/migration edge case) — treat as due.
-	return DueResult{IsDue: true, TriggerTime: &now, Reason: "missing last_evaluated_at (legacy)"}
+	return DueResult{IsDue: true, TriggerTime: &now, Legacy: true, Reason: "missing last_evaluated_at (legacy)"}
 }
 
 // isoMillis is Node's Date.toISOString() layout.

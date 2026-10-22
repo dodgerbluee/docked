@@ -635,6 +635,49 @@ func waitForExecution(t *testing.T, database *sql.DB, intentID int64) db.IntentE
 	return db.IntentExecutionRow{}
 }
 
+// A never-evaluated (legacy) intent is due with a WALL-CLOCK trigger time,
+// which differs per process; the claim must bucket it to the evaluation
+// interval so a second sweep (or a second process) cannot fire the same
+// legacy point twice.
+func TestEvaluateScheduledIntentsLegacyClaimFiresOnce(t *testing.T) {
+	ctx := context.Background()
+	database, _ := setupMatchFixture(t)
+
+	intent := insertIntent(t, database, map[string]any{
+		"name": "legacy", "schedule_type": "scheduled",
+		"schedule_cron": "*/5 * * * *",
+		// no last_evaluated_at: legacy due path
+		"match_containers": `["live-updated"]`,
+	})
+	exec := &Executor{DB: database, Upgrade: func(context.Context, int64, *db.ContainerRow, *db.RunnerRow, string) error {
+		return nil
+	}}
+	ev := NewEvaluator(database, exec)
+	ev.EvaluateScheduledIntents(ctx)
+	// Second sweep immediately after: the bucketed claim must make the
+	// intent not-due (last_evaluated_at is now parseable and current).
+	ev.EvaluateScheduledIntents(ctx)
+
+	waitForExecution(t, database, intent.ID)
+	rows, total, err := db.GetIntentExecutions(ctx, database, 1, &intent.ID, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(rows) != 1 {
+		t.Fatalf("legacy due path created %d executions (total %d), want exactly 1", len(rows), total)
+	}
+	updated, err := db.GetIntentByID(ctx, database, intent.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.LastEvaluatedAt.Valid {
+		t.Fatal("legacy claim must set last_evaluated_at")
+	}
+	if _, perr := db.ParseSQLiteTime(updated.LastEvaluatedAt.String); perr != nil {
+		t.Errorf("legacy claim wrote unparseable last_evaluated_at %q", updated.LastEvaluatedAt.String)
+	}
+}
+
 func TestEvaluateImmediateIntents(t *testing.T) {
 	ctx := context.Background()
 	database, _ := setupMatchFixture(t)
