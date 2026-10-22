@@ -98,3 +98,57 @@ func TestGetContainersByRunner(t *testing.T) {
 		t.Errorf("user isolation broken: %+v", rows)
 	}
 }
+
+// SummaryStats.containersWithUpdates counts through GetContainers +
+// ContainerHasUpdate; this pins that path's semantics against the traps the
+// old standalone SQL fell into: stale deploy-time digests (repo_digests is
+// sync-updated and current -> NO update), docker.io-normalized joins, and
+// wrong-tag registry rows (must not flag a container pinned to another tag).
+func TestCountContainersWithUpdateParity(t *testing.T) {
+	database := testDB(t)
+	minimalContainersSchema(t, database)
+	ctx := context.Background()
+
+	seed := func(q string, args ...any) {
+		t.Helper()
+		if _, err := database.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	seed(`INSERT INTO deployed_images (id, user_id, image_repo, image_tag, image_digest, repo_digests) VALUES
+		(1, 1, 'r/a',       '1.0', 'sha256:aaa', '["sha256:bbb"]'),
+		(2, 1, 'r/b',       '1.0', 'sha256:ccc', '["sha256:ccc"]'),
+		(3, 1, 'docker.io/library/x', '1.0', 'sha256:e1', '["sha256:e1"]'),
+		(4, 1, 'r/d',       '1.0', 'sha256:f1', NULL),
+		(5, 1, 'r/e',       '1.0', 'sha256:g1', '["sha256:g1"]')`)
+	seed(`INSERT INTO registry_image_versions (user_id, image_repo, tag, latest_digest) VALUES
+		(1, 'r/a',  '1.0', 'sha256:bbb'),
+		(1, 'r/b',  '1.0', 'sha256:ddd'),
+		(1, 'library/x', '1.0', 'sha256:e2'),
+		(1, 'r/d',  '1.0', 'sha256:h2'),
+		(1, 'r/e',  '2.0', 'sha256:i2')`)
+	seed(`INSERT INTO containers (id, user_id, container_id, container_name, deployed_image_id) VALUES
+		(1, 1, 'c1', 'one', 1), (2, 1, 'c2', 'two', 2), (3, 1, 'c3', 'three', 3),
+		(4, 1, 'c4', 'four', 4), (5, 1, 'c5', 'five', 5), (6, 1, 'c6', 'six', NULL)`)
+
+	rows, err := GetContainers(ctx, database, 1)
+	if err != nil {
+		t.Fatalf("GetContainers: %v", err)
+	}
+	seen := map[int64]bool{}
+	count := 0
+	for i := range rows {
+		if seen[rows[i].ID] {
+			continue
+		}
+		seen[rows[i].ID] = true
+		if ContainerHasUpdate(rows[i]) {
+			count++
+		}
+	}
+	// c1 repo_digests current -> no; c2 differs -> yes; c3 docker.io join +
+	// differs -> yes; c4 no repo_digests -> no; c5 wrong-tag riv -> no.
+	if count != 2 {
+		t.Errorf("withUpdates = %d, want 2", count)
+	}
+}
