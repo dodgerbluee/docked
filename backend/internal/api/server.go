@@ -129,7 +129,8 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// the JWT in connectionParams, which is the only place a token can ride
 	// on a WS handshake. The returned context flows into every subscription
 	// operation on that connection.
-	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc}
+	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc,
+		OAuth: oauth.NewRegistry(database, cfg.OAuth)}
 	// Intent engine: one shared executor (resolver-bound upgrade/publish/
 	// notify) adopted by the evaluator AND the manual trigger resolvers, so
 	// all execution paths use the same live matcher and lock semantics. The
@@ -168,12 +169,18 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			if token == "" {
 				return reject("authentication required")
 			}
-			userID, err := auth.ValidateToken(token, cfg.JWTSecret)
+			userID, tokenVersion, _, err := auth.ValidateTokenWithVersion(token, cfg.JWTSecret)
 			if err != nil {
 				return reject("invalid token")
 			}
 			user, err := db.GetUserByID(ctx, database, userID)
 			if err != nil || user == nil {
+				return reject("invalid token")
+			}
+			// Password-change session eviction: a connection may live for
+			// hours, so both the handshake and every operation re-check the
+			// token's version claim against the user row.
+			if tokenVersion != user.TokenVersion {
 				return reject("invalid token")
 			}
 			if revoked, err := db.IsTokenRevoked(ctx, database, token); err != nil || revoked {
@@ -229,7 +236,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 				return reject(msg)
 			}
 			raw := auth.RawTokenFromContext(ctx)
-			uid, err := auth.ValidateToken(raw, cfg.JWTSecret)
+			uid, tokenVersion, _, err := auth.ValidateTokenWithVersion(raw, cfg.JWTSecret)
 			if err != nil {
 				return rejectSession("session expired")
 			}
@@ -238,6 +245,8 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			}
 			if u, err := db.GetUserByID(ctx, database, uid); err != nil || u == nil {
 				return rejectSession("session invalid")
+			} else if tokenVersion != u.TokenVersion {
+				return rejectSession("session revoked")
 			}
 		}
 		// Cost + depth budgets: cap aliasing/list fan-out amplification of
@@ -292,7 +301,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 				return
 			}
 
-			userID, err := auth.ValidateToken(raw, cfg.JWTSecret)
+			userID, tokenVersion, _, err := auth.ValidateTokenWithVersion(raw, cfg.JWTSecret)
 			if err != nil {
 				// Token invalid — proceed without user context
 				slog.Debug("graphql auth: token validation failed", "error", err.Error())
@@ -309,6 +318,18 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			user, err := db.GetUserByID(req.Context(), database, userID)
 			if err != nil || user == nil {
 				slog.Debug("graphql auth: token user no longer exists", "userID", userID)
+				if !publicLimiter.Allow(clientKey) {
+					apimiddleware.GraphQLTooManyRequests(w)
+					return
+				}
+				next.ServeHTTP(w, req)
+				return
+			}
+			// Password-change session eviction: the token's version claim must
+			// match the row (bumped by UpdateUserPassword), so every session
+			// a password change was meant to end is actually ended.
+			if tokenVersion != user.TokenVersion {
+				slog.Debug("graphql auth: token version stale (password changed)", "userID", userID)
 				if !publicLimiter.Allow(clientKey) {
 					apimiddleware.GraphQLTooManyRequests(w)
 					return
@@ -369,7 +390,9 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 
 	// SSO provider registry (DB-configured providers with env fallback),
 	// lazily refreshed so GraphQL SSO CRUD is picked up without restarts.
-	oauthRegistry := oauth.NewRegistry(database, cfg.OAuth)
+	// Shared with the GraphQL resolvers (resolver.OAuth) so the login-CSRF
+	// and local-login enforcement see the same provider state.
+	oauthRegistry := resolver.OAuth
 
 	// Global safety net (Node's globalLimiter): 300 req/min per IP across
 	// the whole /api surface; per-route limiters below stay stricter for
@@ -427,7 +450,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		// /auth/verify is deliberately unthrottled, matching Node's route
 		// table where no limiter is registered for it.
 		r.With(apimiddleware.RateLimit(authLimiter, apimiddleware.RESTTooManyRequests)).
-			Post("/auth/login", handlers.Login(database))
+			Post("/auth/login", handlers.Login(database, oauthRegistry))
 		r.With(apimiddleware.RateLimit(authLimiter, apimiddleware.RESTTooManyRequests)).
 			Post("/auth/create-user-with-config", handlers.CreateUserWithConfig(database, cfg.JWTSecret))
 		r.Get("/auth/verify", handlers.VerifyToken(database, cfg.JWTSecret))

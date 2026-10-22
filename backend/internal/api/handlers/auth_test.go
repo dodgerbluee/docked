@@ -43,7 +43,7 @@ func newAuthTestDB(t *testing.T) *sql.DB {
 			instance_admin INTEGER DEFAULT 0,
 			verification_token TEXT,
 			last_login TEXT,
-			oauth_provider TEXT, oauth_provider_id TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -118,7 +118,7 @@ func newAuthTestDB(t *testing.T) *sql.DB {
 func newAuthTestRouter(database *sql.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Route("/api", func(r chi.Router) {
-		r.Post("/auth/login", Login(database))
+		r.Post("/auth/login", Login(database, nil))
 		r.Post("/auth/create-user-with-config", CreateUserWithConfig(database, authTestSecret))
 		r.Get("/auth/verify", VerifyToken(database, authTestSecret))
 		r.Group(func(r chi.Router) {
@@ -255,7 +255,7 @@ func TestLoginAndVerify(t *testing.T) {
 	}
 
 	// Token whose user was deleted.
-	deadToken, _, err := auth.GenerateTokens(999, "ghost", "Member")
+	deadToken, _, err := auth.GenerateTokens(999, "ghost", "Member", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestCreateUserWithConfigGates(t *testing.T) {
 		t.Fatalf("closed bootstrap: code=%d body=%v", code, body)
 	}
 
-	adminToken, _, err := auth.GenerateTokens(2, "root", "Administrator")
+	adminToken, _, err := auth.GenerateTokens(2, "root", "Administrator", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -569,7 +569,7 @@ func TestExportUserConfig(t *testing.T) {
 		t.Fatalf("system setting: %v", err)
 	}
 
-	token, _, err := auth.GenerateTokens(userID, "alice", "Administrator")
+	token, _, err := auth.GenerateTokens(userID, "alice", "Administrator", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -651,11 +651,11 @@ func TestExportUsers(t *testing.T) {
 		t.Fatalf("seed creds: %v", err)
 	}
 
-	memberToken, _, err := auth.GenerateTokens(memberID, "member", "Member")
+	memberToken, _, err := auth.GenerateTokens(memberID, "member", "Member", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	adminToken, _, err := auth.GenerateTokens(adminID, "root", "Administrator")
+	adminToken, _, err := auth.GenerateTokens(adminID, "root", "Administrator", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -740,11 +740,11 @@ func TestAvatarRoutes(t *testing.T) {
 	adminID := seedUser(t, database, "admin", "password123", 1)
 	plainID := seedUser(t, database, "oldname", "password123", 0)
 
-	adminToken, _, err := auth.GenerateTokens(adminID, "admin", "Administrator")
+	adminToken, _, err := auth.GenerateTokens(adminID, "admin", "Administrator", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	plainToken, _, err := auth.GenerateTokens(plainID, "oldname", "Member")
+	plainToken, _, err := auth.GenerateTokens(plainID, "oldname", "Member", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}

@@ -37,7 +37,7 @@ func testDB(t *testing.T) *sql.DB {
 			id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, role TEXT,
 			password_changed INTEGER DEFAULT 0, instance_admin INTEGER DEFAULT 0,
 			email TEXT, last_login TEXT,
-			oauth_provider TEXT, oauth_provider_id TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE intents (

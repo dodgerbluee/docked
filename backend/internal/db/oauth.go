@@ -76,7 +76,7 @@ func scanUserRow(scan func(dest ...any) error) (*UserRow, error) {
 	var u UserRow
 	err := scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
-		&u.OAuthProvider, &u.OAuthProviderID)
+		&u.OAuthProvider, &u.OAuthProviderID, &u.TokenVersion)
 	if err != nil {
 		return nil, err
 	}

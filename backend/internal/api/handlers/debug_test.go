@@ -37,7 +37,7 @@ func newDebugTestDB(t *testing.T) *sql.DB {
 			username TEXT, password_hash TEXT, role TEXT,
 			password_changed INTEGER DEFAULT 0, instance_admin INTEGER DEFAULT 0,
 			email TEXT, last_login TEXT,
-			oauth_provider TEXT, oauth_provider_id TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -102,7 +102,7 @@ func setDebugEnabled(t *testing.T, database *sql.DB, enabled bool) {
 func tokenFor(t *testing.T, userID int64, username string) string {
 	t.Helper()
 	auth.SetSecret(testJWTSecret)
-	token, _, err := auth.GenerateTokens(userID, username, "Administrator")
+	token, _, err := auth.GenerateTokens(userID, username, "Administrator", 0)
 	if err != nil {
 		t.Fatalf("generate tokens: %v", err)
 	}

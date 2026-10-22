@@ -118,6 +118,22 @@ func TestJWTSecretGeneratedAndPersisted(t *testing.T) {
 	}
 }
 
+func TestJWTSecretAdoptsExistingFile(t *testing.T) {
+	// Cross-process first-start race: a file created concurrently by
+	// another process must win over this process's freshly generated
+	// secret (O_EXCL loser adopts the winner), otherwise the two processes
+	// sign with divergent keys.
+	os.Unsetenv("JWT_SECRET")
+	dir := t.TempDir()
+	t.Setenv("DATA_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "jwt_secret"), []byte("winner-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := jwtSecret(); got != "winner-secret" {
+		t.Errorf("jwtSecret() = %q, want the pre-existing winner-secret", got)
+	}
+}
+
 func TestTrustedProxies(t *testing.T) {
 	t.Run("default covers loopback and private ranges", func(t *testing.T) {
 		os.Unsetenv("TRUSTED_PROXIES")

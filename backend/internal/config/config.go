@@ -3,12 +3,14 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds all runtime configuration loaded from environment variables.
@@ -216,13 +218,37 @@ func jwtSecret() string {
 		log.Fatalf("cannot generate JWT secret: %v", err)
 	}
 	secret := hex.EncodeToString(buf)
-	if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
+	// O_EXCL closes the cross-process race: two first-start processes must
+	// not both persist different secrets (the later read would pick one and
+	// the other process would sign with a divergent key — split-brain
+	// sessions). The loser adopts the winner's file.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		for i := 0; i < 5; i++ {
+			if b, rerr := os.ReadFile(path); rerr == nil {
+				if s := strings.TrimSpace(string(b)); s != "" {
+					log.Printf("JWT_SECRET not set; adopting secret created by another process at %s", path)
+					return s
+				}
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		log.Printf("WARNING: JWT_SECRET not set and %s exists but is unreadable; using an in-memory secret", path)
+		return secret
+	}
+	if err != nil {
 		// Non-fatal: a per-process random secret is still strictly safer
 		// than a public one; sessions just reset on restart.
 		log.Printf("WARNING: JWT_SECRET not set and generated secret could not be persisted to %s (%v); tokens will not survive restarts", path, err)
-	} else {
-		log.Printf("WARNING: JWT_SECRET not set; generated a new signing secret at %s", path)
+		return secret
 	}
+	if _, werr := f.Write([]byte(secret)); werr != nil {
+		f.Close()
+		log.Printf("WARNING: JWT_SECRET not set and generated secret could not be persisted to %s (%v); tokens will not survive restarts", path, werr)
+		return secret
+	}
+	f.Close()
+	log.Printf("WARNING: JWT_SECRET not set; generated a new signing secret at %s", path)
 	return secret
 }
 

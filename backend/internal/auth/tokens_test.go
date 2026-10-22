@@ -49,7 +49,7 @@ func TestTokenAudienceExpiryAndSeparation(t *testing.T) {
 	// the ambient environment.
 	t.Setenv("JWT_REFRESH_SECRET", secret+"-refresh")
 
-	access, refresh, err := GenerateTokens(42, "alice", "Member")
+	access, refresh, err := GenerateTokens(42, "alice", "Member", 0)
 	if err != nil {
 		t.Fatalf("GenerateTokens: %v", err)
 	}
@@ -69,6 +69,49 @@ func TestTokenAudienceExpiryAndSeparation(t *testing.T) {
 	// An access token must NOT be accepted as a refresh token.
 	if _, err := VerifyRefreshToken(access); err == nil {
 		t.Fatal("access token was accepted as a refresh token")
+	}
+}
+
+// TestTokenVersionClaimRoundTrip guards the password-change session eviction
+// primitive: both token kinds carry the user's token_version, and tokens
+// minted before versioning (no claim) read as version 0 so pre-migration
+// sessions keep working until the password actually changes.
+func TestTokenVersionClaimRoundTrip(t *testing.T) {
+	const secret = "unit-secret"
+	SetSecret(secret)
+	t.Setenv("JWT_REFRESH_SECRET", secret+"-refresh")
+
+	access, refresh, err := GenerateTokens(42, "alice", "Member", 3)
+	if err != nil {
+		t.Fatalf("GenerateTokens: %v", err)
+	}
+	uid, tv, _, err := ValidateTokenWithVersion(access, secret)
+	if err != nil || uid != 42 || tv != 3 {
+		t.Fatalf("ValidateTokenWithVersion = (%d, %d, %v), want (42, 3, nil)", uid, tv, err)
+	}
+	rc, err := VerifyRefreshToken(refresh)
+	if err != nil || rc.TokenVersion != 3 {
+		t.Fatalf("refresh claims version = %d (%v), want 3", rc.TokenVersion, err)
+	}
+
+	// Version 0 omits the claim (omitempty): legacy-shaped tokens validate
+	// and read as version 0, matching every pre-migration row's default.
+	legacy := jwt.NewWithClaims(jwt.SigningMethodHS256, TokenClaims{
+		UserID:   42,
+		Username: "alice",
+		Role:     "Member",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "docked",
+			Audience:  jwt.ClaimStrings{"docked-users"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	})
+	raw, err := legacy.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, tv, _, err := ValidateTokenWithVersion(raw, secret); err != nil || tv != 0 {
+		t.Fatalf("legacy token version = %d (%v), want 0", tv, err)
 	}
 }
 

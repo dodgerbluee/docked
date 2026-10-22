@@ -24,9 +24,14 @@ type UserRow struct {
 	UpdatedAt       string
 	OAuthProvider   sql.NullString
 	OAuthProviderID sql.NullString
+	// TokenVersion is bumped whenever the password changes. Access AND
+	// refresh tokens carry it; the auth layers reject tokens whose version
+	// lags the row, which evicts every existing session on password
+	// change (stateless JWTs alone could not be revoked before their exp).
+	TokenVersion int64
 }
 
-const userCols = `id, username, password_hash, role, password_changed, instance_admin, email, last_login, created_at, updated_at, oauth_provider, oauth_provider_id`
+const userCols = `id, username, password_hash, role, password_changed, instance_admin, email, last_login, created_at, updated_at, oauth_provider, oauth_provider_id, token_version`
 
 // GetUserByID fetches a single user by primary key.
 func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, error) {
@@ -36,7 +41,7 @@ func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, err
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
-		&u.OAuthProvider, &u.OAuthProviderID)
+		&u.OAuthProvider, &u.OAuthProviderID, &u.TokenVersion)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -54,7 +59,7 @@ func GetUserByUsername(ctx context.Context, database *sql.DB, username string) (
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
-		&u.OAuthProvider, &u.OAuthProviderID)
+		&u.OAuthProvider, &u.OAuthProviderID, &u.TokenVersion)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -78,7 +83,7 @@ func GetAllUsers(ctx context.Context, database *sql.DB) ([]UserRow, error) {
 		var u UserRow
 		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 			&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt,
-			&u.OAuthProvider, &u.OAuthProviderID); err != nil {
+			&u.OAuthProvider, &u.OAuthProviderID, &u.TokenVersion); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
 		users = append(users, u)
@@ -220,10 +225,16 @@ func isBusy(err error) bool {
 	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
 }
 
-// UpdateUserPassword updates a user's password hash.
+// UpdateUserPassword updates a user's password hash and bumps token_version,
+// which invalidates every outstanding access AND refresh token for the user
+// (the auth layers compare the token's version claim against the row). This
+// is the session-eviction half of a password change: without it, a stolen
+// 24h access token or 7d refresh token would survive the password reset.
 func UpdateUserPassword(ctx context.Context, database *sql.DB, userID int64, passwordHash string) error {
 	_, err := database.ExecContext(ctx,
-		"UPDATE users SET password_hash = ?, password_changed = 1, updated_at = datetime('now') WHERE id = ?",
+		`UPDATE users SET password_hash = ?, password_changed = 1,
+		 token_version = token_version + 1, updated_at = datetime('now')
+		 WHERE id = ?`,
 		passwordHash, userID)
 	return err
 }

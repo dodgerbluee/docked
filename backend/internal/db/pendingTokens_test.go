@@ -18,7 +18,7 @@ CREATE TABLE users (
   instance_admin INTEGER DEFAULT 0,
   verification_token TEXT,
   last_login TEXT,
-  oauth_provider TEXT, oauth_provider_id TEXT,
+  oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );`

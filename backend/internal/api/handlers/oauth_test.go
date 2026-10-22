@@ -187,8 +187,9 @@ func doOAuthGet(t *testing.T, h http.Handler, target string, headers map[string]
 	return rec.Result()
 }
 
-// startFlow calls /auth/oauth/login and returns the state + stored row data.
-func startFlow(t *testing.T, h http.Handler, database *sql.DB, provider string) (state, nonce, verifier string) {
+// startFlow calls /auth/oauth/login and returns the state + stored row data
+// plus the state cookie the callback must present (browser binding).
+func startFlow(t *testing.T, h http.Handler, database *sql.DB, provider string) (state, nonce, verifier, cookie string) {
 	t.Helper()
 	resp := doOAuthGet(t, h, "/auth/oauth/login?provider="+provider, nil)
 	if resp.StatusCode != http.StatusFound {
@@ -202,6 +203,14 @@ func startFlow(t *testing.T, h http.Handler, database *sql.DB, provider string) 
 	nonce = loc.Query().Get("nonce")
 	if state == "" || nonce == "" {
 		t.Fatalf("missing state/nonce in %q", loc.String())
+	}
+	for _, c := range resp.Header.Values("Set-Cookie") {
+		if strings.HasPrefix(c, oauthStateCookieName+"=") {
+			cookie = strings.Split(c, ";")[0]
+		}
+	}
+	if cookie == "" {
+		t.Fatalf("login did not set %s cookie", oauthStateCookieName)
 	}
 	if err := database.QueryRow("SELECT code_verifier FROM oauth_states WHERE state = ?", state).Scan(&verifier); err != nil {
 		t.Fatalf("state row: %v", err)
@@ -347,10 +356,10 @@ func TestOAuthCallbackAutoRegisterFirstUser(t *testing.T) {
 	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
 	h := newOAuthRouter(database, config.OAuthConfig{})
 
-	state, nonce, _ := startFlow(t, h, database, "myidp")
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
 	idp.nonce = nonce
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -401,7 +410,7 @@ func TestOAuthCallbackAutoRegisterFirstUser(t *testing.T) {
 	}
 
 	// State must be single-use.
-	resp2 := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp2 := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc2, _ := url.Parse(resp2.Header.Get("Location"))
 	if loc2.Query().Get("error") != "Invalid or expired login session. Please try again." {
 		t.Fatalf("replay: %q", resp2.Header.Get("Location"))
@@ -422,10 +431,10 @@ func TestOAuthCallbackNonceMismatch(t *testing.T) {
 	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
 	h := newOAuthRouter(database, config.OAuthConfig{})
 
-	state, _, _ := startFlow(t, h, database, "myidp")
+	state, _, _, cookie := startFlow(t, h, database, "myidp")
 	idp.nonce = "totally-different-nonce"
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if got := loc.Query().Get("error"); got != "Sign-in verification failed. Please try again or contact your administrator." {
 		t.Fatalf("error = %q", got)
@@ -438,11 +447,11 @@ func TestOAuthCallbackTokenExchangeFailureMessage(t *testing.T) {
 	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
 	h := newOAuthRouter(database, config.OAuthConfig{})
 
-	state, _, _ := startFlow(t, h, database, "myidp")
+	state, _, _, cookie := startFlow(t, h, database, "myidp")
 	idp.tokenStatus = http.StatusBadRequest
 	idp.tokenBody = map[string]any{"error": "invalid_grant", "error_description": "code expired"}
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if got := loc.Query().Get("error"); got != "Unable to complete sign-in. The sign-in service may be experiencing issues. Please try again." {
 		t.Fatalf("error = %q", got)
@@ -455,10 +464,10 @@ func TestOAuthCallbackAutoRegisterDisabled(t *testing.T) {
 	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 0) // auto_register off
 	h := newOAuthRouter(database, config.OAuthConfig{})
 
-	state, nonce, _ := startFlow(t, h, database, "myidp")
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
 	idp.nonce = nonce
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if got := loc.Query().Get("error"); got != "Authentication failed. Please try again or contact your administrator." {
 		t.Fatalf("error = %q", got)
@@ -488,10 +497,10 @@ func TestOAuthCallbackLinkRequiredThenLink(t *testing.T) {
 		t.Fatalf("insert user: %v", err)
 	}
 
-	state, nonce, _ := startFlow(t, h, database, "myidp")
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
 	idp.nonce = nonce
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	q := loc.Query()
 	if q.Get("linkRequired") != "true" || q.Get("linkToken") == "" || q.Get("username") != "localuser" {
@@ -543,9 +552,9 @@ func TestOAuthCallbackLinkRequiredThenLink(t *testing.T) {
 	// Reusing the link token after success still works (Node has no replay
 	// guard either) but a second callback for the same identity resolves the
 	// linked account directly.
-	state2, nonce2, _ := startFlow(t, h, database, "myidp")
+	state2, nonce2, _, cookie2 := startFlow(t, h, database, "myidp")
 	idp.nonce = nonce2
-	resp2 := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state2, nil)
+	resp2 := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state2, map[string]string{"Cookie": cookie2})
 	loc2, _ := url.Parse(resp2.Header.Get("Location"))
 	if loc2.Query().Get("linkRequired") != "" || loc2.Query().Get("error") != "" {
 		t.Fatalf("second callback = %q", resp2.Header.Get("Location"))
@@ -564,13 +573,197 @@ func TestOAuthCallbackEmailLinkedToOtherProviderRejected(t *testing.T) {
 		t.Fatalf("insert user: %v", err)
 	}
 
-	state, nonce, _ := startFlow(t, h, database, "myidp")
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
 	idp.nonce = nonce
 
-	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if got := loc.Query().Get("error"); got != "Authentication failed. Please try again or contact your administrator." {
 		t.Fatalf("error = %q", got)
+	}
+}
+
+func TestOAuthCallbackStateCookieGate(t *testing.T) {
+	database := newOAuthTestDB(t)
+	idp := newFakeIdP(t)
+	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
+	h := newOAuthRouter(database, config.OAuthConfig{})
+
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
+	idp.nonce = nonce
+
+	// No cookie at all: the state row exists, but this is not the browser
+	// that started the flow.
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, nil)
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if got := loc.Query().Get("error"); got != "Invalid or expired login session. Please try again." {
+		t.Fatalf("no cookie: error = %q", got)
+	}
+
+	// Wrong cookie value.
+	resp = doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state,
+		map[string]string{"Cookie": oauthStateCookieName + "=not-my-state"})
+	loc, _ = url.Parse(resp.Header.Get("Location"))
+	if got := loc.Query().Get("error"); got != "Invalid or expired login session. Please try again." {
+		t.Fatalf("wrong cookie: error = %q", got)
+	}
+
+	// The state row survives both refusals (the gate runs before consume),
+	// so the real browser can still finish its flow.
+	resp = doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state,
+		map[string]string{"Cookie": cookie})
+	loc, _ = url.Parse(resp.Header.Get("Location"))
+	if loc.Query().Get("error") != "" {
+		t.Fatalf("legit callback: %q", resp.Header.Get("Location"))
+	}
+}
+
+func TestOAuthLoginStateCookieAttributes(t *testing.T) {
+	database := newOAuthTestDB(t)
+	idp := newFakeIdP(t)
+	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
+	h := newOAuthRouter(database, config.OAuthConfig{})
+
+	resp := doOAuthGet(t, h, "/auth/oauth/login?provider=myidp", map[string]string{
+		"X-Forwarded-Proto": "https",
+	})
+	var found string
+	for _, c := range resp.Header.Values("Set-Cookie") {
+		if strings.HasPrefix(c, oauthStateCookieName+"=") {
+			found = c
+		}
+	}
+	if found == "" {
+		t.Fatalf("no state cookie in %v", resp.Header.Values("Set-Cookie"))
+	}
+	for _, want := range []string{"HttpOnly", "SameSite=Lax", "Path=/api/auth/oauth", "Secure", "Max-Age=600"} {
+		if !strings.Contains(found, want) {
+			t.Fatalf("cookie %q missing %q", found, want)
+		}
+	}
+}
+
+func TestOAuthCallbackUnverifiedEmailSkipsAccountMatch(t *testing.T) {
+	database := newOAuthTestDB(t)
+	idp := newFakeIdP(t)
+	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
+	h := newOAuthRouter(database, config.OAuthConfig{})
+
+	hash, err := auth.HashPassword("Str0ngPass!")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin)
+		 VALUES ('localuser', ?, 'sso@example.com', 'Administrator', 1, 1)`, hash); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	// Attacker registers the victim's email at the IdP but the provider
+	// marks it unverified: the email match must be skipped entirely, so
+	// the attacker lands in a fresh account of their own.
+	idp.idTokenOverride = func(nonce string) *string {
+		raw := idp.signIDToken(jwt.MapClaims{
+			"sub":                "attacker-sub",
+			"nonce":              nonce,
+			"email":              "sso@example.com",
+			"email_verified":     false,
+			"preferred_username": "attacker",
+		})
+		return &raw
+	}
+
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
+	idp.nonce = nonce
+
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if loc.Query().Get("error") != "" || loc.Query().Get("linkRequired") != "" {
+		t.Fatalf("location = %q", resp.Header.Get("Location"))
+	}
+
+	var linked int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE username = 'localuser' AND oauth_provider IS NULL`).Scan(&linked); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if linked != 1 {
+		t.Fatalf("victim account was linked or altered")
+	}
+	var attackerID int64
+	if err := database.QueryRow(
+		`SELECT id FROM users WHERE username = 'attacker' AND oauth_provider = 'myidp'`).Scan(&attackerID); err != nil {
+		t.Fatalf("attacker auto-registered: %v", err)
+	}
+}
+
+func TestOAuthCallbackPasswordlessEmailMatchRejected(t *testing.T) {
+	database := newOAuthTestDB(t)
+	idp := newFakeIdP(t)
+	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
+	h := newOAuthRouter(database, config.OAuthConfig{})
+
+	// Passwordless account already linked to a DIFFERENT identity at the
+	// same provider: a matching email must not hand the account over.
+	if _, err := database.Exec(
+		`INSERT INTO users (username, email, role, oauth_provider, oauth_provider_id)
+		 VALUES ('ssouser', 'sso@example.com', 'Administrator', 'myidp', 'different-sub')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
+	idp.nonce = nonce
+
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if got := loc.Query().Get("error"); got != "Authentication failed. Please try again or contact your administrator." {
+		t.Fatalf("error = %q", got)
+	}
+	var linked int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE username = 'ssouser' AND oauth_provider_id = 'different-sub'`).Scan(&linked); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if linked != 1 {
+		t.Fatalf("passwordless account was re-linked")
+	}
+	var count int
+	if err := database.QueryRow("SELECT COUNT(*) FROM users").Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("extra accounts created: %d", count)
+	}
+}
+
+func TestOAuthCallbackPasswordlessUsernameCollisionRejected(t *testing.T) {
+	database := newOAuthTestDB(t)
+	idp := newFakeIdP(t)
+	insertOAuthProvider(t, database, "myidp", idp.srv.URL, 1)
+	h := newOAuthRouter(database, config.OAuthConfig{})
+
+	// Passwordless local account (no provider) colliding on username:
+	// auto-linking would hand it to the first matching IdP identity.
+	if _, err := database.Exec(
+		`INSERT INTO users (username, email, role) VALUES ('ssouser', 'other@example.com', 'Administrator')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	state, nonce, _, cookie := startFlow(t, h, database, "myidp")
+	idp.nonce = nonce
+
+	resp := doOAuthGet(t, h, "/auth/oauth/callback?code=thecode&state="+state, map[string]string{"Cookie": cookie})
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if got := loc.Query().Get("error"); got != "Authentication failed. Please try again or contact your administrator." {
+		t.Fatalf("error = %q", got)
+	}
+	var linked int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE username = 'ssouser' AND oauth_provider IS NULL`).Scan(&linked); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if linked != 1 {
+		t.Fatalf("passwordless account was auto-linked")
 	}
 }
 

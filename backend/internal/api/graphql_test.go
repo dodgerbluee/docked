@@ -45,7 +45,7 @@ CREATE TABLE users (
   instance_admin INTEGER DEFAULT 0,
   verification_token TEXT,
   last_login DATETIME,
-  oauth_provider TEXT, oauth_provider_id TEXT,
+  oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -341,6 +341,12 @@ type testEnv struct {
 // newTestEnv builds an isolated fixture DB + in-process server. When seed is
 // true it creates one Administrator and one Member user.
 func newTestEnv(t *testing.T, seed bool) *testEnv {
+	return newTestEnvCfg(t, seed, config.OAuthConfig{})
+}
+
+// newTestEnvCfg builds the same environment with an explicit OAuth env
+// config, so the oauth_allow_local_login enforcement can be exercised.
+func newTestEnvCfg(t *testing.T, seed bool, oauthCfg config.OAuthConfig) *testEnv {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	database, err := db.Open(dbPath)
@@ -367,7 +373,8 @@ func newTestEnv(t *testing.T, seed bool) *testEnv {
 		}
 	}
 
-	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0", TrustedProxies: config.DefaultTrustedProxies()}
+	cfg := &config.Config{JWTSecret: testSecret, DBPath: dbPath, Addr: ":0",
+		TrustedProxies: config.DefaultTrustedProxies(), OAuth: oauthCfg}
 	hub := events.NewHub()
 	env.ts = httptest.NewServer(NewServer(cfg, database, hub, imagesync.NewService(database, hub), nil).Handler)
 	t.Cleanup(func() {
@@ -435,7 +442,7 @@ func (e *testEnv) gqlAs(t *testing.T, ip, token, query string, vars map[string]a
 
 func (e *testEnv) token(t *testing.T, userID int64, username string) string {
 	t.Helper()
-	at, _, err := auth.GenerateTokens(userID, username, "unused")
+	at, _, err := auth.GenerateTokens(userID, username, "unused", 0)
 	if err != nil {
 		t.Fatalf("generate token: %v", err)
 	}
@@ -860,6 +867,94 @@ func TestLogoutRevokesToken(t *testing.T) {
 	r = env.gql(t, member, `{ me { id username } }`, nil)
 	if len(r.Errors) != 0 || r.Data["me"] == nil {
 		t.Fatalf("member token wrongly rejected after admin logout: %+v", r.Errors)
+	}
+}
+
+// TestPasswordChangeEvictsSessions guards the token-version scheme: after a
+// password change every previously minted credential — access AND refresh —
+// must stop authenticating, closing the replay window a stateless 24h JWT
+// would otherwise leave open.
+func TestPasswordChangeEvictsSessions(t *testing.T) {
+	env := newTestEnv(t, true)
+
+	r := env.gqlAs(t, "10.9.1.1", "", `mutation { login(input: { username: "admin", password: "adminpass" }) { token refreshToken } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("login: %+v", r.Errors)
+	}
+	var pair struct {
+		Token        string `json:"token"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.Unmarshal(r.Data["login"], &pair); err != nil || pair.Token == "" || pair.RefreshToken == "" {
+		t.Fatalf("login payload: %s (%v)", r.Data["login"], err)
+	}
+
+	r = env.gql(t, pair.Token, `{ me { id } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("me before password change: %+v", r.Errors)
+	}
+
+	r = env.gql(t, pair.Token, `mutation { updatePassword(input: { currentPassword: "adminpass", newPassword: "Sup3rNewPass!" }) { success } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("updatePassword: %+v", r.Errors)
+	}
+
+	// Old access token is dead.
+	r = env.gql(t, pair.Token, `{ me { id } }`, nil)
+	if len(r.Errors) == 0 {
+		t.Fatalf("stale access token still authenticates: %s", r.Data["me"])
+	}
+
+	// Old refresh token cannot mint a new pair either.
+	r = env.gqlAs(t, "10.9.1.1", "", `mutation($rt: String!) { refreshToken(input: { refreshToken: $rt }) { token } }`,
+		map[string]any{"rt": pair.RefreshToken})
+	if len(r.Errors) == 0 {
+		t.Fatalf("stale refresh token still mints access")
+	}
+
+	// The new password works and its tokens carry the bumped version.
+	r = env.gqlAs(t, "10.9.1.1", "", `mutation { login(input: { username: "admin", password: "Sup3rNewPass!" }) { token } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("login with new password: %+v", r.Errors)
+	}
+	var fresh struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(r.Data["login"], &fresh); err != nil || fresh.Token == "" {
+		t.Fatalf("fresh login payload: %s", r.Data["login"])
+	}
+	if r = env.gql(t, fresh.Token, `{ me { id } }`, nil); len(r.Errors) != 0 {
+		t.Fatalf("me with fresh token: %+v", r.Errors)
+	}
+}
+
+// TestLocalLoginDisabledRejectsAuthMutations guards server-side enforcement
+// of oauth_allow_local_login: with SSO enabled and local login off, the
+// login/register mutations must refuse, and the DB setting override must
+// reopen them (same precedence as the providers listing endpoint).
+func TestLocalLoginDisabledRejectsAuthMutations(t *testing.T) {
+	env := newTestEnvCfg(t, true, config.OAuthConfig{
+		Enabled: true, Provider: "authentik", IssuerURL: "https://idp.example.com",
+		ClientID: "cid", ClientSecret: "sec", AllowLocalLogin: false,
+	})
+
+	r := env.gqlAs(t, "10.9.2.1", "", `mutation { login(input: { username: "admin", password: "adminpass" }) { token } }`, nil)
+	if len(r.Errors) == 0 || !strings.Contains(r.Errors[0].Message, "Local login is disabled") {
+		t.Fatalf("login error = %+v", r.Errors)
+	}
+
+	r = env.gqlAs(t, "10.9.2.1", "", `mutation { register(input: { username: "newbie", password: "Passw0rd!" }) { token } }`, nil)
+	if len(r.Errors) == 0 || !strings.Contains(r.Errors[0].Message, "Local registration is disabled") {
+		t.Fatalf("register error = %+v", r.Errors)
+	}
+
+	// Runtime override reopens the door without a restart.
+	if err := db.SetSystemSetting(context.Background(), env.database, "oauth_allow_local_login", "true"); err != nil {
+		t.Fatalf("set setting: %v", err)
+	}
+	r = env.gqlAs(t, "10.9.2.1", "", `mutation { login(input: { username: "admin", password: "adminpass" }) { token } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("login after override: %+v", r.Errors)
 	}
 }
 

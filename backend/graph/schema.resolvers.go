@@ -168,6 +168,12 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 	if !allowPublicOp(ctx, "login") {
 		return nil, fmt.Errorf(tooManyRequestsMsg)
 	}
+	// oauth_allow_local_login is enforced server-side, not just by hiding
+	// the client form: with SSO on and local login off, this mutation is
+	// the password-guessing door the setting exists to close.
+	if !r.localLoginAllowed(ctx) {
+		return nil, fmt.Errorf("Local login is disabled. Please sign in with single sign-on.")
+	}
 	user, err := db.GetUserByUsername(ctx, r.DB, input.Username)
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
@@ -180,7 +186,7 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 		return nil, fmt.Errorf("invalid username or password")
 	}
 
-	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role)
+	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role, user.TokenVersion)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
@@ -196,6 +202,11 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
 	if !allowPublicOp(ctx, "register") {
 		return nil, fmt.Errorf(tooManyRequestsMsg)
+	}
+	// Same server-side enforcement as Login: local registration must stay
+	// shut while SSO-only mode is on.
+	if !r.localLoginAllowed(ctx) {
+		return nil, fmt.Errorf("Local registration is disabled. Please sign in with single sign-on.")
 	}
 	// Input validation mirrors Node's validateRegistrationInput (the client
 	// form validates too, but the server is the security boundary). Lengths
@@ -274,7 +285,7 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 	}
 
 	user, _ := db.GetUserByID(ctx, r.DB, id)
-	token, refreshToken, _ := auth.GenerateTokens(id, input.Username, role)
+	token, refreshToken, _ := auth.GenerateTokens(id, input.Username, role, 0)
 
 	return &model.AuthPayload{
 		Token:        token,
@@ -297,8 +308,13 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("user not found")
 	}
+	// Password-change session eviction: a refresh token minted before the
+	// password changed cannot mint a fresh access token.
+	if claims.TokenVersion != user.TokenVersion {
+		return nil, fmt.Errorf("invalid refresh token")
+	}
 
-	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role)
+	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role, user.TokenVersion)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
@@ -381,7 +397,7 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.Updat
 	}
 	// Parity with REST: re-issue JWTs so the client's stored token carries the
 	// new username claim.
-	newToken, newRefresh, err := auth.GenerateTokens(uid, newUsername, user.Role)
+	newToken, newRefresh, err := auth.GenerateTokens(uid, newUsername, user.Role, user.TokenVersion)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/oauth"
 )
 
 // decodeJSONObject decodes a JSON body into a generic map so the handlers
@@ -109,8 +110,25 @@ func internalFail(w http.ResponseWriter) {
 }
 
 // Login handles POST /auth/login (Node's login).
-func Login(database *sql.DB) http.HandlerFunc {
+func Login(database *sql.DB, registry *oauth.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// oauth_allow_local_login is a server-side door, not just a client
+		// form hint: refuse password login here too when SSO-only mode is on.
+		if registry != nil {
+			registry.EnsureFresh(r.Context())
+			if registry.Enabled() {
+				allow := registry.AllowLocalLoginDefault()
+				if v, err := db.GetSystemSetting(r.Context(), database, "oauth_allow_local_login"); err == nil && v != nil {
+					allow = *v != "false"
+				}
+				if !allow {
+					runnerFail(w, http.StatusForbidden,
+						"Local login is disabled. Please sign in with single sign-on.")
+					return
+				}
+			}
+		}
+
 		body, ok := decodeJSONObject(w, r)
 		if !ok {
 			return
@@ -156,7 +174,7 @@ func Login(database *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role)
+		token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role, user.TokenVersion)
 		if err != nil {
 			slog.Error("login: token generation failed", "error", err.Error())
 			internalFail(w)

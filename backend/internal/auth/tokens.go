@@ -44,24 +44,34 @@ type TokenClaims struct {
 	UserID   int64  `json:"userId"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	// TokenVersion mirrors users.token_version at mint time. The auth
+	// layers reject tokens whose version lags the user row, so a password
+	// change evicts every session (access AND refresh) immediately.
+	// Tokens minted before the column existed carry no claim (0), which
+	// matches every pre-existing row's default version (0).
+	TokenVersion int64 `json:"tokenVersion,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // RefreshClaims holds claims for refresh tokens.
 type RefreshClaims struct {
-	UserID int64 `json:"userId"`
+	UserID       int64 `json:"userId"`
+	TokenVersion int64 `json:"tokenVersion,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateTokens creates an access token and a refresh token for the user.
-func GenerateTokens(userID int64, username, role string) (accessToken, refreshToken string, err error) {
+// tokenVersion must be the user row's current token_version so that a later
+// password change (which bumps the column) invalidates both tokens.
+func GenerateTokens(userID int64, username, role string, tokenVersion int64) (accessToken, refreshToken string, err error) {
 	secret := getSecret()
 
 	now := time.Now()
 	accessClaims := TokenClaims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:       userID,
+		Username:     username,
+		Role:         role,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "docked",
 			Audience:  jwt.ClaimStrings{"docked-users"},
@@ -75,7 +85,8 @@ func GenerateTokens(userID int64, username, role string) (accessToken, refreshTo
 	}
 
 	refreshClaims := RefreshClaims{
-		UserID: userID,
+		UserID:       userID,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: "docked",
 			// Node signs refresh tokens with the SAME audience as access

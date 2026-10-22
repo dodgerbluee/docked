@@ -8,6 +8,7 @@ package handlers
 // must match Node exactly.
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -28,6 +29,12 @@ import (
 
 // oauthRedirectTarget is the client-side landing page for the OAuth flow.
 const oauthRedirectTarget = "/auth/oauth/complete"
+
+// oauthStateCookieName binds an OAuth login to the browser that started it.
+// The state param alone proves the state row exists, not that this browser
+// initiated the flow; the HttpOnly cookie (set on login initiation, checked
+// on callback) closes that login-CSRF gap.
+const oauthStateCookieName = "docked_oauth_state"
 
 // requestProtocol mirrors Node's `req.get("x-forwarded-proto") || req.protocol`
 // (trust proxy is enabled, so req.protocol follows the forwarded header).
@@ -133,6 +140,18 @@ func OAuthLogin(registry *oauth.Registry, cfg config.OAuthConfig, database *sql.
 			return
 		}
 
+		// Browser binding for the callback (login-CSRF guard): only the
+		// browser that started this flow presents the matching cookie.
+		http.SetCookie(w, &http.Cookie{
+			Name:     oauthStateCookieName,
+			Value:    state,
+			Path:     "/api/auth/oauth",
+			MaxAge:   600,
+			HttpOnly: true,
+			Secure:   requestProtocol(r) == "https",
+			SameSite: http.SameSiteLaxMode,
+		})
+
 		authorizationURL, err := provider.AuthorizationURL(r.Context(), state, codeChallenge, nonce, callbackURL)
 		if err != nil {
 			slog.Error("Failed to initiate OAuth login", "error", err.Error())
@@ -175,6 +194,26 @@ func OAuthCallback(registry *oauth.Registry, cfg config.OAuthConfig, database *s
 			redirectErr("Missing authorization code or state parameter")
 			return
 		}
+
+		// Login-CSRF guard: the callback must carry the same state in the
+		// HttpOnly cookie set when this browser initiated the flow. A
+		// borrowed or guessed state param alone cannot complete a login.
+		stateCookie, cerr := r.Cookie(oauthStateCookieName)
+		if cerr != nil || stateCookie.Value == "" ||
+			subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(state)) != 1 {
+			redirectErr("Invalid or expired login session. Please try again.")
+			return
+		}
+		// Single use: clear it whether or not the rest of the flow succeeds.
+		http.SetCookie(w, &http.Cookie{
+			Name:     oauthStateCookieName,
+			Value:    "",
+			Path:     "/api/auth/oauth",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   requestProtocol(r) == "https",
+			SameSite: http.SameSiteLaxMode,
+		})
 
 		storedState, err := db.ConsumeOAuthState(r.Context(), database, state)
 		if err != nil {
@@ -253,7 +292,7 @@ func OAuthCallback(registry *oauth.Registry, cfg config.OAuthConfig, database *s
 			return
 		}
 
-		token, refreshToken, terr := auth.GenerateTokens(result.ID, result.Username, result.Role)
+		token, refreshToken, terr := auth.GenerateTokens(result.ID, result.Username, result.Role, result.TokenVersion)
 		if terr != nil {
 			slog.Error("OAuth callback failed", "error", terr.Error())
 			redirectErr("Authentication failed. Please try again or contact your administrator.")
@@ -358,7 +397,7 @@ func OAuthLink(database *sql.DB, secret string) http.HandlerFunc {
 		slog.Info("Linked OAuth identity to existing user with password confirmation",
 			"provider", providerName, "username", user.Username)
 
-		accessToken, refreshToken, terr := auth.GenerateTokens(user.ID, user.Username, user.Role)
+		accessToken, refreshToken, terr := auth.GenerateTokens(user.ID, user.Username, user.Role, user.TokenVersion)
 		if terr != nil {
 			slog.Error("Account linking failed", "error", terr.Error())
 			runnerFail(w, http.StatusInternalServerError, "Account linking failed")
@@ -387,6 +426,7 @@ type oauthResolvedUser struct {
 	Username         string
 	Role             string
 	InstanceAdmin    bool
+	TokenVersion     int64
 	linkRequired     bool
 	existingUserID   int64
 	existingUsername string
@@ -406,12 +446,15 @@ func resolveOAuthUser(r *http.Request, registry *oauth.Registry, database *sql.D
 	if existing != nil {
 		return &oauthResolvedUser{
 			ID: existing.ID, Username: existing.Username, Role: existing.Role,
-			InstanceAdmin: existing.InstanceAdmin == 1,
+			InstanceAdmin: existing.InstanceAdmin == 1, TokenVersion: existing.TokenVersion,
 		}, nil
 	}
 
-	// 2. Email match.
-	if user.Email != "" {
+	// 2. Email match. An explicitly unverified email is never trusted for
+	// account matching: an attacker who registers the victim's address at
+	// the IdP (without the provider verifying it) must not be able to
+	// claim the victim's local account.
+	if user.Email != "" && !(user.EmailVerified != nil && !*user.EmailVerified) {
 		byEmail, err := db.GetUserByEmail(ctx, database, user.Email)
 		if err != nil {
 			return nil, err
@@ -427,18 +470,18 @@ func resolveOAuthUser(r *http.Request, registry *oauth.Registry, database *sql.D
 				return &oauthResolvedUser{linkRequired: true,
 					existingUserID: byEmail.ID, existingUsername: byEmail.Username}, nil
 			}
-			if err := db.LinkOAuthToUser(ctx, database, byEmail.ID, providerName, user.ID); err != nil {
-				return nil, err
-			}
-			slog.Info("Linked OAuth provider to existing user", "provider", providerName, "username", byEmail.Username)
-			return &oauthResolvedUser{
-				ID: byEmail.ID, Username: byEmail.Username, Role: byEmail.Role,
-				InstanceAdmin: byEmail.InstanceAdmin == 1,
-			}, nil
+			// Passwordless account: auto-linking on an email (or username)
+			// match hands the account to whoever presents a matching IdP
+			// identity, with nothing to confirm prior ownership. Reject and
+			// let an administrator resolve it.
+			return nil, errors.New(
+				"This account exists but is linked to a different SSO identity. Please contact your administrator.")
 		}
 	}
 
-	// 3. Username collision.
+	// 3. Username collision. Same rule as the email match: only accounts
+	// with a password may be claimed (via the password-confirmation link
+	// flow); passwordless accounts are never auto-linked.
 	byName, err := db.GetUserByUsername(ctx, database, user.Username)
 	if err != nil {
 		return nil, err
@@ -448,19 +491,8 @@ func resolveOAuthUser(r *http.Request, registry *oauth.Registry, database *sql.D
 			return &oauthResolvedUser{linkRequired: true,
 				existingUserID: byName.ID, existingUsername: byName.Username}, nil
 		}
-		if byName.OAuthProvider.Valid && byName.OAuthProvider.String != "" &&
-			byName.OAuthProvider.String != providerName {
-			return nil, errors.New(
-				"An account with this username already exists and is linked to a different SSO provider. Please contact your administrator.")
-		}
-		if err := db.LinkOAuthToUser(ctx, database, byName.ID, providerName, user.ID); err != nil {
-			return nil, err
-		}
-		slog.Info("Linked OAuth provider to existing user by username", "provider", providerName, "username", byName.Username)
-		return &oauthResolvedUser{
-			ID: byName.ID, Username: byName.Username, Role: byName.Role,
-			InstanceAdmin: byName.InstanceAdmin == 1,
-		}, nil
+		return nil, errors.New(
+			"An account with this username already exists and is linked to a different SSO identity. Please contact your administrator.")
 	}
 
 	// 4. Auto-register.

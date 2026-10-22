@@ -108,9 +108,15 @@ func ensureSchema(ctx context.Context, database *sql.DB) error {
             instance_admin INTEGER DEFAULT 0,
             verification_token TEXT,
             last_login DATETIME,
+            token_version INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )`); err != nil {
+		return err
+	}
+	// Session eviction on password change: tokens carry a tokenVersion
+	// claim that must match this column (bumped by UpdateUserPassword).
+	if err := addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	soft("idx_users_username", "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")

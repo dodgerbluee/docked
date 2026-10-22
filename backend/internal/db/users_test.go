@@ -19,7 +19,7 @@ CREATE TABLE users (
   instance_admin INTEGER DEFAULT 0,
   verification_token TEXT,
   last_login TEXT,
-  oauth_provider TEXT, oauth_provider_id TEXT,
+  oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -142,5 +142,39 @@ func TestRegisterUserWithCodeConsumesCodeAtomically(t *testing.T) {
 	}
 	if users != 1 {
 		t.Fatalf("failed code reuse inserted a user; count=%d", users)
+	}
+}
+
+// TestUpdateUserPasswordBumpsTokenVersion guards the session-eviction
+// primitive: every password change (self-service or admin reset) advances
+// token_version so previously minted access/refresh tokens stop matching
+// the row and are rejected by the auth layers.
+func TestUpdateUserPasswordBumpsTokenVersion(t *testing.T) {
+	database := newUsersDB(t)
+	ctx := context.Background()
+
+	id, err := CreateUser(ctx, database, "alice", "hash0", "Member", 0)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	u, err := GetUserByID(ctx, database, id)
+	if err != nil || u == nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.TokenVersion != 0 {
+		t.Fatalf("initial token_version = %d, want 0", u.TokenVersion)
+	}
+
+	for want := int64(1); want <= 2; want++ {
+		if err := UpdateUserPassword(ctx, database, id, "hash"); err != nil {
+			t.Fatalf("update password: %v", err)
+		}
+		u, err := GetUserByID(ctx, database, id)
+		if err != nil || u == nil {
+			t.Fatalf("get user: %v", err)
+		}
+		if u.TokenVersion != want {
+			t.Fatalf("token_version after update = %d, want %d", u.TokenVersion, want)
+		}
 	}
 }

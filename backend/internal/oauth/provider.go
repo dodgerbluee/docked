@@ -52,6 +52,11 @@ type NormalizedUser struct {
 	Email       string // "" means absent (Node uses null)
 	DisplayName string
 	Groups      []string
+	// EmailVerified is the provider's email_verified claim: nil when the
+	// claim is absent (provider silent — treated as unverified-but-allowed,
+	// matching Node), otherwise the explicit verdict. A false here must
+	// never drive account matching (SSO takeover guard).
+	EmailVerified *bool
 }
 
 // Provider is a configured OIDC provider with a cached discovery document.
@@ -380,12 +385,27 @@ func (p *Provider) NormalizeUserInfo(userInfo map[string]any, idTokenClaims jwt.
 		}
 	}
 
+	var emailVerified *bool
+	switch v := merged["email_verified"].(type) {
+	case bool:
+		emailVerified = &v
+	case string:
+		if v == "true" {
+			t := true
+			emailVerified = &t
+		} else if v == "false" {
+			f := false
+			emailVerified = &f
+		}
+	}
+
 	return &NormalizedUser{
-		ID:          id,
-		Username:    sanitizeUsername(username),
-		Email:       email,
-		DisplayName: claimString(merged["name"]),
-		Groups:      groups,
+		ID:            id,
+		Username:      sanitizeUsername(username),
+		Email:         email,
+		DisplayName:   claimString(merged["name"]),
+		Groups:        groups,
+		EmailVerified: emailVerified,
 	}, nil
 }
 

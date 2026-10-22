@@ -11,15 +11,16 @@ import (
 // Using a concrete struct avoids MapClaims' custom aud decoder which
 // chokes on string-valued aud (Node writes "aud":"docked-users", not an array).
 type accessClaims struct {
-	UserID   int64  `json:"userId"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	UserID       int64  `json:"userId"`
+	Username     string `json:"username"`
+	Role         string `json:"role"`
+	TokenVersion int64  `json:"tokenVersion"`
 	jwt.RegisteredClaims
 }
 
 // ValidateToken parses and validates a JWT access token, returning the user ID.
 func ValidateToken(tokenString, secret string) (int64, error) {
-	userID, _, err := ValidateTokenClaims(tokenString, secret)
+	userID, _, _, err := ValidateTokenWithVersion(tokenString, secret)
 	return userID, err
 }
 
@@ -27,6 +28,16 @@ func ValidateToken(tokenString, secret string) (int64, error) {
 // user ID and the exp claim (unix seconds). Logout needs the expiry to size
 // the revocation row so it can be pruned once the token would have died anyway.
 func ValidateTokenClaims(tokenString, secret string) (int64, int64, error) {
+	userID, _, exp, err := ValidateTokenWithVersion(tokenString, secret)
+	return userID, exp, err
+}
+
+// ValidateTokenWithVersion parses and validates a JWT access token and
+// returns the user ID, the tokenVersion claim, and the exp claim (unix
+// seconds). Auth layers that already load the user row compare the version
+// against users.token_version to enforce password-change session eviction;
+// tokens minted before versioning carry no claim and read as version 0.
+func ValidateTokenWithVersion(tokenString, secret string) (userID, tokenVersion, exp int64, err error) {
 	parser := jwt.NewParser(
 		jwt.WithIssuer("docked"),
 		jwt.WithAudience("docked-users"),
@@ -35,20 +46,19 @@ func ValidateTokenClaims(tokenString, secret string) (int64, int64, error) {
 	)
 
 	claims := &accessClaims{}
-	_, err := parser.ParseWithClaims(tokenString, claims, func(_ *jwt.Token) (any, error) {
+	_, err = parser.ParseWithClaims(tokenString, claims, func(_ *jwt.Token) (any, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid token: %w", err)
+		return 0, 0, 0, fmt.Errorf("invalid token: %w", err)
 	}
 	if claims.UserID == 0 {
-		return 0, 0, fmt.Errorf("token missing userId claim")
+		return 0, 0, 0, fmt.Errorf("token missing userId claim")
 	}
-	var exp int64
 	if claims.ExpiresAt != nil {
 		exp = claims.ExpiresAt.Unix()
 	}
-	return claims.UserID, exp, nil
+	return claims.UserID, claims.TokenVersion, exp, nil
 }
 
 // ContextWithUserID returns a context carrying the user ID using the same

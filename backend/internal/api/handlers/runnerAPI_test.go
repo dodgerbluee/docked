@@ -44,7 +44,7 @@ func newRunnerTestDB(t *testing.T) *sql.DB {
 			username TEXT, password_hash TEXT, role TEXT,
 			password_changed INTEGER DEFAULT 0, instance_admin INTEGER DEFAULT 0,
 			email TEXT, last_login TEXT,
-			oauth_provider TEXT, oauth_provider_id TEXT,
+			oauth_provider TEXT, oauth_provider_id TEXT, token_version INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -168,7 +168,7 @@ func do(t *testing.T, h http.Handler, req *http.Request) (int, map[string]any) {
 func accessToken(t *testing.T, userID int64) string {
 	t.Helper()
 	auth.SetSecret(testJWTSecret)
-	token, _, err := auth.GenerateTokens(userID, "admin", "admin")
+	token, _, err := auth.GenerateTokens(userID, "admin", "admin", 0)
 	if err != nil {
 		t.Fatalf("generate tokens: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestStrictMiddlewareParity(t *testing.T) {
 
 	// Token whose user was deleted → 401 "User not found".
 	auth.SetSecret(testJWTSecret)
-	ghost, _, err := auth.GenerateTokens(999, "ghost", "user")
+	ghost, _, err := auth.GenerateTokens(999, "ghost", "user", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestStrictMiddlewareParity(t *testing.T) {
 	}
 
 	// Expired token → 401 "Token expired".
-	expired, _, err := auth.GenerateTokens(1, "admin", "admin")
+	expired, _, err := auth.GenerateTokens(1, "admin", "admin", 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}

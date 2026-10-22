@@ -77,9 +77,9 @@ func StrictMiddleware(secret string, database *sql.DB) func(http.Handler) http.H
 				return
 			}
 
-			// ValidateTokenClaims uses the concrete claims struct: Node writes
-			// "aud" as a bare string, which MapClaims' decoder rejects.
-			userID, _, err := ValidateTokenClaims(raw, secret)
+			// ValidateTokenWithVersion uses the concrete claims struct: Node
+			// writes "aud" as a bare string, which MapClaims' decoder rejects.
+			userID, tokenVersion, _, err := ValidateTokenWithVersion(raw, secret)
 			if err != nil {
 				slog.Debug("strict auth: token validation failed", "error", err.Error())
 				msg := "Invalid token"
@@ -93,6 +93,13 @@ func StrictMiddleware(secret string, database *sql.DB) func(http.Handler) http.H
 			user, err := db.GetUserByID(r.Context(), database, userID)
 			if err != nil || user == nil {
 				restError(w, http.StatusUnauthorized, "User not found")
+				return
+			}
+			// Password-change session eviction: a token minted before the
+			// password was changed carries a stale version and is dead.
+			if tokenVersion != user.TokenVersion {
+				slog.Debug("strict auth: token version stale (password changed)", "userID", userID)
+				restError(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 
