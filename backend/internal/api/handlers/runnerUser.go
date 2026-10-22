@@ -202,6 +202,10 @@ func streamRunnerSSE(w http.ResponseWriter, r *http.Request, rr *db.RunnerRow, m
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
+	// The server-wide 30s WriteTimeout would cut long log/event streams at
+	// 30 seconds; streams live and die by client context cancellation, so
+	// drop the deadline for this connection.
+	rc.SetWriteDeadline(time.Time{}) //nolint:errcheck // best-effort; unsupported writers keep the default
 	rc.Flush()
 
 	resp, err := runnerpkg.OpenSSEStream(r.Context(), *rr, method, path)

@@ -788,3 +788,49 @@ func TestTrackedBatchLifecycle(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// ---------- GITLAB_TOKEN scoping ----------
+
+func TestIsGitLabDotCom(t *testing.T) {
+	for _, tc := range []struct {
+		url  string
+		want bool
+	}{
+		{"https://gitlab.com/api/v4/projects/x/releases", true},
+		{"https://www.gitlab.com/x", true},
+		{"https://gitlab.example.com/api/v4/x", false},
+		{"http://127.0.0.1:8080/api/v4/x", false},
+		{"https://gitlab.com.evil.tld/x", false},
+		{"not a url", false},
+	} {
+		if got := isGitLabDotCom(tc.url); got != tc.want {
+			t.Errorf("isGitLabDotCom(%q) = %v, want %v", tc.url, got, tc.want)
+		}
+	}
+}
+
+func TestGitLabEnvTokenNotSentToSelfHostedHosts(t *testing.T) {
+	t.Setenv("GITLAB_TOKEN", "global-secret")
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+
+	if _, _, err := gitlabGet(context.Background(), srv.URL+"/api/v4/projects/x/releases", ""); err != nil {
+		t.Fatalf("gitlabGet: %v", err)
+	}
+	if gotAuth != "" {
+		t.Errorf("global GITLAB_TOKEN leaked to self-hosted host: %q", gotAuth)
+	}
+
+	// Per-app repository tokens still work on any host.
+	if _, _, err := gitlabGet(context.Background(), srv.URL+"/api/v4/projects/x/releases", "app-token"); err != nil {
+		t.Fatalf("gitlabGet with app token: %v", err)
+	}
+	if gotAuth != "Bearer app-token" {
+		t.Errorf("app token header = %q, want Bearer app-token", gotAuth)
+	}
+}

@@ -1203,11 +1203,55 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	if len(deps) > 0 {
 		stopAndRemoveDependentContainers(ctx, *rr, deps)
 	}
-	// From here the dependents are already gone: any failure below must
-	// put them back or they are orphaned permanently.
+	// From here the dependents are already gone: any failure below must put
+	// the SERVICE back too, not just the dependents. A pull failure would
+	// otherwise leave the container stopped forever, and a create/start
+	// failure (after remove) would leave it deleted with its config only in
+	// this snapshot.
+	removed := false
+	var newID string
 	restore := func() {
 		if len(deps) > 0 {
+			// Full recovery (provider start/recreate + dependents) lives in
+			// restoreRemovedDependents.
 			restoreRemovedDependents(ctx, *rr, deps, cleanName, details)
+			return
+		}
+		// No dependents: restoreRemovedDependents would do nothing, but the
+		// service itself still needs putting back — a pull failure would
+		// leave it stopped forever, and a create/start failure (after
+		// remove) would leave it deleted with its config only in this
+		// snapshot.
+		if !removed {
+			if err := runner.StartContainer(ctx, *rr, container.ContainerID); err != nil {
+				slog.Warn("upgrade rollback: start original container failed", "container", cleanName, "error", err)
+			}
+			return
+		}
+		// A half-created replacement (create succeeded but start/ready
+		// failed) squats on the original name: vacate it first.
+		if newID != "" {
+			if err := runner.RemoveContainer(ctx, *rr, newID, true); err != nil {
+				slog.Warn("upgrade rollback: remove failed replacement failed", "container", cleanName, "error", err)
+			}
+		}
+		origImage := jStr(details, "Image")
+		if origImage == "" {
+			origImage = jStr(jObj(details, "Config"), "Image")
+		}
+		if origImage == "" {
+			origImage = imageName
+		}
+		origCfg, _, _ := prepareContainerConfig(details, origImage, originalName)
+		id, err := runner.CreateContainer(ctx, *rr, origCfg, originalName)
+		if err != nil {
+			slog.Error("upgrade rollback: recreate original container failed", "container", cleanName, "error", err)
+			return
+		}
+		if id != "" {
+			if err := runner.StartContainer(ctx, *rr, id); err != nil {
+				slog.Warn("upgrade rollback: start recreated original failed", "container", cleanName, "error", err)
+			}
 		}
 	}
 
@@ -1228,10 +1272,11 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		restore()
 		return fmt.Errorf("remove container: %w", err)
 	}
+	removed = true
 
 	setPhase(phase, model.UpgradePhaseRecreating)
 	config, shared, stackName := prepareContainerConfig(details, newImage, originalName)
-	newID, err := runner.CreateContainer(ctx, *rr, config, originalName)
+	newID, err = runner.CreateContainer(ctx, *rr, config, originalName)
 	if err != nil {
 		restore()
 		return fmt.Errorf("create container: %w", err)

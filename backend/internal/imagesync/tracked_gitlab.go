@@ -97,6 +97,17 @@ func nonEmptySplit(s, sep string) []string {
 	return out
 }
 
+// isGitLabDotCom reports whether reqURL targets gitlab.com (or a gitlab.com
+// subdomain) rather than a user-configured self-hosted GitLab host.
+func isGitLabDotCom(reqURL string) bool {
+	u, err := url.Parse(reqURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "gitlab.com" || strings.HasSuffix(host, ".gitlab.com")
+}
+
 // gitlabGet ports the axios GET with validateStatus<500: transport/5xx -> error.
 func gitlabGet(ctx context.Context, reqURL, token string) (int, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
@@ -106,7 +117,12 @@ func gitlabGet(ctx context.Context, reqURL, token string) (int, []byte, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Docked/1.0")
 	glToken := token
-	if glToken == "" {
+	if glToken == "" && isGitLabDotCom(reqURL) {
+		// The global GITLAB_TOKEN is only ever sent to gitlab.com itself.
+		// Tracked apps may point at user-configured self-hosted GitLab
+		// hosts; leaking the operator's global credential there would hand
+		// it to any host that merely answers a GET. Per-app repository
+		// tokens (the `token` argument) still work on any host.
 		glToken = os.Getenv("GITLAB_TOKEN")
 	}
 	if glToken != "" {

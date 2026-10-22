@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -412,6 +413,54 @@ func TestCreateUserWithConfigGates(t *testing.T) {
 	// The pending token was consumed.
 	if left, err := db.GetPendingToken(context.Background(), database, "instance_admin", "mallory"); err != nil || left != nil {
 		t.Fatalf("pending token left over: %v %v", left, err)
+	}
+}
+
+// Node's resolveInstanceAdminCaller verified signatures only; the Go stack
+// must also reject revoked and password-evicted (token_version bump) admin
+// tokens on the public import endpoint.
+func TestCreateUserWithConfigRejectsRevokedOrEvictedAdmin(t *testing.T) {
+	auth.SetSecret(authTestSecret)
+	database := newAuthTestDB(t)
+	h := newAuthTestRouter(database)
+
+	seedUser(t, database, "root", "rootpass123", 1)
+	var rootID int64
+	if err := database.QueryRow("SELECT id FROM users WHERE username = 'root'").Scan(&rootID); err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := auth.GenerateTokens(rootID, "root", "Administrator", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Sanity: a live admin token authorizes the import.
+	code, body := doJSON(t, h, http.MethodPost, "/api/auth/create-user-with-config",
+		map[string]any{"userData": map[string]any{"username": "carol", "password": "password123"}}, token)
+	if code != http.StatusOK {
+		t.Fatalf("fresh admin token: code=%d body=%v", code, body)
+	}
+
+	// Revoked (logout): the same token must stop authorizing.
+	if err := db.RevokeToken(context.Background(), database, token, rootID, time.Now().Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := doJSON(t, h, http.MethodPost, "/api/auth/create-user-with-config",
+		map[string]any{"userData": map[string]any{"username": "dave", "password": "password123"}}, token); code != http.StatusForbidden {
+		t.Error("revoked admin token still authorized user creation, want 403")
+	}
+
+	// Password change bumps token_version: pre-bump tokens are evicted.
+	token2, _, err := auth.GenerateTokens(rootID, "root", "Administrator", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec("UPDATE users SET token_version = 1 WHERE id = ?", rootID); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := doJSON(t, h, http.MethodPost, "/api/auth/create-user-with-config",
+		map[string]any{"userData": map[string]any{"username": "erin", "password": "password123"}}, token2); code != http.StatusForbidden {
+		t.Error("token superseded by password change still authorized user creation, want 403")
 	}
 }
 

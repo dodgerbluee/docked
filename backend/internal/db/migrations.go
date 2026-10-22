@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 )
 
@@ -191,7 +192,28 @@ func migrateOAuthProvidersTable(ctx context.Context, tx *sql.Tx) error {
 // nullable for OAuth-only users. Like Node, it runs unconditionally; the
 // rename rewrites other tables' FK text to "users_old" (harmless: foreign
 // keys are not enforced), matching the scar present in every Node-created DB.
+//
+// Two Go-side deviations from a literal port, both needed because ensureSchema
+// runs BEFORE the versioned migrations here:
+//   - Skip entirely when password_hash is already nullable (fresh installs:
+//     ensureSchema created the final shape; rebuilding would be pointless).
+//   - Re-add token_version after the rebuild. ensureSchema adds it up front,
+//     but the rebuild's CREATE TABLE predates the column, so without this a
+//     first boot on an old DB loses it until the NEXT restart re-adds it —
+//     and every userCols SELECT in between fails.
 func migratePasswordHashNullable(ctx context.Context, tx *sql.Tx) error {
+	var notnull int
+	err := tx.QueryRowContext(ctx,
+		"SELECT \"notnull\" FROM pragma_table_info('users') WHERE name = 'password_hash'").Scan(&notnull)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil // no users table at all: nothing to rebuild
+	}
+	if err != nil {
+		return err
+	}
+	if notnull == 0 {
+		return nil // already nullable: ensureSchema (or Node) did the job
+	}
 	if _, err := tx.ExecContext(ctx, "ALTER TABLE users RENAME TO users_old"); err != nil {
 		return err
 	}
@@ -228,6 +250,9 @@ func migratePasswordHashNullable(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 	if err := txCreateIndex(ctx, tx, "idx_users_username", "users", "username", false); err != nil {
+		return err
+	}
+	if err := txAddColumn(ctx, tx, "users", "token_version", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	return txCreateIndex(ctx, tx, "idx_users_oauth_provider_id", "users",

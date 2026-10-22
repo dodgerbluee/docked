@@ -145,10 +145,14 @@ export const useAuth = () => {
     // If no new token provided, keep the existing valid token — do NOT fabricate one
   }, []);
 
-  // Handle password update success (no-op, kept for backward compatibility)
+  // Handle password update success: the server bumps this user's token
+  // version on password change, which invalidates EVERY live token —
+  // including the one this session is holding. End the session cleanly so
+  // the user re-authenticates with the new password instead of stumbling
+  // through a wall of 401s.
   const handlePasswordUpdateSuccess = useCallback(() => {
-    // Password update success - no special handling needed
-  }, []);
+    handleLogout();
+  }, [handleLogout]);
 
   // Keep ref updated with latest logout function
   useEffect(() => {

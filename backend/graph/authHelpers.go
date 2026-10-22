@@ -90,15 +90,22 @@ func (r *Resolver) subscriptionGuard(ctx context.Context) func() error {
 		}
 		checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		uid, err := auth.ValidateToken(raw, r.Cfg.JWTSecret)
+		uid, tv, _, err := auth.ValidateTokenWithVersion(raw, r.Cfg.JWTSecret)
 		if err != nil {
 			return fail(err)
 		}
 		if revoked, err := db.IsTokenRevoked(checkCtx, r.DB, raw); err != nil || revoked {
 			return fail(fmt.Errorf("token revoked"))
 		}
-		if u, err := db.GetUserByID(checkCtx, r.DB, uid); err != nil || u == nil {
+		u, err := db.GetUserByID(checkCtx, r.DB, uid)
+		if err != nil || u == nil {
 			return fail(fmt.Errorf("user no longer exists"))
+		}
+		// Password change (or admin eviction) bumps token_version: an
+		// already-connected subscription must die with the old sessions,
+		// not keep streaming on the pre-change token.
+		if tv != u.TokenVersion {
+			return fail(fmt.Errorf("token superseded"))
 		}
 		return nil
 	}

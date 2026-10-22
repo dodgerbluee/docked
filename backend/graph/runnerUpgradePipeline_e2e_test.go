@@ -404,3 +404,57 @@ func TestUpgradePipelineRecreatesDependentsOnSuccess(t *testing.T) {
 		t.Errorf("dependent created %d times, want exactly 1", arrCreates)
 	}
 }
+
+// Without dependents the old restore() was a no-op: a pull failure left the
+// service stopped forever and a create failure left it deleted. The pipeline
+// must put the service back unconditionally, not just when dependents exist.
+func TestUpgradePipelineRestartsOriginalOnPullFailureNoDependents(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.pullFails = true
+	f.seed("prov-1", providerInspectDoc())
+
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil || !strings.Contains(err.Error(), "pull image") {
+		t.Fatalf("pipeline error = %v, want pull image failure", err)
+	}
+	p := f.findByName("gluetun")
+	if p == nil {
+		t.Fatal("provider must still exist after a pull failure")
+	}
+	if jStr(jObj(p, "State"), "Status") != "running" {
+		t.Error("pull failure rollback must restart the stopped original, got state " + jStr(jObj(p, "State"), "Status"))
+	}
+}
+
+func TestUpgradePipelineRecreatesOriginalOnCreateFailureNoDependents(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	f.failCreate["/gluetun"] = 1 // the upgrade create fails once
+
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil || !strings.Contains(err.Error(), "create container") {
+		t.Fatalf("pipeline error = %v, want create container failure", err)
+	}
+	p := f.findByName("gluetun")
+	if p == nil {
+		t.Fatal("create failure after remove must recreate the original container")
+	}
+	if jStr(jObj(p, "State"), "Status") != "running" {
+		t.Error("recreated original must be started, got state " + jStr(jObj(p, "State"), "Status"))
+	}
+	// The rollback create must pin the INSPECTED image ID, not the tag.
+	recs := f.createRecords()
+	if len(recs) == 0 {
+		t.Fatal("expected a rollback create")
+	}
+	last := recs[len(recs)-1]
+	if got := last.Payload["Image"]; got != providerInspectDoc()["Image"] {
+		t.Errorf("rollback create image = %v, want inspected sha256 pin", got)
+	}
+}

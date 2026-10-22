@@ -107,6 +107,11 @@ func TestMigrateFreshSchema(t *testing.T) {
 	if _, notNull := columnInfo(t, database, "users", "password_hash"); notNull != 0 {
 		t.Error("users.password_hash should be nullable")
 	}
+	// Regression: migration 5 rebuilds users; it must not drop the
+	// token_version column that the ensure block created up front.
+	if _, notNull := columnInfo(t, database, "users", "token_version"); notNull != 1 {
+		t.Error("users.token_version should exist and be NOT NULL after fresh migrate")
+	}
 	// Migration 13/14: containers identity columns and partial-unique indexes.
 	columnInfo(t, database, "containers", "source_instance_id")
 	columnInfo(t, database, "containers", "runner_id")
@@ -355,6 +360,18 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 	}
 	if _, notNull := columnInfo(t, database, "users", "password_hash"); notNull != 0 {
 		t.Error("users.password_hash should be nullable after migration 5")
+	}
+	// Regression: the rebuild must re-add token_version (the ensure block
+	// added it before 0005 ran; losing it breaks every userCols SELECT).
+	if _, notNull := columnInfo(t, database, "users", "token_version"); notNull != 1 {
+		t.Error("users.token_version should exist and be NOT NULL after migration 5")
+	}
+	var legacyTV int
+	if err := database.QueryRow("SELECT token_version FROM users WHERE id = 1").Scan(&legacyTV); err != nil {
+		t.Fatalf("legacy user lost after migration 5: %v", err)
+	}
+	if legacyTV != 0 {
+		t.Errorf("legacy user token_version = %d, want 0", legacyTV)
 	}
 
 	// Migration 13: portainer_instances renamed, row preserved.

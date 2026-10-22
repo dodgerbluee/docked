@@ -127,11 +127,13 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
           .toPromise();
 
         if (!result.error && result.data?.updatePassword?.success) {
-          setPasswordSuccess("Password updated successfully!");
+          setPasswordSuccess("Password updated successfully! Please log in again.");
           setCurrentPassword("");
           setNewPassword("");
           setConfirmPassword("");
-          await fetchUserInfo();
+          // The password change superseded this session's token (server
+          // token-version bump), so skip any further authenticated calls;
+          // onPasswordUpdateSuccess ends the session and returns to login.
           if (onPasswordUpdateSuccess) {
             setTimeout(() => {
               onPasswordUpdateSuccess();
@@ -152,7 +154,7 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
         setPasswordLoading(false);
       }
     },
-    [newPassword, confirmPassword, currentPassword, onPasswordUpdateSuccess, fetchUserInfo]
+    [newPassword, confirmPassword, currentPassword, onPasswordUpdateSuccess]
   );
 
   return {

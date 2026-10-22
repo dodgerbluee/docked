@@ -268,8 +268,10 @@ func Logout(database *sql.DB, secret string) http.HandlerFunc {
 }
 
 // resolveInstanceAdminCaller resolves the request's Bearer token (if any)
-// to an instance-admin user. Signature-only verification, matching Node's
-// resolveInstanceAdminCaller: revoked tokens still resolve.
+// to an instance-admin user. Node verified signatures only, but the Go
+// stack enforces revocation + token versioning everywhere else; the import
+// endpoint creates users, so a stolen-but-revoked (or password-evicted)
+// admin token must not keep authorizing it.
 func resolveInstanceAdminCaller(ctx context.Context, database *sql.DB, secret string, r *http.Request) *db.UserRow {
 	header := r.Header.Get("Authorization")
 	var token string
@@ -279,15 +281,18 @@ func resolveInstanceAdminCaller(ctx context.Context, database *sql.DB, secret st
 	if token == "" {
 		return nil
 	}
-	userID, err := auth.ValidateToken(token, secret)
+	userID, tokenVersion, _, err := auth.ValidateTokenWithVersion(token, secret)
 	if err != nil {
+		return nil
+	}
+	if revoked, err := db.IsTokenRevoked(ctx, database, token); err != nil || revoked {
 		return nil
 	}
 	user, err := db.GetUserByID(ctx, database, userID)
 	if err != nil || user == nil {
 		return nil
 	}
-	if user.InstanceAdmin != 1 {
+	if user.InstanceAdmin != 1 || tokenVersion != user.TokenVersion {
 		return nil
 	}
 	return user
