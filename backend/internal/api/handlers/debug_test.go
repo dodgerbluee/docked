@@ -25,7 +25,12 @@ import (
 
 func newDebugTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	database, err := db.Open(t.TempDir() + "/debug-test.db")
+	return newDebugTestDBAt(t, t.TempDir()+"/debug-test.db")
+}
+
+func newDebugTestDBAt(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	database, err := db.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -212,9 +217,13 @@ func TestDebugLocks(t *testing.T) {
 }
 
 func TestDebugDBQuery(t *testing.T) {
-	database := newDebugTestDB(t)
+	// One path for both handles: t.TempDir() mints a NEW dir per call, so the
+	// fixture and cfg.DBPath must share a single captured path or the
+	// read-only handle opens a file that does not exist.
+	dbPath := t.TempDir() + "/debug-test.db"
+	database := newDebugTestDBAt(t, dbPath)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(database, &config.Config{DBPath: dbPath})
 	admin := tokenFor(t, 1, "admin")
 
 	// Named catalog query.
@@ -251,6 +260,19 @@ func TestDebugDBQuery(t *testing.T) {
 		map[string]any{"sql": "DELETE FROM users"})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+
+	// Prefix-guard bypasses: WITH...INSERT and PRAGMA writes pass the string
+	// allowlist but must be rejected by the read-only connection.
+	rec = doDebugReq(t, router, http.MethodPost, "/api/debug/db", admin,
+		map[string]any{"sql": "WITH x AS (SELECT 'evil' AS u) INSERT INTO users (username) SELECT u FROM x"})
+	if rec.Code == http.StatusOK {
+		t.Fatalf("WITH...INSERT must not execute on the read-only handle: %s", rec.Body.String())
+	}
+	rec = doDebugReq(t, router, http.MethodPost, "/api/debug/db", admin,
+		map[string]any{"sql": "PRAGMA user_version = 5"})
+	if rec.Code == http.StatusOK {
+		t.Fatalf("PRAGMA write must not execute on the read-only handle: %s", rec.Body.String())
 	}
 
 	// Unknown named query lists the catalog.

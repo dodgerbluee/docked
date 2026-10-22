@@ -13,9 +13,18 @@
 
 import { graphqlClient } from "../graphql/client";
 import { BATCH_RUNS_QUERY } from "../graphql/queries";
+import { registerCacheClear } from "../utils/cacheRegistry";
 
 let _latestRunsByJobType = null;
 let _inflight = null;
+
+// Module-level caches hold one user's batch runs; they must not survive
+// logout into the next session in the same tab.
+export function clearBatchRunsCache() {
+  _latestRunsByJobType = null;
+  _inflight = null;
+}
+registerCacheClear(clearBatchRunsCache);
 
 // Convert a graph BatchRun (camelCase, enum names) into the snake_case row
 // shape the batch UI components consume.

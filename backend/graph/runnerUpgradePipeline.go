@@ -233,9 +233,10 @@ func prepareNetworkingConfig(details map[string]any, shared bool) map[string]any
 		if jsTruthy(data["Aliases"]) {
 			endpoint["Aliases"] = data["Aliases"]
 		}
-		if len(endpoint) > 0 {
-			endpoints[name] = endpoint
-		}
+		// Keep the network even when the endpoint config is empty: dropping
+		// it detaches the container from that secondary network on recreate.
+		// Docker accepts an empty endpoint object and attaches with defaults.
+		endpoints[name] = endpoint
 	}
 	if len(endpoints) == 0 {
 		return nil
@@ -801,43 +802,28 @@ func restartPolicyOr(v any) any {
 // buildRecreateHostConfig rebuilds a dependent's HostConfig from scratch with
 // the network_mode reference pointed at the new container ID.
 func buildRecreateHostConfig(original map[string]any, prefix, newID string) map[string]any {
-	get := func(key string, def any) any {
-		if v, ok := original[key]; ok && jsTruthy(v) {
-			return v
-		}
-		return def
+	// Copy everything and strip only what the create endpoint rejects. The
+	// previous hand-curated allowlist silently dropped fields like GroupAdd,
+	// NanoCpus and PidsLimit on every dependent recreate; this mirrors the
+	// battle-tested copy-and-strip of cleanHostConfigForCreate (provider path).
+	clean := make(map[string]any, len(original))
+	for k, v := range original {
+		clean[k] = v
 	}
-	clean := map[string]any{
-		"NetworkMode":   prefix + newID,
-		"RestartPolicy": restartPolicyOr(original["RestartPolicy"]),
-		"Binds":         get("Binds", []any{}),
-		// --mount volumes live in HostConfig.Mounts; dropping them here
-		// silently strips a dependent's bind/volume data on recreate.
-		"Mounts":         get("Mounts", []any{}),
-		"Memory":         get("Memory", 0),
-		"MemorySwap":     get("MemorySwap", 0),
-		"CpuShares":      get("CpuShares", 0),
-		"CpuPeriod":      get("CpuPeriod", 0),
-		"CpuQuota":       get("CpuQuota", 0),
-		"CpusetCpus":     get("CpusetCpus", ""),
-		"CpusetMems":     get("CpusetMems", ""),
-		"Devices":        get("Devices", []any{}),
-		"DeviceRequests": get("DeviceRequests", []any{}),
-		"CapAdd":         get("CapAdd", []any{}),
-		"CapDrop":        get("CapDrop", []any{}),
-		"SecurityOpt":    get("SecurityOpt", []any{}),
-		"LogConfig":      get("LogConfig", map[string]any{}),
-		"Privileged":     get("Privileged", false),
-		"ReadonlyRootfs": get("ReadonlyRootfs", false),
-		"ShmSize":        get("ShmSize", 67108864),
-		"Tmpfs":          get("Tmpfs", map[string]any{}),
-		"Ulimits":        get("Ulimits", []any{}),
-		"UsernsMode":     get("UsernsMode", ""),
-		"IpcMode":        get("IpcMode", ""),
-		"PidMode":        get("PidMode", ""),
-		"Isolation":      get("Isolation", ""),
-		"AutoRemove":     get("AutoRemove", false),
+	for _, k := range []string{
+		"ContainerIDFile", "ResolvConfPath", "HostnamePath", "HostsPath",
+		"Runtime", "RestartCount", "AutoRemove",
+	} {
+		delete(clean, k)
 	}
+	// Dependents always join via shared network mode: ports are exposed on
+	// the provider, and echoing PortBindings makes the create fail.
+	delete(clean, "PortBindings")
+	delete(clean, "PublishAllPorts")
+
+	clean["NetworkMode"] = prefix + newID
+	clean["RestartPolicy"] = restartPolicyOr(original["RestartPolicy"])
+
 	// Drop empty arrays/objects so the create payload stays minimal.
 	for k, v := range clean {
 		switch t := v.(type) {
@@ -881,9 +867,10 @@ func buildRecreateNetworkingConfig(details map[string]any, shared bool) map[stri
 		if aliases, ok := data["Aliases"].([]any); ok && len(aliases) > 0 {
 			endpoint["Aliases"] = aliases
 		}
-		if len(endpoint) > 0 {
-			endpoints[name] = endpoint
-		}
+		// Keep empty endpoint configs: dropping the entry detaches the
+		// container from that network on recreate (see the main-path
+		// variant's identical fix).
+		endpoints[name] = endpoint
 	}
 	if len(endpoints) == 0 {
 		return nil
@@ -894,8 +881,16 @@ func buildRecreateNetworkingConfig(details map[string]any, shared bool) map[stri
 func buildRecreateContainerConfig(details map[string]any, cleanHC, netCfg map[string]any, shared bool) map[string]any {
 	config := jObj(details, "Config")
 	out := map[string]any{
-		"Image":      config["Image"],
 		"HostConfig": cleanHC,
+	}
+	// Pin to the inspected image ID (top-level Image is "sha256:..."):
+	// recreating from the mutable tag could silently jump the dependent to
+	// a different build if the tag moved in the meantime. The ID is present
+	// locally — the container we just removed ran from it.
+	if imageID := jStr(details, "Image"); strings.HasPrefix(imageID, "sha256:") {
+		out["Image"] = imageID
+	} else {
+		out["Image"] = config["Image"]
 	}
 	if config["Cmd"] != nil {
 		out["Cmd"] = config["Cmd"]

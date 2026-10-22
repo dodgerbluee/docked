@@ -26,6 +26,7 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/oauth"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // decodeJSONObject decodes a JSON body into a generic map so the handlers
@@ -210,9 +211,13 @@ func VerifyToken(database *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 
-		userID, err := auth.ValidateToken(token, secret)
+		userID, tokenVersion, _, err := auth.ValidateTokenWithVersion(token, secret)
 		if err != nil {
-			runnerFail(w, http.StatusUnauthorized, "Invalid token")
+			msg := "Invalid token"
+			if errors.Is(err, jwt.ErrTokenExpired) {
+				msg = "Token expired"
+			}
+			runnerFail(w, http.StatusUnauthorized, msg)
 			return
 		}
 
@@ -223,6 +228,18 @@ func VerifyToken(database *sql.DB, secret string) http.HandlerFunc {
 		}
 		if user == nil {
 			runnerFail(w, http.StatusUnauthorized, "User not found")
+			return
+		}
+		// Same session-eviction checks as StrictMiddleware: a token minted
+		// before a password change carries a stale version, and logged-out
+		// tokens live in revoked_tokens. Verify must not accept either, or
+		// it becomes a revocation oracle bypass for the client's boot check.
+		if tokenVersion != user.TokenVersion {
+			runnerFail(w, http.StatusUnauthorized, "Invalid token")
+			return
+		}
+		if revoked, err := db.IsTokenRevoked(r.Context(), database, token); err != nil || revoked {
+			runnerFail(w, http.StatusUnauthorized, "Invalid token")
 			return
 		}
 

@@ -499,24 +499,20 @@ func resolveOAuthUser(r *http.Request, registry *oauth.Registry, database *sql.D
 			"An account with this username already exists and is linked to a different SSO identity. Please contact your administrator.")
 	}
 
-	// 4. Auto-register.
+	// 4. Auto-register. The first-user privilege is decided atomically by
+	// the insert itself (a count-then-insert check raced: two concurrent
+	// first logins could both become instance admin).
 	settings := registry.ProviderSettings(providerName)
 	if !settings.AutoRegister {
 		return nil, errors.New("No account found for this identity. Please contact your administrator to create an account.")
 	}
 
-	count, err := db.GetUserCount(ctx, database)
-	if err != nil {
-		return nil, err
-	}
-	isFirstUser := count == 0
-
 	var emailArg *string
 	if user.Email != "" {
 		emailArg = &user.Email
 	}
-	newID, err := db.CreateOAuthUser(ctx, database, user.Username, emailArg,
-		providerName, user.ID, settings.DefaultRole, isFirstUser)
+	newID, isFirstUser, err := db.CreateOAuthUser(ctx, database, user.Username, emailArg,
+		providerName, user.ID, settings.DefaultRole)
 	if err != nil {
 		return nil, err
 	}

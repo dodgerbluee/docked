@@ -36,13 +36,17 @@ import (
 // the strict auth middleware (Node mounts the router after authenticate).
 // syncSvc may be nil; its digest cache is then omitted from cache reports.
 func DebugRoutes(r chi.Router, database *sql.DB, cfg *config.Config, syncSvc *imagesync.Service) {
+	// Arbitrary SQL runs on a dedicated READ-ONLY connection: the prefix
+	// allowlist is bypassable (WITH x AS (...) INSERT/UPDATE, PRAGMA writes),
+	// so enforcement must happen at the engine level, not in string checks.
+	roDB, roErr := db.OpenReadOnly(cfg.DBPath)
 	r.Use(debugGate(database))
 	r.Get("/health", debugHealth(database))
 	r.Get("/cache", debugCacheState(database, syncSvc))
 	r.Get("/locks", debugLockState(database))
 	r.Get("/logs", debugServerLogs(database, cfg))
 	r.Get("/db/queries", debugQueryCatalog(database))
-	r.Post("/db", debugRunQuery(database))
+	r.Post("/db", debugRunQuery(database, roDB, roErr))
 	r.Post("/cache/clear", debugClearCaches(database, syncSvc))
 	r.Handle("/runner/{runnerId}/*", debugRunnerProxy(database))
 }
@@ -147,17 +151,17 @@ var dbQueryOrder = []string{
 }
 
 var dbQueryCatalog = map[string]string{
-	"list-tables": "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
-	"schema":      "SELECT name, type, sql FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
-	"containers":  "SELECT id, user_id, container_id, runner_id, source_instance_id, endpoint_id, image_name, container_name, created_at FROM containers ORDER BY created_at DESC LIMIT 100",
-	"containers-count": "SELECT COUNT(*) AS count FROM containers",
-	"runners":          "SELECT id, user_id, name, url, enabled, docker_enabled, version, latest_version, last_seen, docker_status, created_at FROM runners ORDER BY created_at ASC",
-	"upgrade-history":  "SELECT id, user_id, container_id, runner_id, runner_name, old_image, new_image, status, created_at FROM upgrade_history ORDER BY created_at DESC LIMIT 100",
+	"list-tables":            "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
+	"schema":                 "SELECT name, type, sql FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
+	"containers":             "SELECT id, user_id, container_id, runner_id, source_instance_id, endpoint_id, image_name, container_name, created_at FROM containers ORDER BY created_at DESC LIMIT 100",
+	"containers-count":       "SELECT COUNT(*) AS count FROM containers",
+	"runners":                "SELECT id, user_id, name, url, enabled, docker_enabled, version, latest_version, last_seen, docker_status, created_at FROM runners ORDER BY created_at ASC",
+	"upgrade-history":        "SELECT id, user_id, container_id, runner_id, runner_name, old_image, new_image, status, created_at FROM upgrade_history ORDER BY created_at DESC LIMIT 100",
 	"upgrade-history-failed": "SELECT id, user_id, container_id, runner_id, runner_name, old_image, new_image, status, error_message, created_at FROM upgrade_history WHERE status = 'failed' ORDER BY created_at DESC LIMIT 50",
-	"settings":         "SELECT key, user_id, SUBSTR(value, 1, 200) AS value_preview, created_at FROM settings ORDER BY user_id, key",
+	"settings":               "SELECT key, user_id, SUBSTR(value, 1, 200) AS value_preview, created_at FROM settings ORDER BY user_id, key",
 	// System settings live in settings with user_id = 0 (see db.GetSystemSetting);
 	// the old system_settings table was folded into settings by a Node-era migration.
-	"system-settings":  "SELECT key, value, created_at FROM settings WHERE user_id = 0 ORDER BY key",
+	"system-settings":         "SELECT key, value, created_at FROM settings WHERE user_id = 0 ORDER BY key",
 	"registry-image-versions": "SELECT id, user_id, registry, namespace, repository, tag, latest_digest, updated_at FROM registry_image_versions ORDER BY updated_at DESC LIMIT 100",
 	"batch-runs":              "SELECT id, user_id, job_type, status, containers_checked, containers_updated, started_at, completed_at FROM batch_runs ORDER BY started_at DESC LIMIT 20",
 	"deployed-images":         "SELECT id, user_id, image_repo, image_tag, image_digest, registry, namespace, repository, last_seen FROM deployed_images ORDER BY last_seen DESC LIMIT 50",
@@ -190,7 +194,7 @@ func debugQueryCatalog(database *sql.DB) http.HandlerFunc {
 	}
 }
 
-func debugRunQuery(database *sql.DB) http.HandlerFunc {
+func debugRunQuery(database *sql.DB, roDB *sql.DB, roErr error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := debugAdminUser(w, r, database); !ok {
 			return
@@ -250,7 +254,13 @@ func debugRunQuery(database *sql.DB) http.HandlerFunc {
 			}
 		}
 
-		rows, err := queryRowsJSON(r.Context(), database, sqlText, params...)
+		if roErr != nil {
+			slog.Error("debug: read-only db handle unavailable", "error", roErr.Error())
+			runnerFail(w, http.StatusServiceUnavailable, "debug database unavailable")
+			return
+		}
+
+		rows, err := queryRowsJSON(r.Context(), roDB, sqlText, params...)
 		if err != nil {
 			slog.Error("debug: runDbQuery error", "error", err.Error())
 			runnerFail(w, http.StatusInternalServerError, err.Error())

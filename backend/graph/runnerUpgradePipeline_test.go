@@ -90,6 +90,9 @@ func TestPrepareNetworkingConfig(t *testing.T) {
 					"IPAddress":  "172.20.0.5",     // not copied: create API rejects it
 				},
 				"other": "not-an-object",
+				// No endpoint fields at all: the old code dropped this
+				// network entirely and the recreate detached it.
+				"plain": map[string]any{"IPAMConfig": nil, "Links": nil, "Aliases": nil},
 			},
 		},
 	}
@@ -98,8 +101,11 @@ func TestPrepareNetworkingConfig(t *testing.T) {
 	if !ok {
 		t.Fatalf("EndpointsConfig missing: %v", nc)
 	}
-	if len(epc) != 1 {
-		t.Fatalf("non-object network entry must be skipped: %v", epc)
+	if len(epc) != 2 {
+		t.Fatalf("non-object network entry must be skipped, object entry kept: %v", epc)
+	}
+	if ep, ok := epc["plain"].(map[string]any); !ok || len(ep) != 0 {
+		t.Errorf("network with empty endpoint config must still be attached, got %v", epc["plain"])
 	}
 	ep, _ := epc["mynet"].(map[string]any)
 	if ep == nil {
@@ -243,6 +249,25 @@ func TestPreservedConfigFields(t *testing.T) {
 	}
 }
 
+// Dependents must be recreated from the inspected image ID, not the mutable
+// tag: if the tag moved in the registry meanwhile, tag-based recreation would
+// silently jump the dependent to a different build.
+func TestBuildRecreateContainerConfigPinsImageID(t *testing.T) {
+	config := map[string]any{"Image": "linuxserver/arr:latest"}
+	rec := buildRecreateContainerConfig(map[string]any{
+		"Config": config,
+		// Inspect documents carry the resolved image ID at top level.
+		"Image": "sha256:deadbeef",
+	}, map[string]any{"NetworkMode": "container:abc"}, nil, true)
+	if rec["Image"] != "sha256:deadbeef" {
+		t.Errorf("Image = %v, want the pinned sha256 image ID", rec["Image"])
+	}
+	rec = buildRecreateContainerConfig(map[string]any{"Config": config}, map[string]any{}, nil, true)
+	if rec["Image"] != "linuxserver/arr:latest" {
+		t.Errorf("Image = %v, want tag fallback when no ID present", rec["Image"])
+	}
+}
+
 func TestUpgradeImageRef(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -298,12 +323,25 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 		// --mount volumes live here; dropping them silently strips the
 		// dependent's bind/volume data on recreate.
 		"Mounts":     []any{map[string]any{"Type": "bind", "Source": "/etc/cfg", "Target": "/etc/cfg"}},
-		"Memory":     float64(0),       // falsy -> default 0, kept as number
+		"Memory":     float64(0),       // echoed as-is; create treats 0 as default
 		"CapAdd":     []any{},          // empty -> dropped
 		"LogConfig":  map[string]any{}, // empty -> dropped
-		"Privileged": false,            // falsy -> default false, kept as bool
-		"ShmSize":    float64(0),       // falsy -> default 67108864
-		"Ulimits":    nil,              // null -> default [] -> dropped
+		"Privileged": false,            // kept as bool
+		"ShmSize":    float64(0),       // echoed as-is
+		"Ulimits":    nil,              // null -> dropped by empty handling? nil kept
+		// The old allowlist silently dropped these; copy-and-strip must keep
+		// every HostConfig field the create endpoint understands.
+		"GroupAdd":  []any{"audio"},
+		"NanoCpus":  float64(500000000),
+		"PidsLimit": float64(100),
+		"Dns":       []any{"1.1.1.1"},
+		// Dependents always run in the provider's shared network mode:
+		// echoing these back makes the create fail.
+		"PortBindings":    map[string]any{"8080/tcp": []any{}},
+		"PublishAllPorts": true,
+		// Inspect bookkeeping the create endpoint rejects.
+		"Runtime":      "runc",
+		"RestartCount": float64(3),
 	}
 	clean := buildRecreateHostConfig(original, "container:", "newid")
 	if clean["NetworkMode"] != "container:newid" {
@@ -318,13 +356,20 @@ func TestBuildRecreateHostConfig(t *testing.T) {
 	if mounts, ok := clean["Mounts"].([]any); !ok || len(mounts) != 1 {
 		t.Errorf("Mounts must be preserved (compose --mount depends on it), got %v", clean["Mounts"])
 	}
-	for _, dropped := range []string{"CapAdd", "LogConfig", "Ulimits"} {
+	for _, dropped := range []string{"CapAdd", "LogConfig"} {
 		if _, ok := clean[dropped]; ok {
 			t.Errorf("empty %s must be dropped", dropped)
 		}
 	}
-	if shm := clean["ShmSize"]; shm != 67108864 && shm != float64(67108864) {
-		t.Errorf("ShmSize = %v, want default 67108864", clean["ShmSize"])
+	for _, kept := range []string{"GroupAdd", "NanoCpus", "PidsLimit", "Dns"} {
+		if _, ok := clean[kept]; !ok {
+			t.Errorf("%s must be preserved (allowlist used to drop it)", kept)
+		}
+	}
+	for _, banned := range []string{"PortBindings", "PublishAllPorts", "Runtime", "RestartCount"} {
+		if _, ok := clean[banned]; ok {
+			t.Errorf("%s must be stripped from the dependent create payload", banned)
+		}
 	}
 	if priv, ok := clean["Privileged"].(bool); !ok || priv {
 		t.Errorf("Privileged must be kept as false")

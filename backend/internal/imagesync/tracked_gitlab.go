@@ -2,9 +2,7 @@ package imagesync
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/registry"
 )
 
 // glRelease is the GitHub-like mapped shape Node's gitlabService produces.
@@ -164,16 +163,9 @@ func handleGitLabError(err error, status int, body []byte, owner, repo string) e
 	return fmt.Errorf("Failed to fetch GitLab releases: %v", err)
 }
 
-// tokenFingerprint scopes release caches by the credential used: a private
-// repo's cached metadata must not be served to a later credentialless check
-// (e.g. after the app token was removed) for the cache TTL.
-func tokenFingerprint(token string) string {
-	if token == "" {
-		return "anon"
-	}
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:6])
-}
+// tokenFingerprint scopes release caches by the credential used (shared
+// implementation with the registry digest caches).
+var tokenFingerprint = registry.TokenFingerprint
 
 // mapGitLabRelease ports mapGitLabRelease.
 func mapGitLabRelease(latest *glRawRelease, baseURL, owner, repo string) *glRelease {

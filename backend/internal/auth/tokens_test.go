@@ -117,6 +117,30 @@ func TestTokenVersionClaimRoundTrip(t *testing.T) {
 	}
 }
 
+// Without a random jti, two logins in the same second mint byte-identical
+// tokens: revoking one session (revoked_tokens stores the raw string) would
+// silently kill the other.
+func TestGenerateTokensSameSecondDiffer(t *testing.T) {
+	const secret = "unit-secret"
+	SetSecret(secret)
+	t.Setenv("JWT_REFRESH_SECRET", secret+"-refresh")
+
+	a1, r1, err := GenerateTokens(7, "bob", "Member", 0)
+	if err != nil {
+		t.Fatalf("GenerateTokens: %v", err)
+	}
+	a2, r2, err := GenerateTokens(7, "bob", "Member", 0)
+	if err != nil {
+		t.Fatalf("GenerateTokens: %v", err)
+	}
+	if a1 == a2 {
+		t.Error("access tokens identical: same-second logins share a revocation identity")
+	}
+	if r1 == r2 {
+		t.Error("refresh tokens identical: same-second logins share a revocation identity")
+	}
+}
+
 // TestValidateTokenRejectsMissingClaims asserts the parser rejects tokens that
 // omit the audience or expiry, even when correctly signed and issued.
 func TestValidateTokenRejectsMissingClaims(t *testing.T) {

@@ -75,3 +75,19 @@ func TestFetchIndexDigestNotFound(t *testing.T) {
 		t.Errorf("StatusCode = %d, want 404", hsErr.StatusCode)
 	}
 }
+
+// Credential-scoped caches: two different tokens must fingerprint differently
+// (the GitLab digest cache key embeds this, so one user's private-image result
+// is never served to another user's credentialless check).
+func TestTokenFingerprint(t *testing.T) {
+	if TokenFingerprint("") != "anon" {
+		t.Error("empty token must fingerprint as anon")
+	}
+	a, b := TokenFingerprint("token-a"), TokenFingerprint("token-b")
+	if a == b || a == "anon" || b == "anon" {
+		t.Errorf("fingerprints must differ per credential: %q vs %q", a, b)
+	}
+	if TokenFingerprint("token-a") != a {
+		t.Error("fingerprint must be deterministic")
+	}
+}

@@ -11,11 +11,19 @@ import {
   mapGraphRunToRow,
 } from "./batchRunsCache";
 import { isBackendUp } from "../utils/backendStatus";
+import { registerCacheClear } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of showing a loading spinner and re-firing 3 API calls.
 let cachedLatestRun = null;
 let cachedRecentRuns = null;
+
+// Must not survive logout into the next session in the same tab.
+export function clearBatchRunsHookCache() {
+  cachedLatestRun = null;
+  cachedRecentRuns = null;
+}
+registerCacheClear(clearBatchRunsHookCache);
 
 /**
  * Custom hook for fetching batch runs

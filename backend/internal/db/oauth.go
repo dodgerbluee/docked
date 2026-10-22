@@ -112,22 +112,36 @@ func GetUserByEmail(ctx context.Context, database *sql.DB, email string) (*UserR
 	return u, nil
 }
 
-// CreateOAuthUser inserts a password-less OAuth user (password_changed 0)
-// and returns the new id. Mirrors Node's createOAuthUser column list.
+// CreateOAuthUser inserts a password-less OAuth user (password_changed 0) and
+// returns the new id plus whether it became the instance admin. The first-user
+// privilege is decided INSIDE the insert statement (same atomic
+// INSERT...SELECT pattern as RegisterUser): a separate GetUserCount check
+// raced, letting two concurrent first logins both mint instance_admin=1.
 func CreateOAuthUser(ctx context.Context, database *sql.DB, username string, email *string,
-	oauthProvider, oauthProviderID, role string, instanceAdmin bool) (int64, error) {
-	admin := 0
-	if instanceAdmin {
-		admin = 1
+	oauthProvider, oauthProviderID, role string) (int64, bool, error) {
+	const stmt = `INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin, oauth_provider, oauth_provider_id)
+		SELECT ?, NULL, ?, ?, 0,
+			CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END,
+			?, ?
+		RETURNING id, instance_admin`
+
+	var id int64
+	var admin int
+	for attempt := 0; ; attempt++ {
+		err := database.QueryRowContext(ctx, stmt, username, email, role, oauthProvider, oauthProviderID).
+			Scan(&id, &admin)
+		if err == nil {
+			return id, admin == 1, nil
+		}
+		if !isBusy(err) || attempt >= 20 {
+			return 0, false, fmt.Errorf("create oauth user: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return 0, false, fmt.Errorf("create oauth user: %w", ctx.Err())
+		case <-time.After(time.Duration(5*(1<<min(attempt, 5))) * time.Millisecond):
+		}
 	}
-	res, err := database.ExecContext(ctx,
-		`INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin, oauth_provider, oauth_provider_id)
-		 VALUES (?, NULL, ?, ?, 0, ?, ?, ?)`,
-		username, email, role, admin, oauthProvider, oauthProviderID)
-	if err != nil {
-		return 0, fmt.Errorf("create oauth user: %w", err)
-	}
-	return res.LastInsertId()
 }
 
 // LinkOAuthToUser attaches a provider identity to an existing user. Errors

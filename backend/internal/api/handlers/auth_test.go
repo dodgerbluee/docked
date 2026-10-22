@@ -107,6 +107,7 @@ func newAuthTestDB(t *testing.T) *sql.DB {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		// revoked_tokens is already ensured by db.Open itself.
 	}
 	for _, s := range stmts {
 		if _, err := database.Exec(s); err != nil {
@@ -241,7 +242,8 @@ func TestLoginAndVerify(t *testing.T) {
 		t.Fatalf("last_login not stamped: %v %q", err, lastLogin)
 	}
 
-	// Verify: signature-only, no revocation.
+	// Verify: must honor the same session-eviction checks as the auth
+	// middleware (revoked tokens, password-change token versions).
 	code, body = doJSON(t, h, http.MethodGet, "/api/auth/verify", nil, token)
 	if code != http.StatusOK || body["username"] != "alice" || body["instanceAdmin"] != true {
 		t.Fatalf("verify: code=%d body=%v", code, body)
@@ -253,6 +255,29 @@ func TestLoginAndVerify(t *testing.T) {
 	code, body = doJSON(t, h, http.MethodGet, "/api/auth/verify", nil, "garbage.token.here")
 	if code != http.StatusUnauthorized || body["error"] != "Invalid token" {
 		t.Fatalf("verify garbage: code=%d body=%v", code, body)
+	}
+
+	// Revoked token: verify must reject it, or it becomes a revocation
+	// oracle bypass for the client's boot check.
+	if err := db.RevokeToken(context.Background(), database, token, 1, 1<<40); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	code, body = doJSON(t, h, http.MethodGet, "/api/auth/verify", nil, token)
+	if code != http.StatusUnauthorized || body["error"] != "Invalid token" {
+		t.Fatalf("verify revoked: code=%d body=%v", code, body)
+	}
+
+	// Token minted before a password change carries a stale version.
+	fresh, _, err := auth.GenerateTokens(1, "alice", "Administrator", 0)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if _, err := database.Exec(`UPDATE users SET token_version = 5 WHERE username = 'alice'`); err != nil {
+		t.Fatalf("bump version: %v", err)
+	}
+	code, body = doJSON(t, h, http.MethodGet, "/api/auth/verify", nil, fresh)
+	if code != http.StatusUnauthorized || body["error"] != "Invalid token" {
+		t.Fatalf("verify stale-version: code=%d body=%v", code, body)
 	}
 
 	// Token whose user was deleted.

@@ -6,11 +6,19 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { graphqlClient } from "../graphql/client";
 import { UPGRADE_HISTORY_QUERY, UPGRADE_HISTORY_STATS_QUERY } from "../graphql/queries";
+import { registerCacheClear } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
 let cachedHistory = null;
 let cachedStats = null;
+
+// Must not survive logout into the next session in the same tab.
+export function clearUpgradeHistoryCache() {
+  cachedHistory = null;
+  cachedStats = null;
+}
+registerCacheClear(clearUpgradeHistoryCache);
 
 /** Maps GraphQL camelCase UpgradeRecord to the snake_case shape UI components expect. */
 function mapUpgradeRecord(r) {

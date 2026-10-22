@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -9,6 +11,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// newJTI mints a random token id (jwt.NewID was dropped in v5).
+func newJTI() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// crypto/rand never fails on our platforms; a static fallback would
+		// reintroduce the identical-token bug, so crash loudly instead.
+		panic("crypto/rand unavailable: " + err.Error())
+	}
+	return hex.EncodeToString(b[:])
+}
 
 // UserIDFromContext extracts the authenticated user ID from context.
 // Returns 0 if not authenticated.
@@ -77,6 +90,10 @@ func GenerateTokens(userID int64, username, role string, tokenVersion int64) (ac
 			Audience:  jwt.ClaimStrings{"docked-users"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),
+			// Random jti: without it, two logins in the same second produce
+			// byte-identical tokens, so revoking one session (revoked_tokens
+			// stores the raw string) silently kills the other.
+			ID: newJTI(),
 		},
 	}
 	accessToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString([]byte(secret))
@@ -98,6 +115,8 @@ func GenerateTokens(userID int64, username, role string, tokenVersion int64) (ac
 			Audience:  jwt.ClaimStrings{"docked-users"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),
+			// Random jti (same reason as the access token above).
+			ID: newJTI(),
 		},
 	}
 	refreshToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(getRefreshSecret()))

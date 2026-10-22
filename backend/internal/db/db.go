@@ -101,3 +101,19 @@ func Open(path string) (*sql.DB, error) {
 
 	return database, nil
 }
+
+// OpenReadOnly opens the same SQLite file with a read-only connection: the
+// engine rejects every write regardless of the SQL text. The debug endpoint's
+// statement-prefix allowlist cannot enforce this (WITH ... INSERT and PRAGMA
+// writes slip through string checks), so arbitrary SQL runs here instead.
+func OpenReadOnly(path string) (*sql.DB, error) {
+	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", path)
+	database, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite read-only: %w", err)
+	}
+	if err := database.Ping(); err != nil {
+		return nil, fmt.Errorf("ping sqlite read-only: %w", err)
+	}
+	return database, nil
+}

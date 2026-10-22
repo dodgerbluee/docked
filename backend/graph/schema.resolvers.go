@@ -3473,6 +3473,14 @@ func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operat
 	return nil, fmt.Errorf("operation not found or already completed")
 }
 
+// containersWithUpdatesCountSQL counts containers whose deployed digest
+// differs from the latest digest for the DEPLOYED TAG (see SummaryStats).
+const containersWithUpdatesCountSQL = `SELECT COUNT(DISTINCT c.id) FROM containers c
+	JOIN deployed_images di ON c.deployed_image_id = di.id
+	JOIN registry_image_versions riv ON di.user_id = riv.user_id AND di.image_repo = riv.image_repo
+		AND (riv.tag = di.image_tag OR riv.tag IS NULL)
+	WHERE c.user_id = ? AND riv.latest_digest IS NOT NULL AND di.image_digest IS NOT NULL AND riv.latest_digest != di.image_digest`
+
 // SummaryStats is the resolver for the summaryStats field.
 func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, error) {
 	uid, err := requireUser(ctx)
@@ -3485,12 +3493,14 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners)
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
 
-	// containersWithUpdates: compare deployed digest vs latest digest
+	// containersWithUpdates: compare deployed digest vs latest digest.
+	// The join must match the DEPLOYED TAG: registry_image_versions is keyed
+	// (user, repo, tag), so joining on repo alone fanned every container
+	// across all of the repo's tags and compared digests against the wrong
+	// tag's latest. DISTINCT keeps a container counted once even when an
+	// exact-tag row and a tag-agnostic (NULL tag) row both match.
 	var withUpdates int
-	r.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM containers c
-		JOIN deployed_images di ON c.deployed_image_id = di.id
-		JOIN registry_image_versions riv ON di.user_id = riv.user_id AND di.image_repo = riv.image_repo
-		WHERE c.user_id = ? AND riv.latest_digest IS NOT NULL AND di.image_digest IS NOT NULL AND riv.latest_digest != di.image_digest`, uid).Scan(&withUpdates)
+	r.DB.QueryRowContext(ctx, containersWithUpdatesCountSQL, uid).Scan(&withUpdates)
 
 	// trackedAppsWithUpdates
 	var trackedWithUpdates int

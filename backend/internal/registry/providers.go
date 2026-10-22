@@ -2,7 +2,9 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +14,17 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
+
+// TokenFingerprint scopes credential-dependent caches by the credential used:
+// a private repo's cached metadata must not be served to a later
+// credentialless check (or another user's token) for the cache TTL.
+func TokenFingerprint(token string) string {
+	if token == "" {
+		return "anon"
+	}
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:6])
+}
 
 // DockerHubProvider ports providers/DockerHubProvider.js. Digests come from
 // the registry protocol via go-containerregistry (what the crane binary wraps),
@@ -230,7 +243,12 @@ func (p *GitLabProvider) lookupDeployToken(ctx context.Context, userID int64, im
 
 func (p *GitLabProvider) GetLatestDigest(ctx context.Context, imageRepo, tag string, opts Options) (*DigestResult, error) {
 	normalized := p.normalizeRepo(imageRepo)
-	cacheKey := "gitlab:" + normalized + ":" + tag
+	// The deploy token is per-user/per-repo: a private image's digest fetched
+	// with one user's token must NOT be served from cache to another user who
+	// has no access (cross-credential leak + wrong-authorization results).
+	// Scope the cache key by credential, same as the tracked-app release caches.
+	token := p.lookupDeployToken(ctx, opts.UserID, imageRepo)
+	cacheKey := "gitlab:" + normalized + ":" + tag + ":" + TokenFingerprint(token)
 
 	if cached, ok := p.cache.Get(cacheKey); ok {
 		return cached, nil
@@ -239,7 +257,6 @@ func (p *GitLabProvider) GetLatestDigest(ctx context.Context, imageRepo, tag str
 		return nil, nil
 	}
 
-	token := p.lookupDeployToken(ctx, opts.UserID, imageRepo)
 	delay := time.Second
 	if token != "" {
 		delay = 500 * time.Millisecond

@@ -12,10 +12,27 @@ import (
 
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/domain"
 	"github.com/dockedapp/backend/internal/events"
 	"github.com/dockedapp/backend/internal/registry"
 	"github.com/dockedapp/backend/internal/runner"
 )
+
+// pickCurrentDigest resolves the digest to persist for a scanned container.
+// Tag-based containers inspected through the runner carry no digest in the
+// inspect doc, so info.CurrentDigestFull is nil; the list shape DOES know the
+// pulled digest (RepoDigests). Persisting nil would blank the stored digest
+// and containerHasUpdate then rejects the row (CurrentDigest NULL),
+// suppressing the update notification forever.
+func pickCurrentDigest(info *UpdateInfo, ctr domain.Container) *string {
+	if info.CurrentDigestFull != nil {
+		return info.CurrentDigestFull
+	}
+	if ctr.CurrentDigest != nil && *ctr.CurrentDigest != "" {
+		return ctr.CurrentDigest
+	}
+	return nil
+}
 
 // Service ports the runner half of the docker-hub-pull batch job:
 // scan runner containers, check registry updates, persist, notify.
@@ -259,6 +276,8 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 			}
 		}
 
+		currentDigest := pickCurrentDigest(info, ctr)
+
 		data := &db.ContainerVersionUpsert{
 			ContainerID:   ctr.ID,
 			ContainerName: containerName,
@@ -268,7 +287,7 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 			Status:        nullIfEmpty(ctr.Status),
 			State:         nullIfEmpty(ctr.State),
 			StackName:     stackPtr,
-			CurrentDigest: info.CurrentDigestFull,
+			CurrentDigest: currentDigest,
 			Registry:      parsed.Registry,
 			Namespace:     parsed.Namespace,
 			Repository:    parsed.Repository,
