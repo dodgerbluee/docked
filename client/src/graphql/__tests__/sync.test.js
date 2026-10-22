@@ -43,7 +43,9 @@ describe("runContainerSync", () => {
   it("rejects on timeout while the run is still running", async () => {
     handlers.query = () => opResult(runRow("RUNNING"));
     const p = runContainerSync();
-    const assertion = expect(p).rejects.toThrow("Batch job did not complete within the expected time");
+    const assertion = expect(p).rejects.toThrow(
+      "Batch job did not complete within the expected time"
+    );
     await vi.advanceTimersByTimeAsync(301000);
     await assertion;
   });
