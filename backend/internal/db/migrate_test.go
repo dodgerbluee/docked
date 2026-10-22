@@ -625,3 +625,66 @@ func TestMigrateMatchesNodeSchemaShape(t *testing.T) {
 		}
 	}
 }
+
+// The orphan-repair block must leave NOTHING behind in a single pass: a
+// deleted user's whole child/grandchild chain (intents -> executions ->
+// execution containers, tracked apps -> history, deployed images ->
+// containers.deployed_image_id) is swept in one Migrate run, in
+// parent-before-child order so no statement creates work a later pass
+// would have to finish.
+func TestMigrateOrphanRepairSinglePass(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+
+	uid, err := CreateUser(ctx, database, "orphan-host", "hash", "Administrator", 1)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	execOK(t, database, `INSERT INTO intents (user_id, name, schedule_type) VALUES (?, 'nightly', 'immediate')`, uid)
+	var intentID int64
+	if err := database.QueryRow(`SELECT id FROM intents WHERE user_id = ?`, uid).Scan(&intentID); err != nil {
+		t.Fatal(err)
+	}
+	execOK(t, database, `INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, 'completed', 'manual')`, intentID, uid)
+	var execID int64
+	if err := database.QueryRow(`SELECT id FROM intent_executions WHERE user_id = ?`, uid).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	execOK(t, database, `INSERT INTO intent_execution_containers (execution_id, container_id, container_name, image_name, status)
+		VALUES (?, 'abc123def456', 'web', 'img:1', 'success')`, execID)
+
+	execOK(t, database, `INSERT INTO tracked_apps (user_id, name, image_name) VALUES (?, 'app1', 'img:1')`, uid)
+	execOK(t, database, `INSERT INTO tracked_app_upgrade_history (user_id, tracked_app_id, app_name, provider, repository, old_version, new_version)
+		VALUES (?, (SELECT id FROM tracked_apps WHERE user_id = ?), 'app1', 'docker', 'img', '1', '2')`, uid, uid)
+
+	execOK(t, database, `INSERT INTO deployed_images (user_id, image_repo, image_tag) VALUES (?, 'img', '1')`, uid)
+	execOK(t, database, `INSERT INTO containers (user_id, container_id, container_name, endpoint_id, image_name, image_repo, deployed_image_id)
+		VALUES (?, 'c1', 'web', '1', 'img:1', 'img', (SELECT id FROM deployed_images WHERE user_id = ?))`, uid, uid)
+
+	// Simulate the legacy hole: the user row vanishes without cascades.
+	execOK(t, database, `DELETE FROM users WHERE id = ?`, uid)
+
+	if err := Migrate(ctx, database); err != nil {
+		t.Fatalf("re-migrate: %v", err)
+	}
+	for _, tc := range []struct {
+		table string
+		want  int
+	}{
+		{"intents", 0},
+		{"intent_executions", 0},
+		{"intent_execution_containers", 0},
+		{"tracked_apps", 0},
+		{"containers", 0},
+		{"deployed_images", 0},
+		{"tracked_app_upgrade_history", 0},
+	} {
+		var n int
+		if err := database.QueryRow(`SELECT COUNT(*) FROM ` + tc.table).Scan(&n); err != nil {
+			t.Fatalf("count %s: %v", tc.table, err)
+		}
+		if n != tc.want {
+			t.Errorf("%s rows after repair = %d, want %d", tc.table, n, tc.want)
+		}
+	}
+}

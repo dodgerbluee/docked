@@ -126,9 +126,32 @@ func CreateIntent(ctx context.Context, database *sql.DB, userID int64, name stri
 }
 
 func DeleteIntent(ctx context.Context, database *sql.DB, id, userID int64) error {
-	_, err := database.ExecContext(ctx,
-		"DELETE FROM intents WHERE id = ? AND user_id = ?", id, userID)
-	return err
+	// FKs are not enforced on this DB (see migrate.go), so the cascade has to
+	// be explicit: intent_execution_containers -> intent_executions -> intent,
+	// all in one transaction so a failure cannot half-delete the chain.
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete intent: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM intent_execution_containers
+		 WHERE execution_id IN (SELECT id FROM intent_executions WHERE intent_id = ? AND user_id = ?)`,
+		id, userID); err != nil {
+		return fmt.Errorf("delete intent: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM intent_executions WHERE intent_id = ? AND user_id = ?", id, userID); err != nil {
+		return fmt.Errorf("delete intent: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM intents WHERE id = ? AND user_id = ?", id, userID); err != nil {
+		return fmt.Errorf("delete intent: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("delete intent: %w", err)
+	}
+	return nil
 }
 
 // TouchIntentLastEvaluated records that an intent was evaluated, mirroring

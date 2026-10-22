@@ -52,13 +52,18 @@ func ensureSchema(ctx context.Context, database *sql.DB) error {
 		return nil
 	}
 
-	// Orphan repair: FK enforcement is on in the DSN (Node parity —
-	// better-sqlite3 enforces by default), but the early Go era ran with
-	// enforcement off and could have accumulated child rows whose parents
+	// Orphan repair: FK enforcement is deliberately OFF (see db.go — the
+	// migration scar makes enabling it unsafe), so deletes must cascade by
+	// hand and the early Go era could accumulate child rows whose parents
 	// were deleted. Those rows would now fail UPDATEs and the containers
 	// table rebuilds, so clear them before anything else touches the
 	// schema. Every statement is soft: on a fresh DB the referenced tables
 	// or columns may not exist yet, and on a healthy DB they are no-ops.
+	// Order matters: a parent's deletion must run BEFORE its children's
+	// orphan sweep, so one pass leaves no newly-orphaned rows behind
+	// (intents before intent_executions before intent_execution_containers;
+	// tracked_apps before tracked_app_upgrade_history; deployed_images
+	// before the containers.deployed_image_id dangling clear).
 	for _, repair := range []struct{ label, stmt string }{
 		{"containers orphans (v14 shape)", `DELETE FROM containers WHERE
 			(runner_id IS NOT NULL AND runner_id NOT IN (SELECT id FROM runners))
@@ -67,25 +72,27 @@ func ensureSchema(ctx context.Context, database *sql.DB) error {
 		{"containers orphans (legacy shape)", `DELETE FROM containers WHERE
 			portainer_instance_id NOT IN (SELECT id FROM portainer_instances)
 			OR user_id NOT IN (SELECT id FROM users)`},
+		{"deployed_images orphans", `DELETE FROM deployed_images WHERE user_id NOT IN (SELECT id FROM users)`},
 		{"containers dangling deployed_image_id", `UPDATE containers SET deployed_image_id = NULL
 			WHERE deployed_image_id IS NOT NULL
 			AND deployed_image_id NOT IN (SELECT id FROM deployed_images)`},
 		{"runner_events orphans", `DELETE FROM runner_events WHERE runner_id NOT IN (SELECT id FROM runners)`},
-		{"intent_execution_containers orphans", `DELETE FROM intent_execution_containers
-			WHERE execution_id NOT IN (SELECT id FROM intent_executions)`},
+		{"intents orphans", `DELETE FROM intents WHERE user_id NOT IN (SELECT id FROM users)`},
 		{"intent_executions orphans", `DELETE FROM intent_executions
 			WHERE intent_id NOT IN (SELECT id FROM intents) OR user_id NOT IN (SELECT id FROM users)`},
-		{"intents orphans", `DELETE FROM intents WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"intent_execution_containers orphans", `DELETE FROM intent_execution_containers
+			WHERE execution_id NOT IN (SELECT id FROM intent_executions)`},
 		{"upgrade_history dangling runner", `UPDATE upgrade_history SET runner_id = NULL
 			WHERE runner_id IS NOT NULL AND runner_id NOT IN (SELECT id FROM runners)`},
 		{"upgrade_history dangling instance", `UPDATE upgrade_history SET portainer_instance_id = NULL
 			WHERE portainer_instance_id IS NOT NULL
 			AND portainer_instance_id NOT IN (SELECT id FROM portainer_instances)`},
 		{"upgrade_history orphans", `DELETE FROM upgrade_history WHERE user_id NOT IN (SELECT id FROM users)`},
-		{"tracked_app_versions dangling app", `UPDATE tracked_app_versions SET tracked_app_id = NULL
-			WHERE tracked_app_id IS NOT NULL AND tracked_app_id NOT IN (SELECT id FROM tracked_apps)`},
 		{"tracked_apps orphans", `DELETE FROM tracked_apps WHERE user_id NOT IN (SELECT id FROM users)`},
-		{"deployed_images orphans", `DELETE FROM deployed_images WHERE user_id NOT IN (SELECT id FROM users)`},
+		{"tracked_app_upgrade_history dangling app", `UPDATE tracked_app_upgrade_history SET tracked_app_id = NULL
+			WHERE tracked_app_id IS NOT NULL AND tracked_app_id NOT IN (SELECT id FROM tracked_apps)`},
+		{"tracked_app_upgrade_history orphans", `DELETE FROM tracked_app_upgrade_history
+			WHERE user_id NOT IN (SELECT id FROM users)`},
 		{"registry_image_versions orphans", `DELETE FROM registry_image_versions WHERE user_id NOT IN (SELECT id FROM users)`},
 	} {
 		soft(repair.label, repair.stmt)

@@ -58,9 +58,11 @@ const subscriptionRevalidateInterval = 30 * time.Second
 type WSDisconnectKey struct{}
 
 // WSDisconnectFromContext returns the connection's disconnect func, or nil
-// when the context is not a websocket connection context.
+// when the context is not a websocket connection context. The stashed value
+// is a context.CancelFunc (see server.go InitFunc), so the assertion must use
+// that exact type — a plain func() assertion would never match.
 func WSDisconnectFromContext(ctx context.Context) func() {
-	if f, ok := ctx.Value(WSDisconnectKey{}).(func()); ok {
+	if f, ok := ctx.Value(WSDisconnectKey{}).(context.CancelFunc); ok {
 		return f
 	}
 	return nil

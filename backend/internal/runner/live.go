@@ -60,11 +60,9 @@ func applyRegistryData(row *db.ContainerRow, d *db.RegistryData) {
 	row.LatestPublishDate = d.LatestPublishDate
 	row.Provider = d.Provider
 	row.LastChecked = d.LastChecked
-	// registry_data.provider is more accurate than the image-prefix guess
-	// (e.g. quay), so it also refines the intent-matching Registry column.
-	if d.Provider.Valid {
-		row.Registry = d.Provider
-	}
+	// Registry stays the image-prefix HOST value: registry_data.provider is a
+	// different vocabulary (dockerhub/ghcr/...), and intent registry filters
+	// glob against host vocabulary (docker.io/ghcr.io/...) like persisted rows.
 }
 
 // containerRowBase builds the registry-free part of the DB-row shape.
@@ -81,9 +79,10 @@ func containerRowBase(rr db.RunnerRow, c domain.Container) db.ContainerRow {
 		State:         sqlNullStr(c.State),
 		StackName:     sqlNullStrPtr(c.StackName),
 		// Registry drives intent registry include/exclude matching; live
-		// containers have no deployed_images row, so derive it from the
-		// image prefix (applyRegistryData refines it when known).
-		Registry:        sqlNullStr(domain.ProviderFromImageRepo(repo)),
+		// containers have no deployed_images row, so derive the registry HOST
+		// from the image prefix — same vocabulary deployed_images.registry
+		// stores (docker.io, ghcr.io, ...).
+		Registry:        sqlNullStr(domain.RegistryFromImageRepo(repo)),
 		RunnerID:        sql.NullInt64{Int64: rr.ID, Valid: true},
 		RunnerName:      sqlNullStr(rr.Name),
 		RunnerURL:       sqlNullStr(rr.URL),

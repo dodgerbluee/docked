@@ -78,15 +78,19 @@ func TestFetchContainerRowsMatchesContainerToRow(t *testing.T) {
 
 // Live runner rows must carry a Registry so intent registry include/exclude
 // filters apply to them; previously the column was empty and every registry
-// filter silently failed on live containers.
+// filter silently failed on live containers. The value must use the registry
+// HOST vocabulary deployed_images.registry stores (docker.io, ghcr.io, ...) —
+// the provider vocabulary (dockerhub, ghcr) never matches the host-shaped
+// patterns the UI offers.
 func TestLiveRowsCarryRegistryForIntentMatching(t *testing.T) {
 	rr := db.RunnerRow{ID: 7, Name: "r1", URL: "http://runner.invalid"}
 	cases := []struct{ image, want string }{
-		{"ghcr.io/acme/app:1", "ghcr"},
-		{"registry.gitlab.com/grp/app:2", "gitlab"},
-		{"gcr.io/proj/app", "gcr"},
-		{"postgres:15", "dockerhub"},
-		{"lscr.io/linuxserver/radarr", "dockerhub"},
+		{"ghcr.io/acme/app:1", "ghcr.io"},
+		{"registry.gitlab.com/grp/app:2", "registry.gitlab.com"},
+		{"gcr.io/proj/app", "gcr.io"},
+		{"quay.io/minio/minio:1", "quay.io"},
+		{"postgres:15", "docker.io"},
+		{"lscr.io/linuxserver/radarr", "docker.io"},
 	}
 	for _, tc := range cases {
 		row := containerRowBase(rr, domain.Container{ID: "x", Name: "n", Image: tc.image})
@@ -94,10 +98,15 @@ func TestLiveRowsCarryRegistryForIntentMatching(t *testing.T) {
 			t.Errorf("image %q: Registry = %v, want %q", tc.image, row.Registry, tc.want)
 		}
 	}
-	// A known registry_data provider refines the image-prefix guess.
+	// registry_data.provider is a different vocabulary: it fills the
+	// imageInfo.provider field but must never overwrite the host-shaped
+	// Registry column.
 	row := containerRowBase(rr, domain.Container{ID: "x", Name: "n", Image: "quay.io/minio/minio:1"})
 	applyRegistryData(&row, &db.RegistryData{Provider: sql.NullString{String: "quay", Valid: true}})
-	if row.Registry.String != "quay" {
-		t.Errorf("registry_data provider should refine Registry, got %q", row.Registry.String)
+	if row.Registry.String != "quay.io" {
+		t.Errorf("provider must not clobber Registry host, got %q", row.Registry.String)
+	}
+	if row.Provider.String != "quay" {
+		t.Errorf("provider should land on Provider, got %q", row.Provider.String)
 	}
 }

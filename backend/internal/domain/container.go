@@ -3,9 +3,10 @@ package domain
 import "strings"
 
 // ProviderFromImageRepo maps an image repository (no tag) to the registry
-// provider vocabulary used by deployed_images.registry and intent registry
-// filters. Mirrors imagesync.detectProvider; lives here because both the
-// runner and imagesync packages need it and imagesync imports runner.
+// provider vocabulary (dockerhub/ghcr/gitlab/gcr) used by
+// registry_image_versions.provider and the imageInfo.provider field. Lives
+// here because both the runner and imagesync packages need it and imagesync
+// imports runner.
 func ProviderFromImageRepo(repo string) string {
 	switch {
 	case strings.HasPrefix(repo, "ghcr.io/"):
@@ -17,6 +18,20 @@ func ProviderFromImageRepo(repo string) string {
 	default:
 		return "dockerhub"
 	}
+}
+
+// RegistryFromImageRepo maps an image repository (no tag) to the registry
+// HOST vocabulary stored in deployed_images.registry and matched against by
+// intent registry filters. Mirrors registry.ParseImageName's extractRegistry
+// exactly (same known-host list, unknown hosts fall back to docker.io) so
+// live rows and persisted rows speak one vocabulary.
+func RegistryFromImageRepo(repo string) string {
+	for _, host := range []string{"ghcr.io", "gcr.io", "quay.io", "registry.gitlab.com", "docker.io"} {
+		if strings.HasPrefix(repo, host+"/") {
+			return host
+		}
+	}
+	return "docker.io"
 }
 
 // Container is the API representation of a Docker container with update info.

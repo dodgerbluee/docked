@@ -212,22 +212,32 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// (HTTP requests already pass through the revocation-aware auth
 	// middleware, so only WS connections pay for the extra checks.)
 	srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
+		// OneShot is required: a handler that keeps returning a response is
+		// re-invoked forever by the subscription transport (once per event /
+		// keepalive), spamming error frames instead of ending the operation.
 		reject := func(msg string) graphql.ResponseHandler {
-			return func(c context.Context) *graphql.Response {
-				return graphql.ErrorResponse(c, "%s", msg)
-			}
+			return graphql.OneShot(graphql.ErrorResponse(ctx, "%s", msg))
 		}
 		if ctx.Value(wsConnectionCtxKey{}) != nil {
+			// A dead session must not keep the socket (and its other live
+			// subscriptions) around: cancel the connection context so the
+			// transport tears the whole websocket down.
+			rejectSession := func(msg string) graphql.ResponseHandler {
+				if disconnect := graph.WSDisconnectFromContext(ctx); disconnect != nil {
+					disconnect()
+				}
+				return reject(msg)
+			}
 			raw := auth.RawTokenFromContext(ctx)
 			uid, err := auth.ValidateToken(raw, cfg.JWTSecret)
 			if err != nil {
-				return reject("session expired")
+				return rejectSession("session expired")
 			}
 			if revoked, err := db.IsTokenRevoked(ctx, database, raw); err != nil || revoked {
-				return reject("session revoked")
+				return rejectSession("session revoked")
 			}
 			if u, err := db.GetUserByID(ctx, database, uid); err != nil || u == nil {
-				return reject("session invalid")
+				return rejectSession("session invalid")
 			}
 		}
 		// Cost + depth budgets: cap aliasing/list fan-out amplification of

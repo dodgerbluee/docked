@@ -262,6 +262,68 @@ func TestDeleteUserClearsGrandchildren(t *testing.T) {
 	}
 }
 
+// FKs are not enforced, so DeleteIntent must cascade by hand: the intent's
+// executions and their per-container rows go with it, and another user's
+// rows are untouched.
+func TestDeleteIntentCascadesExecutions(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	uid, err := CreateUser(ctx, database, "intent-owner", "hash", "Administrator", 1)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	other, err := CreateUser(ctx, database, "other-owner", "hash", "Administrator", 1)
+	if err != nil {
+		t.Fatalf("create other user: %v", err)
+	}
+	seedChain := func(owner int64) int64 {
+		t.Helper()
+		res, err := database.ExecContext(ctx,
+			`INSERT INTO intents (user_id, name, schedule_type) VALUES (?, 'nightly', 'immediate')`, owner)
+		if err != nil {
+			t.Fatalf("seed intent: %v", err)
+		}
+		intentID, _ := res.LastInsertId()
+		res, err = database.ExecContext(ctx,
+			`INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, 'completed', 'manual')`,
+			intentID, owner)
+		if err != nil {
+			t.Fatalf("seed execution: %v", err)
+		}
+		execID, _ := res.LastInsertId()
+		if _, err := database.ExecContext(ctx,
+			`INSERT INTO intent_execution_containers (execution_id, container_id, container_name, image_name, status)
+			 VALUES (?, 'abc123def456', 'web', 'img:1', 'success')`, execID); err != nil {
+			t.Fatalf("seed execution container: %v", err)
+		}
+		return intentID
+	}
+	victim := seedChain(uid)
+	survivor := seedChain(other)
+
+	if err := DeleteIntent(ctx, database, victim, uid); err != nil {
+		t.Fatalf("delete intent: %v", err)
+	}
+	// Wrong-user deletes must be a no-op on the survivor chain.
+	if err := DeleteIntent(ctx, database, survivor, uid); err != nil {
+		t.Fatalf("wrong-user delete: %v", err)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM intents WHERE id = ?`, victim); n != 0 {
+		t.Errorf("victim intent left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM intent_executions WHERE intent_id = ?`, victim); n != 0 {
+		t.Errorf("victim executions left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM intent_execution_containers
+		WHERE execution_id IN (SELECT id FROM intent_executions WHERE intent_id = ?)`, victim); n != 0 {
+		t.Errorf("victim execution containers left: %d", n)
+	}
+	if n := countRows(t, database, `SELECT COUNT(*) FROM intent_execution_containers
+		WHERE execution_id IN (SELECT id FROM intent_executions WHERE intent_id = ?)`, survivor); n != 1 {
+		t.Errorf("survivor chain damaged: %d", n)
+	}
+}
+
 // The stale-run reaper must measure silence since the last heartbeat, not
 // since the job started: a long-running job that beats is never reaped,
 // and one that stops beating is.

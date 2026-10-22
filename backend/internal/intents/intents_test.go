@@ -165,6 +165,7 @@ func insertIntent(t *testing.T, database *sql.DB, fields map[string]any) *db.Int
 	for _, opt := range []struct{ col, key string }{
 		{"schedule_cron", "schedule_cron"}, {"last_evaluated_at", "last_evaluated_at"},
 		{"match_containers", "match_containers"}, {"exclude_containers", "exclude_containers"},
+		{"match_registries", "match_registries"},
 		{"dry_run", "dry_run"}, {"max_concurrent", "max_concurrent"},
 		{"sequential_delay_sec", "sequential_delay_sec"},
 	} {
@@ -282,8 +283,8 @@ func setupMatchFixture(t *testing.T) (*sql.DB, int64) {
 		t.Fatal(err)
 	}
 	di, err := database.Exec(
-		`INSERT INTO deployed_images (user_id, image_digest, image_tag, repo_digests, image_repo)
-		 VALUES (1, ?, 'latest', ?, 'repo/src')`, digestOld, `["`+digestOld+`"]`)
+		`INSERT INTO deployed_images (user_id, image_digest, image_tag, repo_digests, image_repo, registry)
+		 VALUES (1, ?, 'latest', ?, 'repo/src', 'docker.io')`, digestOld, `["`+digestOld+`"]`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,6 +351,30 @@ func TestFindMatchingContainers(t *testing.T) {
 	got3 := names(out3.Matched)
 	if got3 != "db-source,live-current,live-updated" {
 		t.Errorf("matched (requireUpdate=false) = [%s]", got3)
+	}
+
+	// Registry filters use the host vocabulary (docker.io, ghcr.io, ...) the
+	// UI offers; live rows must carry it too, or every registry intent
+	// silently matches zero live containers.
+	intentR := insertIntent(t, database, map[string]any{
+		"name": "hub", "schedule_type": "scheduled", "match_registries": `["docker.io"]`,
+	})
+	outR, err := FindMatchingContainers(ctx, database, intentR, 1, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotR := names(outR.Matched); gotR != "db-source,live-updated" {
+		t.Errorf("docker.io registry filter matched [%s], want [db-source,live-updated]", gotR)
+	}
+	intentNope := insertIntent(t, database, map[string]any{
+		"name": "ghcr-only", "schedule_type": "scheduled", "match_registries": `["ghcr.io"]`,
+	})
+	outNope, err := FindMatchingContainers(ctx, database, intentNope, 1, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outNope.Matched) != 0 {
+		t.Errorf("ghcr.io filter matched %d containers, want 0", len(outNope.Matched))
 	}
 }
 
