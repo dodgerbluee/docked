@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dockedapp/backend/internal/db"
 )
@@ -23,6 +24,13 @@ type fakeRunner struct {
 	byID      map[string]map[string]any // id -> inspect document
 	seq       int
 	pullFails bool
+	// pullDelay stalls the pull handler so a pipeline context deadline can
+	// fire mid-pull (models a slow registry + stuck upgrade).
+	pullDelay time.Duration
+	// failStartNew fails the next N start calls for containers the fake
+	// CREATED (not seeded ones): models a replacement that starts broken.
+	failStartNew int
+	createdIDs   map[string]bool
 	// failCreate maps a create name to how many times it must fail before
 	// succeeding (models a transient engine error mid-pipeline).
 	failCreate map[string]int
@@ -38,7 +46,7 @@ type createRecord struct {
 
 func newFakeRunner(t *testing.T) *fakeRunner {
 	t.Helper()
-	f := &fakeRunner{byID: map[string]map[string]any{}, failCreate: map[string]int{}}
+	f := &fakeRunner{byID: map[string]map[string]any{}, failCreate: map[string]int{}, createdIDs: map[string]bool{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /containers", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -78,13 +86,21 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 	})
 	mux.HandleFunc("POST /containers/{id}/start", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
-		defer f.mu.Unlock()
-		doc, ok := f.byID[r.PathValue("id")]
+		id := r.PathValue("id")
+		if f.failStartNew > 0 && f.createdIDs[id] {
+			f.failStartNew--
+			f.mu.Unlock()
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"message": "start failure"})
+			return
+		}
+		doc, ok := f.byID[id]
 		if !ok {
+			f.mu.Unlock()
 			writeJSON(w, http.StatusNotFound, map[string]any{"message": "no such container"})
 			return
 		}
 		doc["State"] = map[string]any{"Status": "running", "Running": true}
+		f.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("DELETE /containers/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +129,7 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 		}
 		f.seq++
 		id := fmt.Sprintf("fakedoc%03d", f.seq)
+		f.createdIDs[id] = true
 		f.byID[id] = map[string]any{
 			"Id":    id,
 			"Name":  name,
@@ -131,7 +148,11 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 	mux.HandleFunc("POST /images/pull", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		fails := f.pullFails
+		delay := f.pullDelay
 		f.mu.Unlock()
+		if delay > 0 {
+			time.Sleep(delay)
+		}
 		if fails {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"message": "pull failure"})
 			return
@@ -456,5 +477,68 @@ func TestUpgradePipelineRecreatesOriginalOnCreateFailureNoDependents(t *testing.
 	last := recs[len(recs)-1]
 	if got := last.Payload["Image"]; got != providerInspectDoc()["Image"] {
 		t.Errorf("rollback create image = %v, want inspected sha256 pin", got)
+	}
+}
+
+// With dependents present, rollback delegated to restoreRemovedDependents,
+// which happily adopted the HALF-CREATED replacement that occupies the
+// original name (start failed) and re-pointed the dependents at it. The
+// replacement must be vacated so the pinned original is restored.
+func TestUpgradePipelineRollbackReplacesBrokenReplacementWithOriginal(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("prov-1", providerInspectDoc())
+	f.seed("dep-1", dependentInspectDoc())
+	f.failStartNew = 1 // the created replacement starts broken
+
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil || !strings.Contains(err.Error(), "start container") {
+		t.Fatalf("pipeline error = %v, want start container failure", err)
+	}
+
+	provider := f.findByName("gluetun")
+	if provider == nil {
+		t.Fatal("original provider must be restored")
+	}
+	if img := jStr(jObj(provider, "Config"), "Image"); !strings.HasPrefix(img, "sha256:") {
+		t.Errorf("restored provider image = %v, want the pinned sha256 original", img)
+	}
+	if jStr(jObj(provider, "State"), "Status") != "running" {
+		t.Error("restored provider must be running")
+	}
+	dep := f.findByName("arr")
+	if dep == nil {
+		t.Fatal("dependent must be recreated on rollback")
+	}
+	if nm := jStr(jObj(dep, "HostConfig"), "NetworkMode"); nm != "container:"+jStr(provider, "Id") {
+		t.Errorf("dependent NetworkMode = %s, want the RESTORED provider id %s", nm, jStr(provider, "Id"))
+	}
+}
+
+// The pipeline ctx can already be canceled/deadlined when restore() runs
+// (client disconnect, stuck readiness wait). Rollback must run detached or
+// the service stays stopped forever.
+func TestUpgradePipelineRollbackSurvivesExpiredContext(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.pullDelay = 2 * time.Second // registry stall blows the pipeline deadline
+	f.seed("prov-1", providerInspectDoc())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		ctx, 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil {
+		t.Fatal("pipeline should have failed on the stalled pull")
+	}
+	p := f.findByName("gluetun")
+	if p == nil {
+		t.Fatal("provider must still exist")
+	}
+	if jStr(jObj(p, "State"), "Status") != "running" {
+		t.Error("rollback under an expired ctx must still restart the original, got " + jStr(jObj(p, "State"), "Status"))
 	}
 }

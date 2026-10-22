@@ -834,3 +834,46 @@ func TestGitLabEnvTokenNotSentToSelfHostedHosts(t *testing.T) {
 		t.Errorf("app token header = %q, want Bearer app-token", gotAuth)
 	}
 }
+
+// Release caches must be scoped by the credential used: private-repo
+// metadata cached under an app token must not be served to a later
+// credentialless check (token removed) for the cache TTL.
+func TestGitLabReleaseCacheScopedByToken(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		auth := r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		if auth == "Bearer tok-a" {
+			_, _ = w.Write([]byte(`[{"tag_name":"2.0","name":"secret","released_at":"2026-01-01T00:00:00Z"}]`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"tag_name":"1.0","name":"public","released_at":"2025-01-01T00:00:00Z"}]`))
+	}))
+	defer srv.Close()
+	old := gitlabComBase
+	gitlabComBase = srv.URL
+	t.Cleanup(func() { gitlabComBase = old })
+
+	repo := srv.URL + "/scoped/cache-token-scope"
+	rel, err := glGetLatestRelease(context.Background(), repo, "tok-a")
+	if err != nil || rel == nil || rel.TagName != "2.0" {
+		t.Fatalf("authorized check: rel=%+v err=%v", rel, err)
+	}
+	// Same token: cache hit, no extra upstream call.
+	rel, err = glGetLatestRelease(context.Background(), repo, "tok-a")
+	if err != nil || rel == nil || rel.TagName != "2.0" || hits != 1 {
+		t.Fatalf("cache hit expected: rel=%+v err=%v hits=%d", rel, err, hits)
+	}
+	// Credentialless check must NOT see the token-scoped private entry.
+	rel, err = glGetLatestRelease(context.Background(), repo, "")
+	if err != nil {
+		t.Fatalf("anon check: %v", err)
+	}
+	if rel != nil && rel.TagName == "2.0" {
+		t.Error("private release metadata leaked to credentialless check via cache")
+	}
+	if hits != 2 {
+		t.Errorf("upstream hits = %d, want 2 (anon check must refetch)", hits)
+	}
+}

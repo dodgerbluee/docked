@@ -41,5 +41,10 @@ export async function runContainerSync() {
   if (batchRun.status === "failed") {
     throw new Error(batchRun.error_message || "Batch job failed");
   }
+  // A run still observed as running at timeout must NOT resolve as success:
+  // callers mark data fresh and show a completed scan otherwise.
+  if (batchRun.status !== "completed") {
+    throw new Error("Batch job did not complete within the expected time");
+  }
   return batchRun;
 }

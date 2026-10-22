@@ -402,4 +402,22 @@ func TestPreserveAnonymousVolumes(t *testing.T) {
 	if len(b2) != 2 || b2[0] != "namedvol:/named:rw" || b2[1] != "anon123:/data:rw" {
 		t.Errorf("binds without pre-existing entries = %v, want namedvol + anon123 re-attached", b2)
 	}
+
+	// --mount volumes live in HostConfig.Mounts (copied verbatim into the
+	// create payload). Re-adding one as a bind duplicates the destination
+	// and Docker rejects BOTH creates, after the original is deleted.
+	details3 := map[string]any{
+		"Mounts": []any{
+			map[string]any{"Type": "volume", "Name": "mountvol", "Source": "/var/lib/docker/volumes/mountvol/_data", "Destination": "/mv", "Mode": "rw"},
+			map[string]any{"Type": "volume", "Name": "anon9", "Source": "/var/lib/docker/volumes/anon9/_data", "Destination": "/anon", "Mode": "rw"},
+		},
+	}
+	hc3 := map[string]any{"Mounts": []any{
+		map[string]any{"Type": "volume", "Source": "mountvol", "Target": "/mv", "ReadOnly": false},
+	}}
+	preserveAnonymousVolumes(details3, hc3)
+	b3, _ := hc3["Binds"].([]any)
+	if len(b3) != 1 || b3[0] != "anon9:/anon:rw" {
+		t.Errorf("binds with HostConfig.Mounts = %v, want only the anonymous volume re-added", b3)
+	}
 }

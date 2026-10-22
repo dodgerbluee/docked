@@ -349,6 +349,23 @@ func preserveAnonymousVolumes(details map[string]any, cleanHC map[string]any) {
 			covered[parts[1]] = true
 		}
 	}
+	// --mount volumes ride along in HostConfig.Mounts (cleanHostConfig
+	// copies it verbatim into the create payload). Re-adding one as a bind
+	// gives Docker the same destination twice and it rejects BOTH the
+	// upgrade and the rollback create, after the original is already gone.
+	if hm, ok := cleanHC["Mounts"].([]any); ok {
+		for _, m := range hm {
+			mm, ok := m.(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, k := range []string{"Target", "Source", "Name"} {
+				if v := jStr(mm, k); v != "" {
+					covered[v] = true
+				}
+			}
+		}
+	}
 	for _, m := range mounts {
 		mm, ok := m.(map[string]any)
 		if !ok || jStr(mm, "Type") != "volume" {
@@ -1211,10 +1228,24 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	removed := false
 	var newID string
 	restore := func() {
+		// The pipeline ctx may already be canceled (client disconnect) or
+		// past its deadline (stuck readiness wait): rollback must run
+		// detached with its own budget or the service stays down.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+		// A half-created replacement (create succeeded but start/ready
+		// failed) squats on the original name: vacate it first, so BOTH
+		// recovery paths below restore the pinned original image instead
+		// of adopting or restarting the broken replacement.
+		if newID != "" {
+			if err := runner.RemoveContainer(rctx, *rr, newID, true); err != nil {
+				slog.Warn("upgrade rollback: remove failed replacement failed", "container", cleanName, "error", err)
+			}
+		}
 		if len(deps) > 0 {
 			// Full recovery (provider start/recreate + dependents) lives in
 			// restoreRemovedDependents.
-			restoreRemovedDependents(ctx, *rr, deps, cleanName, details)
+			restoreRemovedDependents(rctx, *rr, deps, cleanName, details)
 			return
 		}
 		// No dependents: restoreRemovedDependents would do nothing, but the
@@ -1223,17 +1254,10 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		// remove) would leave it deleted with its config only in this
 		// snapshot.
 		if !removed {
-			if err := runner.StartContainer(ctx, *rr, container.ContainerID); err != nil {
+			if err := runner.StartContainer(rctx, *rr, container.ContainerID); err != nil {
 				slog.Warn("upgrade rollback: start original container failed", "container", cleanName, "error", err)
 			}
 			return
-		}
-		// A half-created replacement (create succeeded but start/ready
-		// failed) squats on the original name: vacate it first.
-		if newID != "" {
-			if err := runner.RemoveContainer(ctx, *rr, newID, true); err != nil {
-				slog.Warn("upgrade rollback: remove failed replacement failed", "container", cleanName, "error", err)
-			}
 		}
 		origImage := jStr(details, "Image")
 		if origImage == "" {
@@ -1243,13 +1267,13 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 			origImage = imageName
 		}
 		origCfg, _, _ := prepareContainerConfig(details, origImage, originalName)
-		id, err := runner.CreateContainer(ctx, *rr, origCfg, originalName)
+		id, err := runner.CreateContainer(rctx, *rr, origCfg, originalName)
 		if err != nil {
 			slog.Error("upgrade rollback: recreate original container failed", "container", cleanName, "error", err)
 			return
 		}
 		if id != "" {
-			if err := runner.StartContainer(ctx, *rr, id); err != nil {
+			if err := runner.StartContainer(rctx, *rr, id); err != nil {
 				slog.Warn("upgrade rollback: start recreated original failed", "container", cleanName, "error", err)
 			}
 		}

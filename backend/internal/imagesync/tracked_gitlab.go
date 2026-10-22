@@ -2,7 +2,9 @@ package imagesync
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -162,6 +164,17 @@ func handleGitLabError(err error, status int, body []byte, owner, repo string) e
 	return fmt.Errorf("Failed to fetch GitLab releases: %v", err)
 }
 
+// tokenFingerprint scopes release caches by the credential used: a private
+// repo's cached metadata must not be served to a later credentialless check
+// (e.g. after the app token was removed) for the cache TTL.
+func tokenFingerprint(token string) string {
+	if token == "" {
+		return "anon"
+	}
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:6])
+}
+
 // mapGitLabRelease ports mapGitLabRelease.
 func mapGitLabRelease(latest *glRawRelease, baseURL, owner, repo string) *glRelease {
 	name := latest.Name
@@ -186,7 +199,7 @@ func glGetLatestRelease(ctx context.Context, repoInput, token string) (*glReleas
 	if !ok {
 		return nil, fmt.Errorf("Invalid GitLab repository format. Use owner/repo or full GitLab URL.")
 	}
-	cacheKey := fmt.Sprintf("gitlab:%s:%s/%s", baseURL, owner, repo)
+	cacheKey := fmt.Sprintf("gitlab:%s:%s/%s:%s", baseURL, owner, repo, tokenFingerprint(token))
 
 	if cached, ok := cacheGet(cacheKey); ok {
 		if list, ok := cached.([]*glRelease); ok && len(list) > 0 {
@@ -224,7 +237,7 @@ func glGetReleaseByTag(ctx context.Context, repoInput, tagName, token string) (*
 	if tagName == "" {
 		return nil, nil
 	}
-	cacheKey := fmt.Sprintf("gitlab:%s:%s/%s:%s", baseURL, owner, repo, tagName)
+	cacheKey := fmt.Sprintf("gitlab:%s:%s/%s:%s:%s", baseURL, owner, repo, tagName, tokenFingerprint(token))
 	if cached, ok := cacheGet(cacheKey); ok {
 		if rel, ok := cached.(*glRelease); ok {
 			return rel, nil
