@@ -50,4 +50,69 @@ describe("graphql client session isolation", () => {
     await p3;
     expect(counter.n).toBe(2);
   });
+
+  it("disposes the old WebSocket on reset so the new session gets a fresh socket", async () => {
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    const instances = [];
+    class FakeWebSocket {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSING = 2;
+      static CLOSED = 3;
+      constructor(url) {
+        this.url = url;
+        this.readyState = 0;
+        this.closed = false;
+        instances.push(this);
+        setTimeout(() => {
+          this.readyState = 1;
+          this.onopen?.();
+        }, 0);
+      }
+      send(data) {
+        // Ack the handshake so graphql-ws resolves its connecting promise;
+        // dispose() awaits that promise before closing the socket.
+        try {
+          if (JSON.parse(data).type === "connection_init") {
+            setTimeout(() => {
+              this.onmessage?.({ data: JSON.stringify({ type: "connection_ack" }) });
+            }, 0);
+          }
+        } catch {
+          /* not JSON under test */
+        }
+      }
+      close() {
+        this.closed = true;
+        this.readyState = 3;
+        this.onclose?.({ code: 1000, reason: "", wasClean: true });
+      }
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    // graphql-ws v6 captures the WebSocket implementation at createClient
+    // time, so the stub must be in place BEFORE the client is (re)built.
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    resetGraphQLClient();
+
+    const sub1 = graphqlClient.subscription("subscription S { ping }").subscribe(() => {});
+    await tick(); // urql starts async → socket created
+    expect(instances.length).toBe(1);
+    await tick(); // socket opens → connection_init sent
+    await tick(); // connection_ack → connecting resolved
+
+    // The old socket authenticated with the previous session's JWT in
+    // connectionParams; it must not survive into the next session.
+    resetGraphQLClient();
+    await tick(); // dispose awaits the open connection, then closes it
+    expect(instances[0].closed).toBe(true);
+
+    const sub2 = graphqlClient.subscription("subscription S { ping }").subscribe(() => {});
+    await tick();
+    expect(instances.length).toBe(2);
+    expect(instances[1]).not.toBe(instances[0]);
+
+    sub1.unsubscribe();
+    sub2.unsubscribe();
+  });
 });

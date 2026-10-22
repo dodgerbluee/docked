@@ -6,6 +6,8 @@ import (
 
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/imagesync"
+	"github.com/dockedapp/backend/internal/registry"
 )
 
 // clearTrackedAppCache must reset the user's tracked-app latest metadata and
@@ -33,7 +35,7 @@ func TestClearTrackedAppCacheKeepsRegistryVersions(t *testing.T) {
 		t.Fatalf("seed registry_image_versions: %v", err)
 	}
 
-	r := &Resolver{DB: database}
+	r := &Resolver{DB: database, Sync: &imagesync.Service{Registry: registry.NewManager(database)}}
 	mr := &mutationResolver{r}
 	res, err := mr.ClearTrackedAppCache(auth.ContextWithUserID(ctx, 1))
 	if err != nil || res == nil || !res.Success {

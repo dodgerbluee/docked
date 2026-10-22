@@ -193,9 +193,15 @@ func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID in
 func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, userID int64,
 	currentVersion, latestVersion string, publishDate *string) error {
 
+	// current_digest = latest_digest: acknowledging the observed latest
+	// version must also move the digest baseline, or the next scan's
+	// digest-first comparison (current_digest != latest_digest) immediately
+	// re-flags the app as updatable. When no latest digest was ever observed
+	// this clears the stale one, falling back to version comparison.
 	_, err := database.ExecContext(ctx,
 		`UPDATE tracked_apps
 		 SET current_version = ?, latest_version = ?, has_update = 0,
+		     current_digest = latest_digest,
 		     current_version_publish_date = ?, latest_version_publish_date = NULL,
 		     updated_at = datetime('now')
 		 WHERE id = ? AND user_id = ?`,

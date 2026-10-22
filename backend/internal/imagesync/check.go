@@ -52,6 +52,28 @@ func configImage(details map[string]any) string {
 	return img
 }
 
+// firstRepoDigest returns the image's first "repo@sha256:..." digest
+// reference (inspect document first, then the list payload). Used to recover
+// a usable repository/tag reference for containers whose Config.Image was
+// pinned to a bare image ID by the upgrade pipeline.
+func firstRepoDigest(details map[string]any, listDigests []string) string {
+	if details != nil {
+		if arr, ok := details["RepoDigests"].([]any); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok && s != "" {
+					return s
+				}
+			}
+		}
+	}
+	for _, s := range listDigests {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // configLabel digs one label out of Config.Labels.
 func configLabel(details map[string]any, key string) string {
 	if details == nil {

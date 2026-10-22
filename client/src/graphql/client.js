@@ -12,27 +12,31 @@ import { createClient as createWsClient } from "graphql-ws";
  */
 const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/graphql`;
 
-export const wsClient = createWsClient({
-  url: wsUrl,
-  connectionParams: () => {
-    const token = localStorage.getItem("authToken");
-    return token ? { token } : {};
-  },
-  // 4401/4403 are terminal: don't hammer the server with a stale token.
-  retryAttempts: 3,
-  shouldRetry: (code) => code !== 4401 && code !== 4403,
-});
+function buildWsClient() {
+  return createWsClient({
+    url: wsUrl,
+    connectionParams: () => {
+      const token = localStorage.getItem("authToken");
+      return token ? { token } : {};
+    },
+    // 4401/4403 are terminal: don't hammer the server with a stale token.
+    retryAttempts: 3,
+    shouldRetry: (code) => code !== 4401 && code !== 4403,
+  });
+}
 
-function buildClient() {
+function buildClient(ws) {
   return createClient({
     url: "/graphql",
     exchanges: [
       subscriptionExchange({
         // graphql-ws's subscribe() returns an unsubscribe fn; urql expects an
         // observable-ish { subscribe(sink) => { unsubscribe } } adapter.
+        // The ws instance is bound per urql client so a reset can never pair a
+        // new session's urql with the previous session's authenticated socket.
         forwardSubscription: (operation) => ({
           subscribe: (sink) => ({
-            unsubscribe: wsClient.subscribe(
+            unsubscribe: ws.subscribe(
               { query: operation.query, variables: operation.variables },
               sink
             ),
@@ -50,12 +54,14 @@ function buildClient() {
   });
 }
 
-// A swappable urql instance behind a stable facade. urql deduplicates identical
-// in-flight queries WITHIN one client instance: if the instance survived a
-// logout, user B's first request could be handed user A's in-flight response.
-// resetGraphQLClient() gives every session its own instance, isolating
-// operations across user switches.
-let activeClient = buildClient();
+// A swappable urql+graphql-ws pair behind a stable facade. urql deduplicates
+// identical in-flight queries WITHIN one client instance, and graphql-ws
+// multiplexes every subscription over ONE socket authenticated at connect
+// time: if either survived a logout, user B could be handed user A's in-flight
+// response or A's still-authenticated event stream. resetGraphQLClient()
+// disposes both and gives every session its own pair.
+let activeWs = buildWsClient();
+let activeClient = buildClient(activeWs);
 
 export const graphqlClient = {
   query: (doc, vars) => activeClient.query(doc, vars),
@@ -64,9 +70,14 @@ export const graphqlClient = {
   subscribe: (doc, vars, policy) => activeClient.subscribe(doc, vars, policy),
 };
 
-/** Replace the active urql client (call on logout AND login). */
+/** Replace the active urql client AND its WebSocket (call on logout AND login). */
 export function resetGraphQLClient() {
-  activeClient = buildClient();
+  // dispose() permanently kills the old graphql-ws client (v6 API): it closes
+  // the socket and blocks reconnects. The old socket carries the previous
+  // session's JWT in its connection params, so it must never be reused.
+  Promise.resolve(activeWs.dispose()).catch(() => {});
+  activeWs = buildWsClient();
+  activeClient = buildClient(activeWs);
 }
 
 // Fire-and-forget logout revocation. Reads the token synchronously (before the

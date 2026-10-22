@@ -1458,6 +1458,12 @@ func (r *mutationResolver) ClearTrackedAppCache(ctx context.Context) (*model.Suc
 	if err != nil {
 		return nil, err
 	}
+	// Also drop the in-memory digest/release cache: without this the next
+	// tracked-app check within the TTL window replays the cached "latest"
+	// instead of re-querying the registry, so the clear appears to do nothing.
+	if r.Sync != nil && r.Sync.Registry != nil {
+		r.Sync.Registry.ClearDigestCache()
+	}
 	return &model.SuccessResult{Success: true}, nil
 }
 

@@ -24,7 +24,7 @@ import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import { checkRunnerHealth, updateRunnerBinary } from "../graphql/runnerOps";
-import { registerCacheClear } from "../utils/cacheRegistry";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
 import { RUNNERS_QUERY } from "../graphql/queries";
 import { mapGraphRunner } from "../utils/runnerShape";
@@ -401,8 +401,13 @@ export default function AppsPage({
   /* ── Data fetching ──────────────────────────────────────────────────── */
 
   const fetchAppsForRunner = useCallback(async (runner) => {
+    // Session guard: a response that lands after logout must never repopulate
+    // the module cache — the next user would be served the previous user's
+    // private runner/app data while their own request is still pending.
+    const gen = getSessionGeneration();
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
+      if (isSessionStale(gen)) return;
       const runnerApps = data.apps || [];
       setApps((prev) => {
         const next = { ...prev, [runner.id]: runnerApps };
@@ -411,6 +416,7 @@ export default function AppsPage({
       });
       setAppErrors((prev) => ({ ...prev, [runner.id]: null }));
     } catch (err) {
+      if (isSessionStale(gen)) return;
       setAppErrors((prev) => ({
         ...prev,
         [runner.id]: err.response?.data?.error || err.message,
@@ -425,11 +431,13 @@ export default function AppsPage({
 
   const fetchAll = useCallback(
     async (isRefresh = false) => {
+      const gen = getSessionGeneration();
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
       try {
         const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+        if (isSessionStale(gen)) return; // logout mid-flight: not this session's data
         const list = (runnersResult.data?.runners || [])
           .map(mapGraphRunner)
           .filter((r) => r.enabled !== 0);
@@ -439,8 +447,10 @@ export default function AppsPage({
       } catch (err) {
         console.error("AppsPage: failed to fetch runners", err);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!isSessionStale(gen)) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [fetchAppsForRunner]

@@ -50,11 +50,11 @@ func writePkg(t *testing.T, dir, version string) string {
 
 func TestVersionDevBuildRules(t *testing.T) {
 	cases := []struct {
-		name       string
-		version    string
-		nodeEnv    string
-		wantVer    any
-		wantDev    *bool // nil → key must be absent
+		name    string
+		version string
+		nodeEnv string
+		wantVer any
+		wantDev *bool // nil → key must be absent
 	}{
 		{"formal dev release in prod", "3.30.0-dev", "production", "3.30.0-dev", boolPtr(false)},
 		{"formal dev release in dev", "3.30.0-dev", "development", "3.30.0-dev", boolPtr(false)},

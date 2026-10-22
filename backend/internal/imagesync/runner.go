@@ -230,6 +230,18 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		if imageName == "" {
 			imageName = ctr.Image
 		}
+		// A dependent recreated by the upgrade pipeline is pinned to an image
+		// ID, so Config.Image becomes "sha256:<id>" — SplitRepoTag would parse
+		// that as a bogus "sha256" repo and silently break the container's
+		// update tracking. Recover the original reference from repo digests.
+		if strings.HasPrefix(imageName, "sha256:") {
+			imageName = firstRepoDigest(details, ctr.RepoDigests)
+			if imageName == "" {
+				slog.Debug("container pinned to an image ID with no repo digests, skipping",
+					"runnerId", rr.ID, "containerId", ctr.ID)
+				continue
+			}
+		}
 		if imageName == "" {
 			continue
 		}
