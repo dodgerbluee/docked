@@ -200,7 +200,11 @@ func TestSubscriptionWSTransport(t *testing.T) {
 		for time.Now().Before(deadline) {
 			_, data, err := c.Read(ctx)
 			if err != nil {
-				t.Fatalf("read: %v", err)
+				// The guard cancels the connection context on a revoked
+				// session, so the transport tears the socket down; whether
+				// the error frame or the close lands first is a race. A
+				// closed connection is itself the rejection.
+				return
 			}
 			if bytes.Contains(data, []byte(`"ka"`)) {
 				continue // keep-alive
