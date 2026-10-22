@@ -1,6 +1,6 @@
 {
   "name": "docked",
-  "version": "3.30.9-dev",
+  "version": "3.30.10-dev",
   "description": "Docker app maintenance tool",
   "keywords": [
     "docker",
