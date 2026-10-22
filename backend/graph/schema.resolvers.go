@@ -3486,13 +3486,15 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
 
 	// containersWithUpdates must agree with the per-container flags the UI
-	// shows (tab badge, update lists): count through the SAME join and the
-	// SAME containerHasUpdate logic the container list uses. The standalone
-	// SQL compared deploy-time digests (di.image_digest, stale once an image
-	// is re-pulled) with a stricter repo/tag join, and inflated the number
+	// shows (tab badge, update lists): count through the SAME pipeline the
+	// containers connection uses — GetContainers + the live runner merge +
+	// the SAME containerHasUpdate logic. The standalone SQL compared
+	// deploy-time digests (di.image_digest, stale once an image is
+	// re-pulled) with a stricter repo/tag join, and inflated the number
 	// ~10x on real data (110 vs 10 on prod).
 	withUpdates := 0
 	if rows, err := db.GetContainers(ctx, r.DB, uid); err == nil {
+		rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
 		seen := make(map[int64]bool, len(rows))
 		for i := range rows {
 			if seen[rows[i].ID] {
