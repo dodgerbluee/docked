@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
-import { clearAllCaches } from "../utils/cacheRegistry";
+import { clearAllCaches, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { resetGraphQLClient } from "../graphql/client";
+import { clearAllToasts } from "../utils/toast";
 
 /**
  * Custom hook for authentication state and operations
@@ -36,8 +37,41 @@ export const useAuth = () => {
     return stored === "true";
   });
 
+  // Session key: bumped on every login, logout, and cross-tab detach. App.jsx
+  // uses it as the React key on the authenticated tree so every session-scoped
+  // hook (avatar, batch config, upgrade state, notifications, …) is unmounted
+  // and rebuilt fresh per session instead of surviving the transition.
+  const [sessionKey, setSessionKey] = useState(0);
+
+  // Mirror of the live token for callbacks that run outside React's render
+  // cycle (axios interceptor, storage events) and need to tell whose request
+  // they are looking at.
+  const activeTokenRef = useRef(authToken);
+  useEffect(() => {
+    activeTokenRef.current = authToken;
+  }, [authToken]);
+
   const logoutInProgressRef = useRef(false);
   const handleLogoutRef = useRef(null);
+
+  // Shared teardown for both logout paths. Deliberately does NOT touch
+  // localStorage: the caller decides whether shared credentials are removed.
+  const resetSessionState = useCallback(() => {
+    setAuthToken(null);
+    setUsername(null);
+    setUserRole("Administrator");
+    setInstanceAdmin(false);
+    setIsAuthenticated(false);
+    delete axios.defaults.headers.common["Authorization"];
+    setSessionKey((k) => k + 1);
+    // Swap the urql+graphql-ws pair so in-flight operations of the dead session
+    // can never be deduplicated into (or share a socket with) the next one,
+    // then clear module-level caches and live toasts to prevent cross-user
+    // data leaks.
+    resetGraphQLClient();
+    clearAllCaches();
+    clearAllToasts();
+  }, []);
 
   // Handle logout - defined early so it can be used in validation
   const handleLogout = useCallback(() => {
@@ -46,18 +80,24 @@ export const useAuth = () => {
     localStorage.removeItem("username");
     localStorage.removeItem("userRole");
     localStorage.removeItem("instanceAdmin");
-    setAuthToken(null);
-    setUsername(null);
-    setUserRole("Administrator");
-    setInstanceAdmin(false);
-    setIsAuthenticated(false);
-    delete axios.defaults.headers.common["Authorization"];
-    // Swap the urql instance so in-flight operations of the dead session can
-    // never be deduplicated into the next one, then clear module-level caches
-    // to prevent cross-user data leaks.
-    resetGraphQLClient();
-    clearAllCaches();
-  }, []);
+    resetSessionState();
+  }, [resetSessionState]);
+
+  // Cross-tab session sync: another tab logged in or out (authToken changed in
+  // shared localStorage). Detach THIS tab's React session without touching the
+  // shared storage — the other tab owns those credentials now. Without this, a
+  // second window keeps the old identity's state, axios default header, and
+  // socket while its next request silently uses the new token.
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key !== "authToken") return;
+      const stored = localStorage.getItem("authToken");
+      if ((stored || null) === (activeTokenRef.current || null)) return;
+      resetSessionState();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [resetSessionState]);
 
   // Validate token on mount (guard prevents StrictMode double-fetch)
   const tokenValidatedRef = useRef(false);
@@ -73,12 +113,20 @@ export const useAuth = () => {
         return;
       }
 
+      // Capture the session identity before awaiting: if a login/logout (or a
+      // cross-tab session change) happens while /verify is in flight, the
+      // response belongs to a dead session and must not write identity state,
+      // must not log out the replacement session, and must not end validation.
+      const generation = getSessionGeneration();
+      const stale = () => isSessionStale(generation);
+
       try {
         const response = await axios.get(`${API_BASE_URL}/api/auth/verify`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
+        if (stale()) return;
 
         if (response.data.success) {
           // Token is valid - user exists in database
@@ -99,7 +147,9 @@ export const useAuth = () => {
           // Token invalid - clear storage
           handleLogout();
         }
+        setIsValidating(false);
       } catch (error) {
+        if (stale()) return;
         // Only clear on 401 (unauthorized) - network errors shouldn't log out
         // If it's a 401, the token is actually invalid
         if (error.response?.status === 401) {
@@ -113,20 +163,24 @@ export const useAuth = () => {
           // Keep isAuthenticated as true since we have a token in localStorage
           // The user can still use the app, validation will retry on next refresh
         }
-      } finally {
         setIsValidating(false);
       }
     };
 
     tokenValidatedRef.current = true;
     validateToken();
-  }, [handleLogout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle login
   const handleLogin = useCallback((token, user, role, isInstanceAdmin = false) => {
-    // Fresh urql instance per session: no in-flight operation from a previous
-    // session (or an anonymous page load) can be deduplicated into this one.
+    // Fresh urql+graphql-ws pair AND a fresh cache generation per session: no
+    // in-flight operation from a previous session (or an anonymous page load)
+    // can be deduplicated into this one or pass session-staleness guards.
     resetGraphQLClient();
+    clearAllCaches();
+    clearAllToasts();
+    setSessionKey((k) => k + 1);
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);
@@ -180,8 +234,16 @@ export const useAuth = () => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
+        // A 401 only ends the session if the failing request was actually sent
+        // with the CURRENT session's token. A late 401 from a dead session's
+        // request must not log out whoever is logged in now.
+        const reqAuth =
+          error.config?.headers?.Authorization || error.config?.headers?.authorization || "";
+        const reqToken = String(reqAuth).replace(/^Bearer\s+/i, "");
         if (
           error.response?.status === 401 &&
+          reqToken &&
+          reqToken === activeTokenRef.current &&
           !error.config?.url?.includes("/api/auth/login") &&
           !error.config?.url?.includes("/api/auth/verify") &&
           !error.config?.url?.includes("/api/version") &&
@@ -212,6 +274,7 @@ export const useAuth = () => {
     userRole,
     instanceAdmin,
     isValidating,
+    sessionKey,
     handleLogin,
     handleUsernameUpdate,
     handlePasswordUpdateSuccess,

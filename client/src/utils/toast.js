@@ -127,6 +127,18 @@ export function showToast(message, type = "info", duration = 3000, onClick = nul
 }
 
 /**
+ * Remove every visible toast immediately. Toasts live on document.body and
+ * survive React tree unmounts, so a session change must flush them: their
+ * messages name the previous user's containers/images and stale async
+ * producers are separately generation-guarded.
+ */
+export function clearAllToasts() {
+  if (toastContainer) {
+    toastContainer.replaceChildren();
+  }
+}
+
+/**
  * Convenience methods
  */
 export const toast = {
