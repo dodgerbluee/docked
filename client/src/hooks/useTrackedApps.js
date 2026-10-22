@@ -21,6 +21,7 @@ import {
   // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
   SHORT_SUCCESS_MESSAGE_DURATION,
 } from "../constants/trackedApps";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so the TrackedAppsPage tab
 // renders instantly on re-navigation. The App.jsx instance populates this on
@@ -30,6 +31,15 @@ let cachedLastScanTime = null;
 // Module-level flag to prevent duplicate fetches across hook instances
 // (e.g. App.jsx and TrackedAppsPage both call useTrackedApps)
 let initialFetchStarted = false;
+
+// Module-level caches hold one user's tracked apps; they must not survive
+// logout into the next session in the same tab.
+export function clearTrackedAppsCache() {
+  cachedTrackedApps = null;
+  cachedLastScanTime = null;
+  initialFetchStarted = false;
+}
+registerCacheClear(clearTrackedAppsCache);
 
 /** Maps GraphQL camelCase TrackedApp to the snake_case shape UI components expect. */
 function mapTrackedApp(a) {
@@ -93,8 +103,12 @@ export function useTrackedApps(isAuthenticated, authToken) {
         if (showLoading) {
           setIsLoading(true);
         }
+        const gen = getSessionGeneration();
         const result = await graphqlClient.query(TRACKED_APPS_QUERY).toPromise();
         if (result.error) throw new Error(result.error.message);
+        // Logout mid-flight: this response belongs to the dead session
+        // (possibly another user's apps); never repopulate state or cache.
+        if (isSessionStale(gen)) return;
         if (result.data?.trackedApps && mountedRef.current) {
           const apps = (result.data.trackedApps || []).map(mapTrackedApp);
 

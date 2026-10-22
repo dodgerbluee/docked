@@ -22,6 +22,10 @@ func TestParseImageName(t *testing.T) {
 		{"lscr maps to docker.io namespace", "lscr.io/linuxserver/heimdall:latest", "lscr.io/linuxserver/heimdall", "docker.io", "lscr.io", "linuxserver/heimdall", "latest"},
 		{"docker.io prefix", "docker.io/library/nginx:alpine", "library/nginx", "docker.io", "library", "nginx", "alpine"},
 		{"digest form (naive split, same as Node)", "nginx@sha256:abc123", "nginx@sha256", "docker.io", "", "nginx@sha256", "abc123"},
+		// Registry port must not be mistaken for a tag: the old split(":")
+		// produced repo "localhost" with tag "5000/app".
+		{"port-qualified untagged", "localhost:5000/app", "localhost:5000/app", "docker.io", "localhost:5000", "app", "latest"},
+		{"port-qualified tagged", "localhost:5000/app:v2", "localhost:5000/app", "docker.io", "localhost:5000", "app", "v2"},
 	}
 
 	for _, tc := range tests {
@@ -50,5 +54,29 @@ func TestParseImageName(t *testing.T) {
 
 	if _, err := ParseImageName(""); err == nil {
 		t.Error("ParseImageName(\"\") should error")
+	}
+}
+
+func TestSplitRepoTag(t *testing.T) {
+	tests := []struct {
+		image     string
+		repo, tag string
+	}{
+		{"nginx", "nginx", "latest"},
+		{"nginx:1.25", "nginx", "1.25"},
+		{"docker.io/library/nginx:alpine", "docker.io/library/nginx", "alpine"},
+		// The port must stay in the repo — the old LastIndex(":") rule
+		// produced repo "localhost", tag "5000/app".
+		{"localhost:5000/app", "localhost:5000/app", "latest"},
+		{"localhost:5000/app:v2", "localhost:5000/app", "v2"},
+		{"registry.example.com:5001/team/img:1.0", "registry.example.com:5001/team/img", "1.0"},
+		{"nginx@sha256:abc123", "nginx", "latest"},
+		{"localhost:5000/app@sha256:abc123", "localhost:5000/app", "latest"},
+	}
+	for _, tc := range tests {
+		repo, tag := SplitRepoTag(tc.image)
+		if repo != tc.repo || tag != tc.tag {
+			t.Errorf("SplitRepoTag(%q) = (%q, %q), want (%q, %q)", tc.image, repo, tag, tc.repo, tc.tag)
+		}
 	}
 }

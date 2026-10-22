@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/registry"
 )
 
 // This file ports the legacy REST GET /api/containers/data debug viewer
@@ -280,13 +281,7 @@ func extractImageInfo(imageName, imageRepo, imageTag any) (string, string) {
 	}
 
 	if name, ok := imageName.(string); ok && name != "" && repo == "" {
-		if strings.Contains(name, ":") {
-			parts := strings.Split(name, ":")
-			repo = strings.Join(parts[:len(parts)-1], ":")
-			tag = parts[len(parts)-1]
-		} else {
-			repo = name
-		}
+		repo, tag = registry.SplitRepoTag(name)
 	}
 
 	if i := strings.Index(tag, "@"); i != -1 {

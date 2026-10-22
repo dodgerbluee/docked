@@ -294,8 +294,14 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 			RepoDigests:   cleanRepoDigests,
 		}
 
+		// Persist EVERY confirmed registry observation, not just "update
+		// available" ones. Storing only on hasUpdate left a stale
+		// latest_digest after a successful up-to-date scan, which later
+		// inventory comparisons could re-flag as a phantom update. A failed
+		// lookup (ExistsInRegistry=false) deliberately does NOT overwrite
+		// stored data.
 		var version *db.VersionData
-		if hasUpdate {
+		if info.ExistsInRegistry {
 			latestTag := info.LatestTag
 			if latestTag == "" {
 				latestTag = parsed.Tag

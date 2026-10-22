@@ -33,6 +33,24 @@ func RevokeToken(ctx context.Context, database *sql.DB, token string, userID, ex
 	return nil
 }
 
+// ClaimToken atomically marks a token as consumed and reports whether THIS
+// call was the first to do it. Unlike check-then-revoke, two racing requests
+// cannot both claim the same refresh token: exactly one sees RowsAffected==1.
+func ClaimToken(ctx context.Context, database *sql.DB, token string, userID, expiresAt int64) (bool, error) {
+	res, err := database.ExecContext(ctx,
+		`INSERT INTO revoked_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)
+		 ON CONFLICT(token_hash) DO NOTHING`,
+		revokedTokenHash(token), userID, expiresAt)
+	if err != nil {
+		return false, fmt.Errorf("claim token: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("claim token rows: %w", err)
+	}
+	return n == 1, nil
+}
+
 // IsTokenRevoked reports whether a token has been revoked and not yet pruned.
 func IsTokenRevoked(ctx context.Context, database *sql.DB, token string) (bool, error) {
 	var one int

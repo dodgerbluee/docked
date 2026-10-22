@@ -300,9 +300,6 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 	if err != nil {
 		return nil, fmt.Errorf("invalid refresh token")
 	}
-	if revoked, err := db.IsTokenRevoked(ctx, r.DB, input.RefreshToken); err != nil || revoked {
-		return nil, fmt.Errorf("invalid refresh token")
-	}
 
 	user, err := db.GetUserByID(ctx, r.DB, claims.UserID)
 	if err != nil || user == nil {
@@ -314,15 +311,21 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 		return nil, fmt.Errorf("invalid refresh token")
 	}
 
-	// Single-use rotation: consume the presented refresh token so a stolen
-	// or replayed one cannot mint tokens after the legitimate holder has
-	// rotated (or logged out with) it.
+	// Single-use rotation, claimed ATOMICALLY: the INSERT doubles as the
+	// revocation check and the consumption, so racing requests cannot both
+	// exchange the same refresh token (check-then-revoke let one through 39
+	// concurrent exchanges on a contention test). Tokens revoked by logout
+	// collide on the primary key and fail the claim too.
 	exp := time.Now().Add(7 * 24 * time.Hour).Unix()
 	if claims.ExpiresAt != nil {
 		exp = claims.ExpiresAt.Unix()
 	}
-	if err := db.RevokeToken(ctx, r.DB, input.RefreshToken, user.ID, exp); err != nil {
-		slog.Error("refresh: revoke used refresh token failed", "error", err.Error())
+	claimed, err := db.ClaimToken(ctx, r.DB, input.RefreshToken, user.ID, exp)
+	if err != nil {
+		slog.Error("refresh: claim failed", "error", err.Error())
+		return nil, fmt.Errorf("invalid refresh token")
+	}
+	if !claimed {
 		return nil, fmt.Errorf("invalid refresh token")
 	}
 
@@ -2490,11 +2493,11 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 		return nil, err
 	}
 	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
-	rows = filterContainerRows(rows, filter)
-	// Join duplicates (multiple registry rows for one container) would show
-	// the same container twice and skew counts; collapse to one row per
-	// container, preferring a flagged row when flags disagree.
+	// Dedup BEFORE filtering: with conflicting registry join rows for one
+	// container, filtering first could drop the flagged row and let the
+	// same container appear in both update-filtered and up-to-date results.
 	rows = dedupeContainerRows(rows)
+	rows = filterContainerRows(rows, filter)
 	total := len(rows)
 	if offset > total {
 		offset = total

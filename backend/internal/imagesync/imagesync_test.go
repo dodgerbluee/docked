@@ -18,9 +18,10 @@ func TestExtractImageInfo(t *testing.T) {
 		{"nginx", "nginx", "latest"},
 		{"nginx:1.25", "nginx", "1.25"},
 		{"ghcr.io/owner/repo:stable", "ghcr.io/owner/repo", "stable"},
-		// Faithful to Node's naive split(":") with parts[0]/parts[1]:
-		// registry ports mis-split there too.
-		{"localhost:5000/myimage:v2", "localhost", "5000/myimage"},
+		// Registry ports stay in the repo (Node's naive split(":") mis-split
+		// these into repo "localhost", tag "5000/myimage" — fixed).
+		{"localhost:5000/myimage:v2", "localhost:5000/myimage", "v2"},
+		{"localhost:5000/myimage", "localhost:5000/myimage", "latest"},
 	}
 	for _, tc := range tests {
 		repo, tag := extractImageInfo(tc.image)

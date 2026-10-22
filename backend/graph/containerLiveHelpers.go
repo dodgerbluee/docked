@@ -16,6 +16,7 @@ import (
 
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/domain"
+	"github.com/dockedapp/backend/internal/registry"
 	"github.com/dockedapp/backend/internal/runner"
 )
 
@@ -173,16 +174,10 @@ func dockerIDMatches(liveID, requestedID string) bool {
 	return false
 }
 
-// splitImageRepoTag splits "repo/image:tag" into (repo, tag); an untagged
-// image defaults to "latest". Digest suffixes (@sha256:...) are stripped.
+// splitImageRepoTag delegates to the one canonical splitter so registry
+// ports (localhost:5000/app) are never mistaken for tags.
 func splitImageRepoTag(image string) (repo, tag string) {
-	if idx := strings.Index(image, "@"); idx >= 0 {
-		image = image[:idx]
-	}
-	if idx := strings.LastIndex(image, ":"); idx >= 0 {
-		return image[:idx], image[idx+1:]
-	}
-	return image, "latest"
+	return registry.SplitRepoTag(image)
 }
 
 func sqlNullStr(s string) sql.NullString {

@@ -206,6 +206,8 @@ func TestPreservedConfigFields(t *testing.T) {
 	config := map[string]any{
 		"Image":       "img:1",
 		"User":        "1000:1000",
+		"Hostname":    "myhost",
+		"Domainname":  "example.com",
 		"Healthcheck": map[string]any{"Test": []any{"CMD-SHELL", "curl -f http://localhost/"}, "Interval": float64(30000000000), "Timeout": float64(5000000000)},
 		"StopSignal":  "SIGUSR1",
 		"StopTimeout": float64(20),
@@ -217,6 +219,15 @@ func TestPreservedConfigFields(t *testing.T) {
 	out := buildUpgradeConfig(map[string]any{"Config": config}, "img:2", nil, nil, false)
 	if out["User"] != "1000:1000" {
 		t.Errorf("User = %v, want 1000:1000", out["User"])
+	}
+	if out["Hostname"] != "myhost" || out["Domainname"] != "example.com" {
+		t.Errorf("Hostname/Domainname must be preserved on standalone recreate: %v / %v", out["Hostname"], out["Domainname"])
+	}
+	// Docker rejects Hostname alongside a shared network mode: it must be
+	// omitted there, not just optionally sent.
+	sharedOut := buildUpgradeConfig(map[string]any{"Config": config}, "img:2", nil, nil, true)
+	if _, ok := sharedOut["Hostname"]; ok {
+		t.Errorf("Hostname must be omitted in shared network mode")
 	}
 	if hc, ok := out["Healthcheck"].(map[string]any); !ok || hc["StopSignal"] != nil {
 		t.Errorf("Healthcheck not preserved: %v", out["Healthcheck"])
@@ -243,6 +254,9 @@ func TestPreservedConfigFields(t *testing.T) {
 	}
 	if _, ok := rec["Healthcheck"].(map[string]any); !ok {
 		t.Errorf("recreate path dropped Healthcheck")
+	}
+	if _, ok := rec["Hostname"]; ok {
+		t.Errorf("dependent recreate (shared net) must not send Hostname")
 	}
 
 	// Empty/absent fields must not be added.

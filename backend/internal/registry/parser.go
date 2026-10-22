@@ -29,6 +29,23 @@ func cleanImageName(imageName string) string {
 	return imageName
 }
 
+// SplitRepoTag splits a Docker image reference into (repo, tag). The tag
+// separator is the LAST ":" that appears after the last "/", so registry
+// ports are never mistaken for tags: "localhost:5000/app" is an untagged
+// repo, not repo "localhost" with tag "5000/app". Digest suffixes
+// (@sha256:...) are stripped. Untagged references default to "latest".
+// This is the single canonical splitter; every repo/tag correlation site
+// must use it.
+func SplitRepoTag(image string) (repo, tag string) {
+	if idx := strings.Index(image, "@"); idx >= 0 {
+		image = image[:idx]
+	}
+	if idx := strings.LastIndex(image, ":"); idx >= 0 && idx > strings.LastIndex(image, "/") {
+		return image[:idx], image[idx+1:]
+	}
+	return image, "latest"
+}
+
 // ParseImageName parses a docker image reference into its components.
 func ParseImageName(imageName string) (*ParsedImage, error) {
 	if imageName == "" {
@@ -37,16 +54,13 @@ func ParseImageName(imageName string) (*ParsedImage, error) {
 
 	cleaned := cleanImageName(imageName)
 
-	// extractTag: last ":" segment is the tag; a name with no ":" defaults to latest.
-	parts := strings.Split(cleaned, ":")
+	// extractTag: the tag separator is the last ":" AFTER the last "/", so
+	// registry ports (localhost:5000/app) are not mis-split into a bogus tag.
 	tag := "latest"
 	nameWithoutTag := cleaned
-	if len(parts) > 1 {
-		tag = parts[len(parts)-1]
-		nameWithoutTag = strings.Join(parts[:len(parts)-1], ":")
-		if nameWithoutTag == "" {
-			nameWithoutTag = parts[0]
-		}
+	if idx := strings.LastIndex(cleaned, ":"); idx >= 0 && idx > strings.LastIndex(cleaned, "/") {
+		tag = cleaned[idx+1:]
+		nameWithoutTag = cleaned[:idx]
 	}
 
 	// extractRegistry

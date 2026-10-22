@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
-import { registerCacheClear } from "../utils/cacheRegistry";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { fetchContainersGraphql } from "../graphql/containers";
 import { graphqlClient } from "../graphql/client";
 import { UNUSED_IMAGES_QUERY } from "../graphql/queries";
@@ -70,8 +70,10 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
 
   const fetchUnusedImages = useCallback(async () => {
     try {
+      const gen = getSessionGeneration();
       const result = await graphqlClient.query(UNUSED_IMAGES_QUERY).toPromise();
       if (result.error) throw result.error;
+      if (isSessionStale(gen)) return; // logout mid-flight: not this session's data
       // Graph runnerId is String; the UI (source filters, delete payloads)
       // uses numeric runner ids like the legacy REST rows did.
       const images = (result.data?.unusedImages || []).map((img) =>
@@ -87,6 +89,7 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
   const fetchContainers = useCallback(
     async (showLoading = true, instanceUrl = null) => {
       try {
+        const gen = getSessionGeneration();
         // Track loading state for specific instance if provided
         if (instanceUrl) {
           setLoadingInstances((prev) => new Set(prev).add(instanceUrl));
@@ -110,6 +113,11 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
         // portainerOnly/instanceUrl scoping params are no longer needed —
         // callers may still pass them and they are ignored.
         const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+
+        // A logout (or user switch) happened mid-flight: this response
+        // belongs to the dead session and must not repopulate state —
+        // the app-level hook stays mounted across auth changes.
+        if (isSessionStale(gen)) return;
 
         // Preserve hasUpdate:false for containers that were successfully updated
         const updatedContainers = updateContainersWithPreservedState(

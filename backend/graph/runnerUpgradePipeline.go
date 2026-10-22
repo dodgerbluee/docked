@@ -262,6 +262,16 @@ func buildUpgradeConfig(details map[string]any, newImage string, cleanHC, netCfg
 		if ep, ok := config["ExposedPorts"].(map[string]any); ok && len(ep) > 0 {
 			out["ExposedPorts"] = ep
 		}
+		// Explicit hostnames carry application identity (service discovery,
+		// license files, logs); dropping them makes Docker assign a new
+		// random one. Docker rejects Hostname alongside a shared
+		// (container:/pod:) network mode, so keep them only when standalone.
+		if hn := jStr(config, "Hostname"); hn != "" {
+			out["Hostname"] = hn
+		}
+		if dn := jStr(config, "Domainname"); dn != "" {
+			out["Domainname"] = dn
+		}
 	}
 	if len(cleanHC) > 0 {
 		out["HostConfig"] = cleanHC

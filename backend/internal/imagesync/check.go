@@ -25,15 +25,11 @@ type UpdateInfo struct {
 	IsFallback        bool
 }
 
-// extractImageInfo ports extractImageInfo: split(":") -> [repo, tag],
-// tag defaults to "latest". Faithful to Node's naive split (registry ports
-// in image names would mis-split there too).
+// extractImageInfo splits an image reference into (repo, tag) using the one
+// canonical splitter, so registry-qualified references (localhost:5000/app)
+// keep their port in the repo instead of producing a bogus tag.
 func extractImageInfo(imageName string) (repo, tag string) {
-	parts := strings.Split(imageName, ":")
-	if len(parts) > 1 {
-		return parts[0], parts[1]
-	}
-	return imageName, "latest"
+	return registry.SplitRepoTag(imageName)
 }
 
 // detectProvider ports detectProvider/detectRegistry: ghcr/gitlab/gcr map
