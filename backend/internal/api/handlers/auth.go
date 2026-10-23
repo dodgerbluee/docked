@@ -396,18 +396,22 @@ func CreateUserWithConfig(database *sql.DB, secret string) http.HandlerFunc {
 
 		// Privilege-grant gate: instance-admin creation is only honored with
 		// the pending verification token minted via generateInstanceAdminToken.
+		// Checked WITHOUT consuming: the code is only destroyed once the user
+		// row actually exists. Consuming up front meant a failed password hash
+		// or a duplicate username burned the code, and recovering it means
+		// regenerating and reading a fresh one out of the server logs.
 		verificationToken := asString(body["verificationToken"])
 		if instanceAdmin {
-			consumed := false
+			matched := false
 			if verificationToken != "" {
 				var err error
-				consumed, err = db.ConsumePendingToken(r.Context(), database, "instance_admin", username, verificationToken)
+				matched, err = db.PendingTokenMatches(r.Context(), database, "instance_admin", username, verificationToken)
 				if err != nil {
 					internalFail(w)
 					return
 				}
 			}
-			if !consumed {
+			if !matched {
 				runnerFail(w, http.StatusForbidden, "A valid verification token is required to create an instance admin")
 				return
 			}
@@ -438,6 +442,16 @@ func CreateUserWithConfig(database *sql.DB, secret string) http.HandlerFunc {
 		}
 
 		if instanceAdmin {
+			// Consume only now that the grant is real. Matching on the token
+			// value rather than the username leaves a code that was regenerated
+			// while this request was in flight intact for its own grant.
+			consumed, err := db.ConsumePendingToken(r.Context(), database, "instance_admin", username, verificationToken)
+			if err != nil {
+				slog.Error("create-user-with-config: verification token consume failed", "error", err.Error())
+			} else if !consumed {
+				slog.Warn("create-user-with-config: pending verification token was replaced before it could be consumed",
+					"username", username)
+			}
 			if err := db.UpdateVerificationToken(r.Context(), database, username, verificationToken); err != nil {
 				slog.Error("create-user-with-config: verification token store failed", "error", err.Error())
 			}
@@ -453,10 +467,15 @@ func CreateUserWithConfig(database *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 
-		// Clear any leftover pending token (the grant path consumed it; this
-		// covers non-admin imports).
-		if err := db.DeletePendingToken(r.Context(), database, "instance_admin", username); err != nil {
-			slog.Warn("create-user-with-config: pending token cleanup failed", "error", err.Error())
+		// Non-admin imports only: discard a leftover pending code that can no
+		// longer lead to a grant. The admin path above already consumed the code
+		// it verified, matched on the token value; clearing by username here
+		// would instead erase a code the user regenerated while this request was
+		// running and tell them it was live.
+		if !instanceAdmin {
+			if err := db.DeletePendingToken(r.Context(), database, "instance_admin", username); err != nil {
+				slog.Warn("create-user-with-config: pending token cleanup failed", "error", err.Error())
+			}
 		}
 
 		results := map[string]any{

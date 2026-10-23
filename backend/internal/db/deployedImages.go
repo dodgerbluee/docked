@@ -104,6 +104,36 @@ func GetContainersMatchingIntent(ctx context.Context, database *sql.DB, userID i
 // evaluate the computed hasUpdate flag consistently with the imageInfo field.
 func ContainerHasUpdate(c ContainerRow) bool { return containerHasUpdate(c) }
 
+// CarryDigestBaselines copies each persisted row's deploy-time digest onto the
+// live row for the same host + name when the live row reports none.
+//
+// A live fetch wholly replaces the persisted row, so a container whose inspect
+// reports no repo digest (image pulled without one, runner that does not
+// report digests) would lose the only value the update check had to compare
+// against - and an update that was already known would silently disappear.
+// Keyed by the upgrade-lock identity (host + name) because a recreate changes
+// the Docker id underneath the same container.
+func CarryDigestBaselines(persisted, live []ContainerRow) {
+	baseline := make(map[string]string, len(persisted))
+	for _, row := range persisted {
+		if !row.RunnerID.Valid || !row.CurrentDigest.Valid || row.CurrentDigest.String == "" {
+			continue
+		}
+		baseline[UpgradeLockKey(row.RunnerID.Int64, row.ContainerName)] = row.CurrentDigest.String
+	}
+	for i := range live {
+		if live[i].CurrentDigest.Valid && live[i].CurrentDigest.String != "" {
+			continue
+		}
+		if !live[i].RunnerID.Valid {
+			continue
+		}
+		if d, ok := baseline[UpgradeLockKey(live[i].RunnerID.Int64, live[i].ContainerName)]; ok {
+			live[i].CurrentDigest = sql.NullString{String: d, Valid: true}
+		}
+	}
+}
+
 func containerHasUpdate(c ContainerRow) bool {
 	if c.Provider.Valid && strings.EqualFold(c.Provider.String, "github-releases") &&
 		c.ImageTag.Valid && c.LatestVersion.Valid {

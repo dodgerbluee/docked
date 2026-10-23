@@ -767,7 +767,7 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		start := time.Now()
 		status, errMsg := "success", ""
 		if runnerURL != "" {
-			pipelineCtx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			pipelineCtx, cancel := context.WithTimeout(r.backgroundCtx(), 15*time.Minute)
 			defer cancel()
 			phaseFn := func(p model.UpgradePhase) { r.publishUpgradePhase(uid, opID, container, p, "") }
 			if err := r.runnerUpgradePipeline(pipelineCtx, uid, container, runner, input.ImageName, phaseFn); err != nil {
@@ -832,12 +832,16 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 	// Fire-and-forget: iterate containers and upgrade each via runner
 	go func() {
 		defer doneBatch()
-		ctx := context.Background()
+		// The background parent, not context.Background(): shutdown cancels it
+		// once the settle window expires, so a batch that cannot finish is
+		// cancelled and each in-flight pipeline runs its detached rollback
+		// while the DB is still open, instead of the process exiting between a
+		// container removal and its recreate.
+		ctx := r.backgroundCtx()
 		containers, err := db.GetContainers(ctx, r.DB, uid)
 		if err != nil {
 			// Record the failure instead of silently marking the run completed.
-			db.CompleteBatchRun(ctx, r.DB, batchID, "failed", 0, 0, strPtr(err.Error()))
-			r.publishBatchRun(ctx, uid, batchID)
+			_ = r.finishBatchRun(ctx, uid, batchID, "failed", 0, 0, strPtr(err.Error()))
 			return
 		}
 		upgraded, attempted := 0, 0
@@ -904,7 +908,13 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			upgradeErr := r.runnerUpgradePipeline(pipelineCtx, uid, c, run, imageName, nil)
 			pipelineCancel()
 			stopHB()
-			_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
+			// Bookkeeping runs detached: shutdown cancels the batch parent while
+			// a pipeline is mid-flight, and releasing the lock or writing the
+			// history row on that cancelled context would strand the lock until
+			// its TTL and leave the attempt unrecorded.
+			bkCtx, bkCancel := detachedCtx(ctx, 30*time.Second)
+			defer bkCancel()
+			_ = db.ReleaseUpgradeLock(bkCtx, r.DB, targetKey, owner)
 			upStatus, upErr := "success", ""
 			if upgradeErr != nil {
 				upStatus, upErr = "failed", upgradeErr.Error()
@@ -915,7 +925,7 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				upgraded++
 			}
 			row := *c
-			r.recordUpgradeHistory(ctx, uid, &row, run, imageName,
+			r.recordUpgradeHistory(bkCtx, uid, &row, run, imageName,
 				upStatus, upErr, time.Since(upStart).Milliseconds(), nil)
 		}
 
@@ -1033,8 +1043,20 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				status = "failed"
 			}
 		}
-		db.CompleteBatchRun(ctx, r.DB, batchID, status, attempted, upgraded, msg)
-		r.publishBatchRun(ctx, uid, batchID)
+		// A cancelled parent means the loop stopped early - shutdown cancelled
+		// the background parent once the settle window expired. Reporting the
+		// partial pass as a clean success would hide that most of the selected
+		// fleet was never touched.
+		if ctx.Err() != nil {
+			status = "cancelled"
+			note := fmt.Sprintf("run interrupted after %d container(s) were attempted: %v", attempted, ctx.Err())
+			if msg != nil {
+				msg = strPtr(*msg + "; " + note)
+			} else {
+				msg = strPtr(note)
+			}
+		}
+		_ = r.finishBatchRun(ctx, uid, batchID, status, attempted, upgraded, msg)
 		if upgraded > 0 && r.Hub != nil {
 			r.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
 				SourceIds: []string{}, ContainerCount: 0,
@@ -1881,7 +1903,10 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 	doneIntent := r.trackWork()
 	go func() {
 		defer doneIntent()
-		runCtx := context.Background()
+		// The background parent, so shutdown can cut a run short instead of
+		// the process exiting under it; the executor writes its terminal state
+		// detached, so the execution row still lands.
+		runCtx := r.backgroundCtx()
 		if _, err := exec.ExecuteIntent(runCtx, &intentCopy, uid, intents.ExecOptions{
 			TriggerType: "manual",
 			ExecutionID: &execIDA,
@@ -2837,13 +2862,21 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 		stacks = append(stacks, sg)
 	}
 
-	runners, _ := db.GetAllRunners(ctx, r.DB, uid)
-	trackedApps, _ := db.GetAllTrackedApps(ctx, r.DB, uid)
-	unusedImages, unusedErr := db.GetUnusedImages(ctx, r.DB, uid)
-	if unusedErr != nil {
+	runners, err := db.GetAllRunners(ctx, r.DB, uid)
+	if err != nil {
+		// A discarded error left Runners empty and TotalRunners at 0, which
+		// is indistinguishable from a user who has no runners.
+		return nil, fmt.Errorf("runners: %w", err)
+	}
+	trackedApps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
+	if err != nil {
+		return nil, fmt.Errorf("tracked apps: %w", err)
+	}
+	unusedImages, err := db.GetUnusedImages(ctx, r.DB, uid)
+	if err != nil {
 		// Discarding this made a failed lookup indistinguishable from a clean
 		// system: the count simply read zero.
-		slog.Warn("unused images lookup failed", "error", unusedErr)
+		return nil, fmt.Errorf("unused images: %w", err)
 	}
 
 	runnerModels := make([]*model.Runner, len(runners))
@@ -3804,11 +3837,11 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	}
 
 	// unusedImagesCount
-	unusedImages, unusedErr := db.GetUnusedImages(ctx, r.DB, uid)
-	if unusedErr != nil {
+	unusedImages, err := db.GetUnusedImages(ctx, r.DB, uid)
+	if err != nil {
 		// Discarding this made a failed lookup indistinguishable from a clean
 		// system: the count simply read zero.
-		slog.Warn("unused images lookup failed", "error", unusedErr)
+		return nil, fmt.Errorf("unused images: %w", err)
 	}
 
 	return &model.SummaryStats{

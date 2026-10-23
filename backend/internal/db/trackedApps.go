@@ -332,14 +332,22 @@ func normalizeVersion(v string) string {
 // syncs latest_version, clears has_update, and optionally carries the publish date over.
 // Mirrors the Node PUT /tracked-apps/:id current_version semantics.
 //
-// The write is guarded on the observed (latest_version, latest_digest). A scan
-// that lands between the client rendering the card and the user confirming the
-// upgrade moves that observation, and an unguarded write then does two kinds of
-// damage at once: it writes latest_version back from the stale read (undoing the
-// scan's newer finding) and records the scan's digest as the baseline for a
-// version that never ran it. The app then reads as up to date while it is
-// behind. current_digest therefore comes from the observed snapshot rather than
-// the column, and hasUpdate lets the caller keep the flag set when a re-read
+// The write is guarded on the observed (latest_version, latest_digest) pair
+// plus the current state (current_version) and the source identity
+// (source_type, image_name, github_repo). A scan that lands between the client
+// rendering the card and the user confirming the upgrade moves the latest pair,
+// and an unguarded write then does two kinds of damage at once: it writes
+// latest_version back from the stale read (undoing the scan's newer finding) and
+// records the scan's digest as the baseline for a version that never ran it.
+// The app then reads as up to date while it is behind. Guarding current_version
+// matters for the same reason in the other direction: someone else may have
+// moved the app (a rollback, a re-deploy) while the user was deciding, and
+// acknowledging from a stale view would overwrite that. Guarding the source
+// identity stops an acknowledgement computed against the OLD source (the user
+// edited the repo or switched source_type) from writing a version string that
+// belongs to a different upstream.
+// current_digest therefore comes from the observed snapshot rather than the
+// column, and hasUpdate lets the caller keep the flag set when a re-read
 // shows the acknowledged version is no longer the observed latest. Returns
 // applied=false when the guard did not hold so the caller can re-read.
 func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, userID int64,
@@ -367,9 +375,14 @@ func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, user
 		     current_version_publish_date = ?, latest_version_publish_date = NULL,
 		     updated_at = datetime('now')
 		 WHERE id = ? AND user_id = ?
-		   AND latest_version IS NOT DISTINCT FROM ? AND latest_digest IS NOT DISTINCT FROM ?`,
+		   AND latest_version IS NOT DISTINCT FROM ? AND latest_digest IS NOT DISTINCT FROM ?
+		   AND current_version IS NOT DISTINCT FROM ?
+		   AND source_type IS NOT DISTINCT FROM ?
+		   AND image_name IS NOT DISTINCT FROM ?
+		   AND github_repo IS NOT DISTINCT FROM ?`,
 		currentVersion, newLatest, hasUpdate, currentDigest, publishDate, id, userID,
-		observed.LatestVersion, observed.LatestDigest)
+		observed.LatestVersion, observed.LatestDigest, observed.CurrentVersion,
+		observed.SourceType, observed.ImageName, observed.GithubRepo)
 	if err != nil {
 		return false, fmt.Errorf("set tracked app current version: %w", err)
 	}

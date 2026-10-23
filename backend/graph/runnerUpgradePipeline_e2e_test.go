@@ -667,3 +667,53 @@ func TestRestoreRemovedDependentsHonorsCallerDeadline(t *testing.T) {
 		t.Errorf("expired caller ctx must stop rollback work, got %d creates", len(recs))
 	}
 }
+
+// The container row is snapshotted before the caller acquires the upgrade lock,
+// and locks are keyed by host+name because an upgrade removes and recreates the
+// container under the same name. A recreate by anyone else in that window left
+// the pipeline addressing a Docker id that no longer exists, so it reported a
+// failure for a container that was running fine. It must re-resolve the name to
+// whatever container currently answers to it.
+func TestUpgradePipelineReResolvesReplacedContainerUnderLock(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	replacement := providerInspectDoc()
+	replacement["Id"] = "prov-2"
+	f.seed("prov-2", replacement)
+
+	r := &Resolver{DB: database}
+	stale := pipelineContainerRow() // still carries ContainerID "prov-1"
+	if err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, stale, pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil); err != nil {
+		t.Fatalf("pipeline errored on a container that exists: %v", err)
+	}
+	if got := f.stopCount("prov-2"); got != 1 {
+		t.Errorf("live container stopped %d times, want 1", got)
+	}
+	provider := f.findByName("gluetun")
+	if provider == nil {
+		t.Fatal("upgraded provider missing")
+	}
+	if jStr(jObj(provider, "State"), "Status") != "running" {
+		t.Error("upgraded provider must be running")
+	}
+}
+
+// The other half: when the runner answers and no container carries that name,
+// the target really is gone, and that must be the reported reason rather than a
+// raw inspect 404 against an id nobody recognises.
+func TestUpgradePipelineRejectsContainerThatIsGone(t *testing.T) {
+	database := newPipelineTestDB(t)
+	f := newFakeRunner(t)
+	f.seed("dep-1", dependentInspectDoc()) // a different container, same runner
+
+	r := &Resolver{DB: database}
+	err := (&mutationResolver{r}).runnerUpgradePipeline(
+		context.Background(), 1, pipelineContainerRow(), pipelineRunnerRow(f.srv.URL), "qmcgaw/gluetun:v1", nil)
+	if err == nil || !strings.Contains(err.Error(), "no longer exists") {
+		t.Fatalf("pipeline error = %v, want the container to be reported as gone", err)
+	}
+	if f.stopCount("dep-1") != 0 {
+		t.Error("a missing target must not touch the other container")
+	}
+}

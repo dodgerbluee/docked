@@ -5,6 +5,12 @@ services:
       dockerfile: Dockerfile
     container_name: docked
     restart: unless-stopped
+    # The process needs room to shut down cleanly: 10s to close HTTP, then a
+    # 90s window for in-flight upgrades, then up to 120s for the rollback of
+    # anything still mid-recreate after that. Docker's 10s default would
+    # SIGKILL through all of it, which is exactly the window where a container
+    # has been removed and not yet recreated.
+    stop_grace_period: 4m
     ports:
       - "3002:3002"
     environment:

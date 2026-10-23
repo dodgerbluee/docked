@@ -85,7 +85,13 @@ func (r *Resolver) IntentUpgrade(ctx context.Context, userID int64, c *db.Contai
 	if id, ok := intents.IntentIDFromContext(ctx); ok {
 		intentID = &id
 	}
-	r.recordUpgradeHistory(ctx, userID, c, rr, imageName, status, errMsg, duration, intentID)
+	// Recorded detached from the caller: a client disconnect, or shutdown
+	// cancelling the background parent, leaves ctx done at exactly the moment
+	// an attempt needs recording, and a lost row means the upgrade looks like
+	// it never happened.
+	histCtx, cancelHist := detachedCtx(ctx, 30*time.Second)
+	defer cancelHist()
+	r.recordUpgradeHistory(histCtx, userID, c, rr, imageName, status, errMsg, duration, intentID)
 	return err
 }
 

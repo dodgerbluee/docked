@@ -33,6 +33,23 @@ type Resolver struct {
 	// wait for them instead of exiting between a container removal and its
 	// recreate. Nil-safe: test resolvers are built without it.
 	BG *sync.WaitGroup
+
+	// Base is the parent for every fire-and-forget context this package
+	// builds. api.NewServer installs a cancellable one and cancels it when
+	// the shutdown settle window expires, so an upgrade that cannot finish
+	// in time is cancelled and runs its (detached) rollback while the DB is
+	// still open, instead of the process exiting mid-recreate. Nil-safe.
+	Base context.Context
+}
+
+// backgroundCtx is the parent for fire-and-forget work. It is the process
+// lifetime, never the requesting operation's context, so a client closing the
+// tab cannot cancel an upgrade that has already removed a container.
+func (r *Resolver) backgroundCtx() context.Context {
+	if r.Base == nil {
+		return context.Background()
+	}
+	return r.Base
 }
 
 // trackWork guards one fire-and-forget upgrade. The returned func must be

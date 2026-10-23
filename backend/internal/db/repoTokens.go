@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 type RepositoryTokenRow struct {
@@ -86,10 +87,44 @@ func UpsertRepositoryToken(ctx context.Context, database *sql.DB, userID int64, 
 // DeleteRepositoryToken reports how many rows it removed so the caller can
 // tell a real delete from an id that matched nothing (stale UI, or another
 // user's row).
+//
+// The delete also clears every reference to the token. PRAGMA foreign_keys is
+// OFF, so the schema's ON DELETE clauses never fire, and the surviving
+// repository_token_id values are worse than no credential at all: the image
+// still looks associated, so its release lookups keep asking for a token that
+// does not exist instead of falling back, and the association UI lists images
+// under a host that is gone. One transaction, so a failed clear cannot leave a
+// deleted token with its references behind.
 func DeleteRepositoryToken(ctx context.Context, database *sql.DB, id, userID int64) (int64, error) {
-	res, err := database.ExecContext(ctx, "DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?", id, userID)
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin token delete: %w", err)
+	}
+	defer tx.Rollback()
+
+	clears := []string{
+		`UPDATE deployed_images SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
+		  WHERE user_id = ? AND repository_token_id = ?`,
+		`UPDATE tracked_apps SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
+		  WHERE user_id = ? AND repository_token_id = ?`,
+	}
+	for _, q := range clears {
+		if _, err := tx.ExecContext(ctx, q, userID, id); err != nil {
+			return 0, fmt.Errorf("clear repository token references: %w", err)
+		}
+	}
+
+	res, err := tx.ExecContext(ctx,
+		"DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return 0, err
 	}
-	return res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return n, nil
 }

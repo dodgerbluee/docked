@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -35,22 +36,26 @@ func ContainerToRow(ctx context.Context, database *sql.DB, uid int64, rr db.Runn
 // runner, loading the user's registry_image_versions rows once instead of
 // one GetRegistryData per container — the per-container lookup was an N+1
 // on every live container listing and intent match.
-func FetchContainerRows(ctx context.Context, database *sql.DB, uid int64, rr db.RunnerRow, ctrs []domain.Container) []db.ContainerRow {
+//
+// A failed registry load is returned as an error rather than answered with an
+// unenriched batch: callers replace the persisted rows with the live ones for
+// any runner this returns rows for, so rows without their registry columns
+// would strip updates the scan had already confirmed. Reporting it lets the
+// caller keep the persisted rows instead (stale beats missing).
+func FetchContainerRows(ctx context.Context, database *sql.DB, uid int64, rr db.RunnerRow, ctrs []domain.Container) ([]db.ContainerRow, error) {
 	registry, err := db.GetRegistryDataMap(ctx, database, uid)
 	if err != nil {
-		slog.Debug("live runner registry map load failed", "runner", rr.Name, "error", err)
+		return nil, fmt.Errorf("load registry data for runner %s: %w", rr.Name, err)
 	}
 	out := make([]db.ContainerRow, 0, len(ctrs))
 	for _, c := range ctrs {
 		row := containerRowBase(rr, c)
-		if registry != nil {
-			if d := registry.Get(splitImageRepoTag(resolveImageReference(c))); d != nil {
-				applyRegistryData(&row, d)
-			}
+		if d := registry.Get(splitImageRepoTag(resolveImageReference(c))); d != nil {
+			applyRegistryData(&row, d)
 		}
 		out = append(out, row)
 	}
-	return out
+	return out, nil
 }
 
 // applyRegistryData copies the joined registry columns onto a converted row.

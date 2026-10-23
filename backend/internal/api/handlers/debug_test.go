@@ -80,13 +80,16 @@ func newDebugTestDBAt(t *testing.T, path string) *sql.DB {
 	return database
 }
 
-func newDebugRouter(database *sql.DB, cfg *config.Config) http.Handler {
+func newDebugRouter(t *testing.T, database *sql.DB, cfg *config.Config) http.Handler {
 	r := chi.NewRouter()
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(auth.StrictMiddleware(testJWTSecret, database))
 			r.Route("/debug", func(r chi.Router) {
-				DebugRoutes(r, database, cfg, nil)
+				// The mount opens its own read-only pool; nothing else owns it.
+				if closeFn := DebugRoutes(r, database, cfg, nil); closeFn != nil {
+					t.Cleanup(closeFn)
+				}
 			})
 		})
 	})
@@ -135,7 +138,7 @@ func doDebugReq(t *testing.T, router http.Handler, method, path, token string, b
 
 func TestDebugGateDisabled(t *testing.T) {
 	database := newDebugTestDB(t)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 	rec := doDebugReq(t, router, http.MethodGet, "/api/debug/health", tokenFor(t, 1, "admin"), nil)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
@@ -149,7 +152,7 @@ func TestDebugGateDisabled(t *testing.T) {
 func TestDebugRequiresInstanceAdmin(t *testing.T) {
 	database := newDebugTestDB(t)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 
 	rec := doDebugReq(t, router, http.MethodGet, "/api/debug/health", tokenFor(t, 2, "member"), nil)
 	if rec.Code != http.StatusForbidden {
@@ -169,7 +172,7 @@ func TestDebugRequiresInstanceAdmin(t *testing.T) {
 func TestDebugHealth(t *testing.T) {
 	database := newDebugTestDB(t)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 
 	rec := doDebugReq(t, router, http.MethodGet, "/api/debug/health", tokenFor(t, 1, "admin"), nil)
 	if rec.Code != http.StatusOK {
@@ -194,7 +197,7 @@ func TestDebugHealth(t *testing.T) {
 func TestDebugLocks(t *testing.T) {
 	database := newDebugTestDB(t)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 
 	ok, err := db.AcquireUpgradeLock(t.Context(), database, "image:nginx:latest", "op-1")
 	if err != nil || !ok {
@@ -223,7 +226,7 @@ func TestDebugDBQuery(t *testing.T) {
 	dbPath := t.TempDir() + "/debug-test.db"
 	database := newDebugTestDBAt(t, dbPath)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{DBPath: dbPath})
+	router := newDebugRouter(t, database, &config.Config{DBPath: dbPath})
 	admin := tokenFor(t, 1, "admin")
 
 	// Named catalog query.
@@ -307,7 +310,7 @@ func TestDebugLogs(t *testing.T) {
 	setDebugEnabled(t, database, true)
 	cfg := &config.Config{}
 	cfg.Edge.LogsDir = logsDir
-	router := newDebugRouter(database, cfg)
+	router := newDebugRouter(t, database, cfg)
 	admin := tokenFor(t, 1, "admin")
 
 	// Node's slice(-lines) counts the empty string after the trailing
@@ -336,7 +339,7 @@ func TestDebugLogs(t *testing.T) {
 func TestDebugCacheStateAndClear(t *testing.T) {
 	database := newDebugTestDB(t)
 	setDebugEnabled(t, database, true)
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 	admin := tokenFor(t, 1, "admin")
 
 	rec := doDebugReq(t, router, http.MethodGet, "/api/debug/cache", admin, nil)
@@ -383,7 +386,7 @@ func TestDebugRunnerProxy(t *testing.T) {
 		stub.URL); err != nil {
 		t.Fatalf("seed runner: %v", err)
 	}
-	router := newDebugRouter(database, &config.Config{})
+	router := newDebugRouter(t, database, &config.Config{})
 	admin := tokenFor(t, 1, "admin")
 
 	// 2xx: payload gains success:true.

@@ -9,6 +9,7 @@ package intents
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -33,6 +34,14 @@ type MatchOutcome struct {
 // FindMatchingContainers evaluates the intent against all candidate
 // containers for the user.
 func FindMatchingContainers(ctx context.Context, database *sql.DB, intent *db.IntentRow, userID int64, requireUpdate, trackExcluded bool) (*MatchOutcome, error) {
+	// Fail closed before anything is matched. A stored value that is not a
+	// JSON array decodes as "unset", which deactivates that dimension - so a
+	// corrupt exclude list would silently stop excluding, and the intent would
+	// upgrade containers the user had explicitly ruled out.
+	if err := db.IntentFilterError(intent); err != nil {
+		return nil, fmt.Errorf("intent %d: %w", intent.ID, err)
+	}
+
 	matchC := db.UnmarshalStringArr(intent.MatchContainers)
 	matchI := db.UnmarshalStringArr(intent.MatchImages)
 	matchS := db.UnmarshalStringArr(intent.MatchSources)
@@ -73,6 +82,12 @@ func FindMatchingContainers(ctx context.Context, database *sql.DB, intent *db.In
 		}
 		all = append(all, c)
 	}
+	// The live row wholly replaces the persisted one, so carry each persisted
+	// row's deploy-time digest onto its live counterpart when the live inspect
+	// reported none. Without that, a container whose image carries no registry
+	// digest stops matching a requireUpdate policy that was matching it, and
+	// the intent quietly stops covering it.
+	db.CarryDigestBaselines(dbContainers, live)
 	all = append(all, live...)
 
 	sourceURLs := make(map[int64]string, len(sourceInstances))
@@ -174,7 +189,16 @@ func fetchLiveRunnerContainers(ctx context.Context, database *sql.DB, userID int
 					"runnerId", rr.ID, "runnerName", rr.Name, "error", err)
 				return
 			}
-			fetched := runner.FetchContainerRows(ctx, database, userID, rr, ctrs)
+			fetched, ferr := runner.FetchContainerRows(ctx, database, userID, rr, ctrs)
+			if ferr != nil {
+				// Not marked as reached, so this runner's persisted rows are
+				// kept: unenriched live rows would drop the update state the
+				// scan confirmed and make a requireUpdate intent stop matching
+				// containers it was upgrading.
+				slog.Warn("intent matching: runner registry enrichment failed",
+					"runnerId", rr.ID, "runnerName", rr.Name, "error", ferr)
+				return
+			}
 			mu.Lock()
 			reached[rr.ID] = true
 			out = append(out, fetched...)

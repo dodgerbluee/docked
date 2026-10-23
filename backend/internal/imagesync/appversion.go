@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/dockedapp/backend/internal/db"
@@ -61,21 +62,17 @@ func (s *Service) AppVersionExecuteAndComplete(ctx context.Context, userID, runI
 	stopHeartbeat := s.heartbeatRun(ctx, runID)
 	defer stopHeartbeat()
 
-	checked, updated, err := s.ScanRunnerApps(ctx, userID)
-
-	doneCtx := context.WithoutCancel(ctx)
-	if err != nil {
-		msg := err.Error()
-		if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "failed", checked, updated, &msg); cerr != nil {
-			slog.Error("failed to mark app-version-scan batch run failed", "runId", runID, "error", cerr)
-		}
-		return err
+	checked, updated, runErr := s.ScanRunnerApps(ctx, userID)
+	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
+	if runErr == nil || isPartialScan(runErr) {
+		// Immediate intents key off what the scan found, so they must still
+		// fire when the scan finished but could not reach part of the fleet.
+		s.fireScanComplete(context.WithoutCancel(ctx), userID, updated)
 	}
-	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
-		slog.Error("failed to mark app-version-scan batch run completed", "runId", runID, "error", cerr)
+	if runErr != nil {
+		return runErr
 	}
-	s.fireScanComplete(ctx, userID, updated)
-	return nil
+	return completeErr
 }
 
 // RunWithLockAppVersion performs the scan with the same guard stack as Node's
@@ -105,7 +102,9 @@ func (s *Service) ScanRunnerApps(ctx context.Context, userID int64) (int, int, e
 	slog.Info("starting app version scan", "userId", userID, "runnerCount", len(runners))
 
 	var mu sync.Mutex
-	checked, updated, runnersSkipped := 0, 0, 0
+	checked, updated := 0, 0
+	var failed []string
+	scanned := 0
 	var wg sync.WaitGroup
 
 	for i := range runners {
@@ -119,29 +118,45 @@ func (s *Service) ScanRunnerApps(ctx context.Context, userID int64) (int, int, e
 				}
 			}()
 
-			c, u, skipped := s.scanRunnerApps(ctx, userID, rr)
+			c, u, serr := s.scanRunnerApps(ctx, userID, rr)
 			mu.Lock()
-			checked += c
-			updated += u
-			runnersSkipped += skipped
+			if serr != nil {
+				failed = append(failed, serr.Error())
+			} else {
+				scanned++
+				checked += c
+				updated += u
+			}
 			mu.Unlock()
 		}()
 	}
 	wg.Wait()
 
+	// Runners that could not answer used to be counted as "skipped" and
+	// dropped, so an unreachable fleet finished as a clean 0/0 success.
+	var runErr error
+	if len(failed) > 0 {
+		if scanned == 0 {
+			runErr = fmt.Errorf("no runner could be scanned: %s", strings.Join(failed, "; "))
+		} else {
+			runErr = &PartialScanError{Scanned: scanned, Failed: len(failed), Details: failed}
+		}
+	}
+
 	slog.Info("app version scan completed", "userId", userID,
-		"itemsChecked", checked, "itemsUpdated", updated, "runnersSkipped", runnersSkipped)
-	return checked, updated, nil
+		"itemsChecked", checked, "itemsUpdated", updated, "runnersFailed", len(failed))
+	return checked, updated, runErr
 }
 
 // scanRunnerApps processes one runner: fetch + enrich + notify.
 // Mirrors the per-runner branch of Node's Promise.allSettled map callback.
-func (s *Service) scanRunnerApps(ctx context.Context, userID int64, rr db.RunnerRow) (checked, updated, skipped int) {
+// The error is non-nil only when the whole runner could not be scanned.
+func (s *Service) scanRunnerApps(ctx context.Context, userID int64, rr db.RunnerRow) (checked, updated int, err error) {
 	data, err := runner.FetchJSON(ctx, rr, "/apps", nil)
 	if err != nil {
 		slog.Warn("runner unreachable during app version scan, skipping",
 			"runnerId", rr.ID, "runnerName", rr.Name, "error", err.Error())
-		return 0, 0, 1
+		return 0, 0, fmt.Errorf("%s: %w", rr.Name, err)
 	}
 
 	apps := decodeRunnerApps(data["apps"])
@@ -174,7 +189,7 @@ func (s *Service) scanRunnerApps(ctx context.Context, userID int64, rr db.Runner
 		}, userID)
 	}
 
-	return len(apps), len(updatedApps), 0
+	return len(apps), len(updatedApps), nil
 }
 
 // decodeRunnerApps re-decodes the raw /apps payload list into typed apps

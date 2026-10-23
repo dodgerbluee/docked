@@ -161,8 +161,29 @@ func main() {
 	case <-settled:
 		slog.Info("in-flight upgrade work settled")
 	case <-settle.Done():
-		slog.Warn("shutdown deadline reached with upgrade work still running")
+		// A pipeline is allowed far longer than this window, so timing out here
+		// does not mean the work finished - it means it is still mid-flight,
+		// possibly between a container removal and its recreate. Cancelling the
+		// background parent makes each one abort at its next checkpoint and run
+		// its rollback on a detached context, and that rollback needs the DB
+		// still open. So cancel, then give the rescue its own bounded window
+		// before the database closes.
+		slog.Warn("shutdown settle window expired; cancelling in-flight background work")
+		apiServer.CancelBackground()
+		rescue, cancelRescue := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancelRescue()
+		select {
+		case <-settled:
+			slog.Info("cancelled background work rolled back and settled")
+		case <-rescue.Done():
+			slog.Error("background work still running at exit; stale-run reapers will finalise it")
+		}
 	}
+
+	// HTTP is closed and the background work has settled, so the auxiliary
+	// pools this server opened have no more users. Release them before the
+	// main database handle goes away.
+	apiServer.Close()
 }
 
 // sweepStaleIntentExecutions marks intent executions that stopped reporting as

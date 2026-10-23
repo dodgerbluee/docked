@@ -149,6 +149,23 @@ func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int
 	r.Hub.PublishOperation(uid, *operationFromBatchRun(m))
 }
 
+// finishBatchRun writes a batch run's terminal state and publishes it. The
+// write is detached from the caller: the usual reasons a fire-and-forget job
+// reaches this point on a dead context are a client disconnect or a shutdown
+// cancel, and losing the terminal write would leave the row showing "running"
+// forever to every poller and subscriber. The completion error is logged and
+// returned so the caller can stop reporting a clean finish.
+func (r *mutationResolver) finishBatchRun(ctx context.Context, uid, batchID int64, status string, checked, updated int, msg *string) error {
+	done, cancel := detachedCtx(ctx, 15*time.Second)
+	defer cancel()
+	err := db.CompleteBatchRun(done, r.DB, batchID, status, checked, updated, msg)
+	if err != nil {
+		slog.Error("failed to record batch run outcome", "batchId", batchID, "status", status, "error", err)
+	}
+	r.publishBatchRun(done, uid, batchID)
+	return err
+}
+
 // operationFromBatchRun projects a batch run onto the Operation shape the
 // operationProgress subscription carries.
 func operationFromBatchRun(b *model.BatchRun) *model.Operation {
@@ -160,9 +177,20 @@ func operationFromBatchRun(b *model.BatchRun) *model.Operation {
 		CompletedAt: b.CompletedAt,
 		Message:     b.ErrorMessage,
 	}
+	// BatchRunStatus and OperationStatus share the same five members, so the
+	// projection is 1:1. Collapsing everything that is not "running" into
+	// COMPLETED made a failed or cancelled job read as a success over the
+	// subscription while the same run polled through the query API reported
+	// FAILED, so the two views of one job disagreed.
 	switch b.Status {
 	case model.BatchRunStatusRunning:
 		op.Status = model.OperationStatusRunning
+	case model.BatchRunStatusPending:
+		op.Status = model.OperationStatusPending
+	case model.BatchRunStatusFailed:
+		op.Status = model.OperationStatusFailed
+	case model.BatchRunStatusCancelled:
+		op.Status = model.OperationStatusCancelled
 	default:
 		op.Status = model.OperationStatusCompleted
 	}
@@ -263,15 +291,32 @@ func claimIdempotency(ctx context.Context, database *sql.DB, userID int64, opera
 	return nil
 }
 
+// detachedCtx keeps a bookkeeping write (lock release, history row, batch-run
+// terminal state) alive when the operation that owns it is cancelled - either
+// because the client disconnected, or because shutdown cancelled the background
+// parent after the settle window expired. Dropping those writes leaves a lock
+// held until its TTL or a run stuck in "running" forever. WithoutCancel also
+// discards the parent's deadline, so the timeout replaces it.
+func detachedCtx(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
+}
+
 // releaseIdempotency undoes a claim when the mutation fails before any work
 // was recorded, so the client's retry with the same key is not stranded as a
 // "duplicate" for 24 hours. Best-effort: a failed release only degrades back
 // to the old stranding behavior.
+//
+// The release is detached from the caller's context. The most likely reason
+// the initial work creation failed is that the client disconnected, which
+// leaves ctx already done - so releasing on it would fail too and the claim
+// would be stranded for a full day with no operation behind it.
 func releaseIdempotency(ctx context.Context, database *sql.DB, userID int64, operationType string, key *string) {
 	if key == nil || *key == "" {
 		return
 	}
-	if err := db.ReleaseIdempotencyKey(ctx, database, userID, operationType, *key); err != nil {
+	done, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := db.ReleaseIdempotencyKey(done, database, userID, operationType, *key); err != nil {
 		slog.Warn("failed to release idempotency claim", "userId", userID, "op", operationType, "error", err)
 	}
 }

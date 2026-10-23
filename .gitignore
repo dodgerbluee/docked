@@ -56,3 +56,7 @@ tmp/
 temp/
 dockhand
 test-results/
+
+# Go cross-build artifacts
+backend/api
+backend/dtk-api*

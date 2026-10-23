@@ -37,7 +37,11 @@ import (
 // DebugRoutes mounts the /api/debug surface. Callers must already have run
 // the strict auth middleware (Node mounts the router after authenticate).
 // syncSvc may be nil; its digest cache is then omitted from cache reports.
-func DebugRoutes(r chi.Router, database *sql.DB, cfg *config.Config, syncSvc *imagesync.Service) {
+//
+// The returned func releases the read-only connection pool this mount opens.
+// Nothing else owns it: without it the pool stays open for the life of the
+// process, holding a SQLite handle that no request will ever use again.
+func DebugRoutes(r chi.Router, database *sql.DB, cfg *config.Config, syncSvc *imagesync.Service) func() {
 	// Arbitrary SQL runs on a dedicated READ-ONLY connection: the prefix
 	// allowlist is bypassable (WITH x AS (...) INSERT/UPDATE, PRAGMA writes),
 	// so enforcement must happen at the engine level, not in string checks.
@@ -51,6 +55,15 @@ func DebugRoutes(r chi.Router, database *sql.DB, cfg *config.Config, syncSvc *im
 	r.Post("/db", debugRunQuery(database, roDB, roErr))
 	r.Post("/cache/clear", debugClearCaches(database, syncSvc))
 	r.Handle("/runner/{runnerId}/*", debugRunnerProxy(database))
+
+	if roDB == nil {
+		return nil
+	}
+	return func() {
+		if err := roDB.Close(); err != nil {
+			slog.Warn("closing read-only debug pool failed", "error", err.Error())
+		}
+	}
 }
 
 // debugGate rejects everything unless debug_endpoints_enabled == "true"

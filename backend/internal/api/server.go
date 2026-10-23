@@ -96,6 +96,36 @@ type Server struct {
 	// upgrades counts fire-and-forget upgrade goroutines started through the
 	// GraphQL layer; the resolver holds a pointer to it.
 	upgrades *sync.WaitGroup
+
+	// baseCancel cancels the parent of every fire-and-forget context. The
+	// process owner calls it when the shutdown settle window expires.
+	baseCancel context.CancelFunc
+
+	// closers releases auxiliary pools this server opened (the read-only
+	// SQLite pool behind the debug surface). The process owner calls Close
+	// during shutdown.
+	closers []func()
+}
+
+// Close releases the auxiliary resources the server owns. Safe to call more
+// than once.
+func (s *Server) Close() {
+	for _, closeFn := range s.closers {
+		closeFn()
+	}
+	s.closers = nil
+}
+
+// CancelBackground tells in-flight fire-and-forget work (upgrade pipelines,
+// batch runs, intent executions) to stop at its next checkpoint. Each one
+// writes its terminal state detached, and a cancelled pipeline runs its
+// rollback on a context that ignores cancellation, so this is what turns
+// "the process exited mid-recreate" into "the container was restored and the
+// attempt was recorded" when the settle window is not enough.
+func (s *Server) CancelBackground() {
+	if s.baseCancel != nil {
+		s.baseCancel()
+	}
 }
 
 // WaitUpgrade blocks until upgrade work started through the GraphQL layer has
@@ -144,8 +174,14 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// on a WS handshake. The returned context flows into every subscription
 	// operation on that connection.
 	var upgrades sync.WaitGroup
+	// base is the parent of every fire-and-forget context in the GraphQL and
+	// intent layers. Shutdown cancels it when the settle window expires: an
+	// upgrade that cannot finish in time is then cancelled and runs its
+	// detached rollback while the DB is still open, instead of the process
+	// exiting between a container removal and its recreate.
+	base, cancelBase := context.WithCancel(context.Background())
 	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc,
-		OAuth: oauth.NewRegistry(database, cfg.OAuth), BG: &upgrades}
+		OAuth: oauth.NewRegistry(database, cfg.OAuth), BG: &upgrades, Base: base}
 	// Intent engine: one shared executor (resolver-bound upgrade/publish/
 	// notify) adopted by the evaluator AND the manual trigger resolvers, so
 	// all execution paths use the same live matcher and lock semantics. The
@@ -153,6 +189,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// BatchManager hook).
 	intentExec := resolver.BuildIntentExecutor()
 	intentEval := intents.NewEvaluator(database, intentExec)
+	intentEval.Base = base
 	resolver.Intents = intentEval
 	if syncSvc != nil {
 		syncSvc.OnScanComplete = intentEval.EvaluateImmediateIntents
@@ -449,6 +486,9 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	}
 	versionLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
 
+	// Pools opened by route mounts that the process owner must release.
+	var closers []func()
+
 	r.Route("/api", func(r chi.Router) {
 		r.Use(globalLimit)
 
@@ -464,7 +504,9 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 		r.Group(func(r chi.Router) {
 			r.Use(auth.StrictMiddleware(cfg.JWTSecret, database))
 			r.Route("/debug", func(r chi.Router) {
-				handlers.DebugRoutes(r, database, cfg, syncSvc)
+				if closeFn := handlers.DebugRoutes(r, database, cfg, syncSvc); closeFn != nil {
+					closers = append(closers, closeFn)
+				}
 			})
 		})
 
@@ -551,7 +593,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	}
 
 	slog.Info("GraphQL server ready", "endpoint", "/graphql", "playground", "/playground")
-	return &Server{Handler: r, Intents: intentEval, upgrades: &upgrades}
+	return &Server{Handler: r, Intents: intentEval, upgrades: &upgrades, baseCancel: cancelBase, closers: closers}
 }
 
 // isLocalKey matches Node's globalLimiter skip list (localhost in dev).

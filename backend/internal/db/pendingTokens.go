@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -46,6 +47,22 @@ func DeletePendingToken(ctx context.Context, database *sql.DB, kind, username st
 		return fmt.Errorf("delete pending token: %w", err)
 	}
 	return nil
+}
+
+// PendingTokenMatches reports whether token is the pending token stored for
+// kind+username, WITHOUT consuming it. Callers that grant a privilege use
+// this to check the code up front and ConsumePendingToken only after the
+// privilege actually exists: consuming first means a failed insert burns a
+// code that took a trip through the server logs to obtain.
+func PendingTokenMatches(ctx context.Context, database *sql.DB, kind, username, token string) (bool, error) {
+	if token == "" {
+		return false, nil
+	}
+	stored, err := GetPendingToken(ctx, database, kind, username)
+	if err != nil || stored == nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare([]byte(*stored), []byte(token)) == 1, nil
 }
 
 // ConsumePendingToken atomically verifies and clears a pending token: the

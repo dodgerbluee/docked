@@ -1651,34 +1651,37 @@ func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.R
 
 // upgradeBlocklisted mirrors Node's isContainerDisallowed: with no saved list,
 // match image-name substrings against defaultBlockedPatterns; with a saved JSON
-// list, exact container-name match. Any read/parse error means "not blocked".
-func (r *mutationResolver) upgradeBlocklisted(ctx context.Context, uid int64, containerName, imageName string) bool {
+// list, exact container-name match.
+//
+// A read or parse failure is reported as an error instead of answered with
+// "not blocked". The blocklist is the guard that keeps an upgrade from
+// destroying a container the administrator ruled out, so an unreadable guard
+// must stop the upgrade rather than wave it through.
+func (r *mutationResolver) upgradeBlocklisted(ctx context.Context, uid int64, containerName, imageName string) (bool, error) {
 	raw, err := db.GetSetting(ctx, r.DB, "disallowed_containers", uid)
 	if err != nil {
-		log.Printf("upgrade: failed to read disallowed_containers: %v", err)
-		return false
+		return false, fmt.Errorf("read upgrade blocklist: %w", err)
 	}
 	if raw == nil || *raw == "" { // Node's `!setting` is falsy for "" too
 		lower := strings.ToLower(imageName)
 		for _, p := range defaultBlockedPatterns {
 			if strings.Contains(lower, p) {
-				return true
+				return true, nil
 			}
 		}
-		return false
+		return false, nil
 	}
 	var list []string
 	if err := json.Unmarshal([]byte(*raw), &list); err != nil {
-		log.Printf("upgrade: disallowed_containers is not a valid array: %v", err)
-		return false
+		return false, fmt.Errorf("upgrade blocklist is not a valid list: %w", err)
 	}
 	target := strings.ToLower(containerName)
 	for _, n := range list {
 		if strings.ToLower(n) == target {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // ── Main pipeline ───────────────────────────────────────────────────────────
@@ -1712,9 +1715,42 @@ func setPhase(phase func(model.UpgradePhase), p model.UpgradePhase) {
 // nil); the caller owns the terminal COMPLETED/FAILED event and history row.
 func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64, container *db.ContainerRow, rr *db.RunnerRow, imageName string, phase func(model.UpgradePhase)) error {
 	// Inspect the current container: the authoritative config source.
-	details, err := runner.InspectContainer(ctx, *rr, container.ContainerID)
+	//
+	// The row was snapshotted before the caller acquired the upgrade lock, and
+	// locks are keyed by host+NAME because an upgrade removes and recreates the
+	// container under the same name. So a recreate by anyone else in that
+	// window leaves this row holding a Docker id that no longer exists, and
+	// every call below would fail against a container that is running fine.
+	// Re-resolve the name to whatever container currently answers to it.
+	targetID := container.ContainerID
+	details, err := runner.InspectContainer(ctx, *rr, targetID)
 	if err != nil {
-		return fmt.Errorf("inspect container: %w", err)
+		inspectErr := err
+		cleanTarget := lockNameOf(container.ContainerName)
+		if live, lerr := runner.FetchContainers(ctx, *rr); lerr == nil {
+			found := false
+			for _, c := range live {
+				if lockNameOf(c.Name) != cleanTarget {
+					continue
+				}
+				found = true
+				if c.ID != targetID {
+					details, err = runner.InspectContainer(ctx, *rr, c.ID)
+					if err == nil {
+						targetID = c.ID
+						slog.Info("upgrade: container was replaced before its lock was used, using the live id",
+							"container", cleanTarget, "oldId", container.ContainerID, "newId", c.ID)
+					}
+				}
+				break
+			}
+			if !found {
+				return fmt.Errorf("container %s no longer exists on runner %s", cleanTarget, rr.Name)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("inspect container: %w", inspectErr)
+		}
 	}
 	originalName := jStr(details, "Name")
 	if originalName == "" {
@@ -1727,7 +1763,11 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	}
 
 	// Blocklist check (image-name defaults when no explicit list is saved).
-	if r.upgradeBlocklisted(ctx, uid, cleanName, imageName) {
+	blocklisted, err := r.upgradeBlocklisted(ctx, uid, cleanName, imageName)
+	if err != nil {
+		return err
+	}
+	if blocklisted {
 		return fmt.Errorf("container %q is in the upgrade blocklist and cannot be upgraded", cleanName)
 	}
 
@@ -1748,7 +1788,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	// another upgrade) could stop or remove a dependent while we recreate it,
 	// leaving the dependency permanently broken. The target container's own
 	// lock is already held by the caller.
-	deps, depErr := findDependentContainers(ctx, *rr, container.ContainerID, cleanName)
+	deps, depErr := findDependentContainers(ctx, *rr, targetID, cleanName)
 	if depErr != nil {
 		// Nothing has been stopped or removed yet, so refusing to proceed is
 		// safe; proceeding is not.
@@ -1805,7 +1845,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		// remove) would leave it deleted with its config only in this
 		// snapshot.
 		if !removed {
-			if err := runner.StartContainer(rctx, *rr, container.ContainerID); err != nil {
+			if err := runner.StartContainer(rctx, *rr, targetID); err != nil {
 				slog.Warn("upgrade rollback: start original container failed", "container", cleanName, "error", err)
 			}
 			return
@@ -1831,11 +1871,11 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	}
 
 	setPhase(phase, model.UpgradePhaseStopping)
-	if err := runner.StopContainer(ctx, *rr, container.ContainerID); err != nil {
+	if err := runner.StopContainer(ctx, *rr, targetID); err != nil {
 		restore()
 		return fmt.Errorf("stop container: %w", err)
 	}
-	waitForContainerStop(ctx, *rr, container.ContainerID, cleanName)
+	waitForContainerStop(ctx, *rr, targetID, cleanName)
 
 	setPhase(phase, model.UpgradePhasePulling)
 	if err := runner.PullImage(ctx, *rr, newImage); err != nil {
@@ -1843,7 +1883,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		return fmt.Errorf("pull image %s: %w", newImage, err)
 	}
 
-	if err := runner.RemoveContainer(ctx, *rr, container.ContainerID, false); err != nil {
+	if err := runner.RemoveContainer(ctx, *rr, targetID, false); err != nil {
 		restore()
 		return fmt.Errorf("remove container: %w", err)
 	}
@@ -1872,7 +1912,17 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	}
 
 	// Dependent restarts must not fail an otherwise successful upgrade.
+	//
+	// Everything below is the part that puts the rest of the stack back. The
+	// pipeline ctx can already be canceled (client disconnect) or past its
+	// readiness deadline at exactly this point, and running the rescue on it
+	// left dependents we had ALREADY stopped or removed permanently down while
+	// the operation reported success. The rescue therefore runs detached with
+	// its own budget; the dependent locks stay held across it because
+	// releaseDepLocks is deferred until this function returns.
 	setPhase(phase, model.UpgradePhaseRestartingDependents)
+	rctx, cancelRecovery := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+	defer cancelRecovery()
 	preRestored := map[string]bool{}
 	// IDs the pipeline already holds upgrade locks on (acquired before the
 	// dependents were stopped). The recovery sweep must treat them as ours
@@ -1882,8 +1932,8 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		// The up-front removal deleted these dependents; the post-upgrade
 		// sweep only sees containers that still exist, so recreate them
 		// from their pre-stop snapshots against the new provider first.
-		waitForUpgradedContainerHealth(ctx, *rr, newID)
-		if err := restoreRemovedDependents(ctx, *rr, deps, cleanName, details); err != nil {
+		waitForUpgradedContainerHealth(rctx, *rr, newID)
+		if err := restoreRemovedDependents(rctx, *rr, deps, cleanName, details); err != nil {
 			// The provider upgrade itself succeeded and rolling it back
 			// would be worse; but we removed these dependents, so the
 			// operation must not report a clean success over their loss.
@@ -1898,7 +1948,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 			owned[lockNameOf(d.Name)] = true
 		}
 	}
-	if err := r.restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored, owned); err != nil {
+	if err := r.restartDependentContainers(rctx, *rr, newID, cleanName, targetID, stackName, shared, preRestored, owned); err != nil {
 		log.Printf("upgrade %s: restart dependent containers failed: %v", cleanName, err)
 		return fmt.Errorf("provider %s upgraded, but dependent recovery failed: %w", cleanName, err)
 	}
@@ -1907,7 +1957,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		// before this upgrade and is down after it. Swallowing it reported a
 		// clean upgrade over a degraded stack, matching how dependent
 		// recovery failures are already surfaced above.
-		if err := r.restartSiblingContainers(ctx, *rr, details, newID, owned); err != nil {
+		if err := r.restartSiblingContainers(rctx, *rr, details, newID, owned); err != nil {
 			log.Printf("upgrade %s: sibling restart failed: %v", cleanName, err)
 			return fmt.Errorf("provider %s upgraded, but sibling restart failed: %w", cleanName, err)
 		}

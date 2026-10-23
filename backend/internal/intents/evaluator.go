@@ -31,6 +31,13 @@ type Evaluator struct {
 	// running counts dispatched executions so shutdown can wait for them (see
 	// Wait).
 	running sync.WaitGroup
+
+	// Base is the parent for dispatched runs. api.NewServer installs the
+	// process-wide cancellable background context so shutdown can stop a run
+	// that cannot finish in time - the executor writes its terminal state
+	// detached, so the execution row still lands. Nil falls back to detaching
+	// from the tick, which is what older callers do.
+	Base context.Context
 }
 
 // Wait blocks until every dispatched intent execution has settled. An
@@ -182,8 +189,14 @@ func (ev *Evaluator) dispatch(ctx context.Context, intent *db.IntentRow, userID 
 				slog.Error("panic in intent execution", "intentId", intentCopy.ID, "recover", rec)
 			}
 		}()
-		// Detach from the tick's context: an upgrade may outlive the tick.
+		// Detach from the tick's context: an upgrade may outlive the tick. But
+		// not past shutdown - Base is cancelled when the settle window expires,
+		// so a run that cannot finish stops starting new containers instead of
+		// being cut off between a removal and its recreate.
 		runCtx := context.WithoutCancel(ctx)
+		if ev.Base != nil {
+			runCtx = ev.Base
+		}
 		result, err := exec.ExecuteIntent(runCtx, &intentCopy, userID, ExecOptions{
 			TriggerType: triggerType,
 			TriggerTime: triggerTime,

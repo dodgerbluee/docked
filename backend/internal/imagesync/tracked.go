@@ -81,20 +81,14 @@ func (s *Service) TrackedExecuteAndComplete(ctx context.Context, userID, runID i
 	defer stopHeartbeat()
 
 	checked, updated, runErr := s.CheckAllTrackedApps(ctx, userID)
-
-	doneCtx := context.WithoutCancel(ctx)
+	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
+	if runErr == nil {
+		s.fireScanComplete(context.WithoutCancel(ctx), userID, updated)
+	}
 	if runErr != nil {
-		msg := runErr.Error()
-		if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "failed", checked, updated, &msg); cerr != nil {
-			slog.Error("failed to mark tracked-apps batch run failed", "runId", runID, "error", cerr)
-		}
 		return runErr
 	}
-	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
-		slog.Error("failed to mark tracked-apps batch run completed", "runId", runID, "error", cerr)
-	}
-	s.fireScanComplete(ctx, userID, updated)
-	return nil
+	return completeErr
 }
 
 // RunWithLockTracked performs a tracked-apps scan with the same guard stack

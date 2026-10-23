@@ -223,9 +223,10 @@ type DeleteImageInput struct {
 }
 
 type DeleteImageResult struct {
-	ID      string  `json:"id"`
-	Success *bool   `json:"success,omitempty"`
-	Error   *string `json:"error,omitempty"`
+	ID       string  `json:"id"`
+	RunnerID *string `json:"runnerId,omitempty"`
+	Success  *bool   `json:"success,omitempty"`
+	Error    *string `json:"error,omitempty"`
 }
 
 type DeleteImagesResult struct {

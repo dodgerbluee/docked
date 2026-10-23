@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -244,16 +245,55 @@ func ClaimIntentEvaluation(ctx context.Context, database *sql.DB, intentID, user
 
 // UnmarshalStringArr decodes a JSON array string from the DB into a []string.
 // NULL/invalid decodes to nil ("unset"); "[]" decodes to an empty non-nil
-// slice ("explicitly empty": matches nothing).
+// slice ("explicitly empty": matches nothing). A value that is not a JSON
+// array also decodes to nil, so callers that act on the filters must check
+// IntentFilterError first - see UnmarshalStringArrErr.
 func UnmarshalStringArr(s sql.NullString) []string {
+	arr, _ := UnmarshalStringArrErr(s)
+	return arr
+}
+
+// ErrCorruptIntentFilter marks a stored intent filter that cannot be decoded.
+var ErrCorruptIntentFilter = errors.New("corrupt intent filter")
+
+// UnmarshalStringArrErr is UnmarshalStringArr with the corrupt-value case
+// reported instead of folded into "unset". Folding it is not safe: an
+// unreadable exclude_containers value reads as "no exclusions", so the intent
+// upgrades exactly the containers the user ruled out.
+func UnmarshalStringArrErr(s sql.NullString) ([]string, error) {
 	if !s.Valid || s.String == "" {
-		return nil
+		return nil, nil
 	}
 	var arr []string
 	if err := json.Unmarshal([]byte(s.String), &arr); err != nil {
-		return nil
+		return nil, fmt.Errorf("%w: %q", ErrCorruptIntentFilter, s.String)
 	}
-	return arr
+	return arr, nil
+}
+
+// IntentFilterError reports the first stored filter on the intent that cannot
+// be decoded, or nil when every filter is readable.
+func IntentFilterError(i *IntentRow) error {
+	columns := []struct {
+		name string
+		col  sql.NullString
+	}{
+		{"match_containers", i.MatchContainers},
+		{"match_images", i.MatchImages},
+		{"match_sources", i.MatchSources},
+		{"match_stacks", i.MatchStacks},
+		{"match_registries", i.MatchRegistries},
+		{"exclude_containers", i.ExcludeContainers},
+		{"exclude_images", i.ExcludeImages},
+		{"exclude_stacks", i.ExcludeStacks},
+		{"exclude_registries", i.ExcludeRegistries},
+	}
+	for _, c := range columns {
+		if _, err := UnmarshalStringArrErr(c.col); err != nil {
+			return fmt.Errorf("%s: %w", c.name, err)
+		}
+	}
+	return nil
 }
 
 // marshalJSONArr encodes an intent filter list for the DB. A nil slice means

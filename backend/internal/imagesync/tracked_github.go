@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,11 @@ func cacheGet(key string) (any, bool) {
 	releaseCacheMu.Lock()
 	defer releaseCacheMu.Unlock()
 	e, ok := releaseCache[key]
-	if !ok || time.Now().After(e.expires) {
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(e.expires) {
+		delete(releaseCache, key)
 		return nil, false
 	}
 	return e.value, true
@@ -54,6 +59,41 @@ func cacheSet(key string, value any) {
 	releaseCacheMu.Lock()
 	defer releaseCacheMu.Unlock()
 	releaseCache[key] = releaseCacheEntry{value: value, expires: time.Now().Add(releaseCacheTTL)}
+	if len(releaseCache) >= releaseCacheSweep {
+		sweepReleaseCacheLocked(time.Now())
+	}
+}
+
+// Cache size bounds: entries used to leave the map only when the exact key was
+// read back after expiry (and never at all in some paths), so the map grew with
+// every repo the instance had ever looked up.
+const (
+	releaseCacheSweep = 1024
+	releaseCacheMax   = 4096
+)
+
+// sweepReleaseCacheLocked drops expired entries, then the entries that expire
+// soonest if the map is still over the cap. Caller must hold releaseCacheMu.
+func sweepReleaseCacheLocked(now time.Time) {
+	for k, e := range releaseCache {
+		if now.After(e.expires) {
+			delete(releaseCache, k)
+		}
+	}
+	if len(releaseCache) <= releaseCacheMax {
+		return
+	}
+	expiry := make([]time.Time, 0, len(releaseCache))
+	for _, e := range releaseCache {
+		expiry = append(expiry, e.expires)
+	}
+	sort.Slice(expiry, func(i, j int) bool { return expiry[i].Before(expiry[j]) })
+	cutoff := expiry[len(expiry)-releaseCacheMax]
+	for k, e := range releaseCache {
+		if !e.expires.After(cutoff) {
+			delete(releaseCache, k)
+		}
+	}
 }
 
 // ClearReleaseCache empties the shared GitHub/GitLab release cache (used by

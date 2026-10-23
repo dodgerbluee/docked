@@ -160,9 +160,10 @@ type ComplexityRoot struct {
 	}
 
 	DeleteImageResult struct {
-		Error   func(childComplexity int) int
-		ID      func(childComplexity int) int
-		Success func(childComplexity int) int
+		Error    func(childComplexity int) int
+		ID       func(childComplexity int) int
+		RunnerID func(childComplexity int) int
+		Success  func(childComplexity int) int
 	}
 
 	DeleteImagesResult struct {
@@ -1487,6 +1488,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteImageResult.ID(childComplexity), true
+	case "DeleteImageResult.runnerId":
+		if e.ComplexityRoot.DeleteImageResult.RunnerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteImageResult.RunnerID(childComplexity), true
 	case "DeleteImageResult.success":
 		if e.ComplexityRoot.DeleteImageResult.Success == nil {
 			break
@@ -6451,6 +6458,10 @@ type DeleteImagesResult {
 
 type DeleteImageResult {
   id: String!
+  # Echoes the host this delete was aimed at. Image ids are not unique across
+  # runners, so a caller that matches a failure back to its own rows by id alone
+  # can drop a different runner's identical id from the list.
+  runnerId: String
   success: Boolean
   error: String
 }
@@ -6737,6 +6748,8 @@ func (ec *executionContext) childFields_DeleteImageResult(ctx context.Context, f
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_DeleteImageResult_id(ctx, field)
+	case "runnerId":
+		return ec.fieldContext_DeleteImageResult_runnerId(ctx, field)
 	case "success":
 		return ec.fieldContext_DeleteImageResult_success(ctx, field)
 	case "error":
@@ -11411,6 +11424,29 @@ func (ec *executionContext) _DeleteImageResult_id(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_DeleteImageResult_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeleteImageResult_runnerId(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImageResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteImageResult_runnerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RunnerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteImageResult_runnerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -28931,6 +28967,11 @@ func (ec *executionContext) _DeleteImageResult(ctx context.Context, sel ast.Sele
 		case "id":
 			out.Values[i] = ec._DeleteImageResult_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runnerId":
+			out.Values[i] = ec._DeleteImageResult_runnerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "success":

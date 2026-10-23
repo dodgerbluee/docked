@@ -51,8 +51,11 @@ func (r *mutationResolver) deleteOneImage(
 	img *model.DeleteImageInput,
 	runnerMap map[int64]db.RunnerRow,
 ) *model.DeleteImageResult {
+	// Every outcome row echoes the caller's runnerId so a client matching a
+	// failure back to its own rows can qualify it by host instead of by image
+	// id alone, which is not unique across runners.
 	fail := func(msg string) *model.DeleteImageResult {
-		return &model.DeleteImageResult{ID: img.ID, Error: strPtr(msg)}
+		return &model.DeleteImageResult{ID: img.ID, RunnerID: img.RunnerID, Error: strPtr(msg)}
 	}
 
 	if img.RunnerID == nil || *img.RunnerID == "" {
@@ -70,7 +73,7 @@ func (r *mutationResolver) deleteOneImage(
 		slog.Error("image delete failed", "image", img.ID, "runner", rr.URL, "error", err)
 		return fail(err.Error())
 	}
-	return &model.DeleteImageResult{ID: img.ID, Success: boolPtr(true)}
+	return &model.DeleteImageResult{ID: img.ID, RunnerID: img.RunnerID, Success: boolPtr(true)}
 }
 
 // unusedFromRunner computes the unused-image set for one dockhand runner

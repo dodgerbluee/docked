@@ -48,7 +48,13 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 				log.Printf("live runner fetch failed (runner %s): %v", rr.Name, err)
 				return
 			}
-			fetched := runner.FetchContainerRows(ctx, r.DB, uid, rr, ctrs)
+			fetched, ferr := runner.FetchContainerRows(ctx, r.DB, uid, rr, ctrs)
+			if ferr != nil {
+				// Not marked as reached, so this runner's persisted rows are
+				// kept rather than replaced by rows with no registry data.
+				log.Printf("live runner merge failed (runner %s): %v", rr.Name, ferr)
+				return
+			}
 			mu.Lock()
 			reached[rr.ID] = true
 			live = append(live, fetched...)
@@ -69,25 +75,7 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 	// digest, runner that reports no repo digests) loses the deploy-time
 	// baseline the scan had stored - and with it the only value the update
 	// check had to compare against, hiding an update that was already known.
-	// Matched on host + name because a recreate changes the docker id.
-	baseline := make(map[string]string, len(rows))
-	for _, row := range rows {
-		if !row.RunnerID.Valid || !reached[row.RunnerID.Int64] {
-			continue
-		}
-		if !row.CurrentDigest.Valid || row.CurrentDigest.String == "" {
-			continue
-		}
-		baseline[liveBaselineKey(row.RunnerID.Int64, row.ContainerName)] = row.CurrentDigest.String
-	}
-	for i := range live {
-		if live[i].CurrentDigest.Valid && live[i].CurrentDigest.String != "" {
-			continue
-		}
-		if d, ok := baseline[liveBaselineKey(live[i].RunnerID.Int64, live[i].ContainerName)]; ok {
-			live[i].CurrentDigest = sql.NullString{String: d, Valid: true}
-		}
-	}
+	db.CarryDigestBaselines(rows, live)
 	// Live rows arrive in goroutine-completion order; sort deterministically
 	// so paginated requests see a stable sequence (offsets mean the same
 	// thing across pages).
@@ -102,14 +90,6 @@ func (r *Resolver) mergeLiveRunnerContainers(ctx context.Context, uid int64, row
 		return a.ContainerID < b.ContainerID
 	})
 	return append(base, live...)
-}
-
-// liveBaselineKey keys a persisted deploy-time digest for lookup by the live
-// row that should inherit it. Host + name, not docker id: the upgrade pipeline
-// removes and recreates under the same name, so the id changes underneath a
-// container that still has the same baseline.
-func liveBaselineKey(runnerID int64, name string) string {
-	return strconv.FormatInt(runnerID, 10) + "|" + lockNameOf(name)
 }
 
 // liveRunnerContainerByDockerID resolves a synthetic "live-<dockerID>" model
@@ -149,7 +129,14 @@ func (r *Resolver) runnerContainersForRunner(ctx context.Context, uid, rid int64
 		log.Printf("live runner fetch failed (runner %s): %v", rr.Name, err)
 		return rows, nil
 	}
-	live := runner.FetchContainerRows(ctx, r.DB, uid, *rr, ctrs)
+	live, ferr := runner.FetchContainerRows(ctx, r.DB, uid, *rr, ctrs)
+	if ferr != nil {
+		// Keep the persisted rows: replacing them with unenriched live rows
+		// would drop the update state the scan had already confirmed.
+		log.Printf("live runner fetch failed (runner %s): %v", rr.Name, ferr)
+		return rows, nil
+	}
+	db.CarryDigestBaselines(rows, live)
 	sort.Slice(live, func(i, j int) bool {
 		if live[i].ContainerName != live[j].ContainerName {
 			return live[i].ContainerName < live[j].ContainerName
@@ -182,8 +169,16 @@ func (r *Resolver) liveRunnerContainer(ctx context.Context, uid int64, runnerID 
 	}
 	for _, c := range ctrs {
 		if dockerIDMatches(c.ID, dockerContainerID) {
-			row := r.runnerContainerToRow(ctx, uid, *rr, c)
-			return &row
+			rows := []db.ContainerRow{r.runnerContainerToRow(ctx, uid, *rr, c)}
+			// Same baseline rule as the list merge: callers use this row in
+			// place of the persisted one, so a live inspect that reports no
+			// digest must not discard the deploy-time value the scan stored.
+			if persisted, perr := db.GetContainersByRunner(ctx, r.DB, uid, runnerID); perr == nil {
+				db.CarryDigestBaselines(persisted, rows)
+			} else {
+				log.Printf("live container lookup: persisted rows for runner %d: %v", runnerID, perr)
+			}
+			return &rows[0]
 		}
 	}
 	return nil

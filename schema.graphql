@@ -1377,6 +1377,10 @@ type DeleteImagesResult {
 
 type DeleteImageResult {
   id: String!
+  # Echoes the host this delete was aimed at. Image ids are not unique across
+  # runners, so a caller that matches a failure back to its own rows by id alone
+  # can drop a different runner's identical id from the list.
+  runnerId: String
   success: Boolean
   error: String
 }

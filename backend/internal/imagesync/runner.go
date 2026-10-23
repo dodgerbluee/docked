@@ -184,6 +184,61 @@ func (s *Service) acquireRun(ctx context.Context, running map[int64]bool, userID
 	return runID, nil
 }
 
+// PartialScanError reports a fleet scan that did real work but could not reach
+// part of the fleet. Every per-runner failure used to collapse into a count of
+// zero, so an entirely unreachable fleet finished as a clean "0 containers,
+// 0 updates" success - indistinguishable from a healthy scan of an empty fleet.
+// Callers record it as completed-with-message (the run is not falsely claimed
+// to have failed) and still return it so the mutation can report it.
+type PartialScanError struct {
+	Scanned int
+	Failed  int
+	Details []string
+}
+
+func (e *PartialScanError) Error() string {
+	return fmt.Sprintf("partial scan: %d of %d runner(s) could not be scanned: %s",
+		e.Failed, e.Failed+e.Scanned, strings.Join(e.Details, "; "))
+}
+
+// isPartialScan reports whether runErr is a PartialScanError.
+func isPartialScan(runErr error) bool {
+	var partial *PartialScanError
+	return errors.As(runErr, &partial)
+}
+
+// completeRun finalizes runID with the scan's outcome. A hard failure is
+// recorded as failed; a PartialScanError keeps the completed status but
+// attaches the reason, so the run is not reported as a clean pass. The write
+// is detached from ctx: a scan reaching this point on a dead context is
+// normal (client disconnect), and losing the terminal write would leave the
+// row showing "running" forever.
+//
+// Returns the completion error when the scan itself succeeded, because then
+// the lost write is the only failure the caller has.
+func (s *Service) completeRun(ctx context.Context, runID int64, checked, updated int, runErr error) error {
+	doneCtx := context.WithoutCancel(ctx)
+	if runErr != nil {
+		msg := runErr.Error()
+		status := "failed"
+		if isPartialScan(runErr) {
+			status = "completed"
+		}
+		if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, status, checked, updated, &msg); cerr != nil {
+			slog.Error("failed to record batch run outcome", "runId", runID, "status", status, "error", cerr)
+		}
+		return runErr
+	}
+	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
+		slog.Error("failed to mark batch run completed", "runId", runID, "error", cerr)
+		// The scan succeeded but the run row is still "running", so anything
+		// following this run waits on a state that will never arrive. Report
+		// the loss instead of answering nil.
+		return fmt.Errorf("record batch run outcome: %w", cerr)
+	}
+	return nil
+}
+
 // ExecuteAndComplete performs the scan and finalizes the batch_run row
 // created by Acquire. It always releases the in-process flag. Optional
 // runnerIDs restrict the scan to specific runners; callers that want the
@@ -201,20 +256,16 @@ func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64, r
 	defer stopHeartbeat()
 
 	checked, updated, runErr := s.RunDockerHubPull(ctx, userID, runnerIDs...)
-
-	doneCtx := context.WithoutCancel(ctx)
+	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
+	if runErr == nil || isPartialScan(runErr) {
+		// Immediate intents key off what the scan found, so they must still
+		// fire when the scan finished but could not reach part of the fleet.
+		s.fireScanComplete(context.WithoutCancel(ctx), userID, updated)
+	}
 	if runErr != nil {
-		msg := runErr.Error()
-		if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "failed", checked, updated, &msg); cerr != nil {
-			slog.Error("failed to mark batch run failed", "runId", runID, "error", cerr)
-		}
 		return runErr
 	}
-	if cerr := db.CompleteBatchRun(doneCtx, s.DB, runID, "completed", checked, updated, nil); cerr != nil {
-		slog.Error("failed to mark batch run completed", "runId", runID, "error", cerr)
-	}
-	s.fireScanComplete(ctx, userID, updated)
-	return nil
+	return completeErr
 }
 
 // fireScanComplete dispatches the post-scan immediate-intents hook
@@ -271,14 +322,18 @@ func (s *Service) heartbeatRun(ctx context.Context, runID int64) func() {
 // ScanRunnerContainers ports DockerHubPullHandler.scanRunnerContainers.
 // Unreachable runners are skipped; per-container failures are logged and
 // skipped (including rate-limit errors, matching Node's per-container catch).
-func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, userID int64) (int, int) {
+// ScanRunnerContainers scans one runner's containers. The error is non-nil
+// only when the whole runner could not be scanned: the caller must know, or an
+// unreachable host contributes zero and the run reads as a clean pass over an
+// empty fleet.
+func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, userID int64) (int, int, error) {
 	checked, updated := 0, 0
 
 	containers, err := runner.FetchContainers(ctx, rr)
 	if err != nil {
 		slog.Warn("runner unreachable during image scan, skipping",
 			"runnerId", rr.ID, "runnerName", rr.Name, "error", err)
-		return 0, 0
+		return 0, 0, fmt.Errorf("%s: %w", rr.Name, err)
 	}
 
 	// The full snapshot (not just the containers we managed to persist) is
@@ -397,7 +452,7 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 				// The runner was deleted mid-scan and DeleteRunner already
 				// removed its rows; nothing else will clean up after us.
 				slog.Info("runner deleted during image scan, stopping", "runnerId", rr.ID)
-				return checked, updated
+				return checked, updated, nil
 			}
 			slog.Debug("failed to upsert runner container",
 				"runnerId", rr.ID, "containerId", ctr.ID, "error", err)
@@ -432,7 +487,7 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 
 	slog.Info("runner image scan complete", "runnerId", rr.ID, "runnerName", rr.Name,
 		"checked", checked, "updated", updated)
-	return checked, updated
+	return checked, updated, nil
 }
 
 // RunDockerHubPull ports DockerHubPullHandler.execute for the runner-only
@@ -460,6 +515,8 @@ func (s *Service) RunDockerHubPull(ctx context.Context, userID int64, runnerIDs 
 	}
 
 	checked, updated := 0, 0
+	var failed []string
+	scanned := 0
 	for _, rr := range runners {
 		if rr.DockerEnabled.Int64 != 1 {
 			continue
@@ -467,9 +524,26 @@ func (s *Service) RunDockerHubPull(ctx context.Context, userID int64, runnerIDs 
 		if only != nil && !only[rr.ID] {
 			continue
 		}
-		c, u := s.ScanRunnerContainers(ctx, rr, userID)
+		c, u, serr := s.ScanRunnerContainers(ctx, rr, userID)
+		if serr != nil {
+			failed = append(failed, serr.Error())
+			continue
+		}
+		scanned++
 		checked += c
 		updated += u
+	}
+	// A fleet that could not be reached at all is not a clean scan that found
+	// nothing, and a fleet only partly reached must not hide the hosts that
+	// were skipped. Both are reported; the partial case still finishes the
+	// pass so the runners that DID answer get their notifications and event.
+	var partialErr error
+	if len(failed) > 0 {
+		if scanned == 0 {
+			return checked, updated, fmt.Errorf("no runner could be scanned: %s",
+				strings.Join(failed, "; "))
+		}
+		partialErr = &PartialScanError{Scanned: scanned, Failed: len(failed), Details: failed}
 	}
 
 	current, err := db.GetContainers(ctx, s.DB, userID)
@@ -489,8 +563,9 @@ func (s *Service) RunDockerHubPull(ctx context.Context, userID int64, runnerIDs 
 	}
 
 	slog.Info("docker hub pull completed", "userId", userID,
-		"containersChecked", checked, "containersUpdated", updated)
-	return checked, updated, nil
+		"containersChecked", checked, "containersUpdated", updated,
+		"runnersFailed", len(failed))
+	return checked, updated, partialErr
 }
 
 func nullIfEmpty(s string) *string {

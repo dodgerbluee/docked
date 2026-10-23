@@ -1151,3 +1151,59 @@ func TestAvatarRoutes(t *testing.T) {
 func itoa(n int64) string {
 	return strconv.FormatInt(n, 10)
 }
+
+// The instance-admin grant gate must not destroy the verification code before
+// the grant exists. A rejected code leaves the stored one alone, and so does a
+// user insert that fails after the code checked out: burning it would force the
+// operator to regenerate and read a fresh code out of the server logs.
+func TestCreateUserWithConfigKeepsPendingTokenOnFailure(t *testing.T) {
+	database := newAuthTestDB(t)
+	h := newAuthTestRouter(database)
+	ctx := context.Background()
+
+	rootID := seedUser(t, database, "root", "rootpass123", 1)
+	adminToken, _, err := auth.GenerateTokens(rootID, "root", "Administrator", 0)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	if err := db.SetPendingToken(ctx, database, "instance_admin", "mallory", "good-code"); err != nil {
+		t.Fatalf("set pending: %v", err)
+	}
+	stillStored := func(when string) {
+		t.Helper()
+		stored, err := db.GetPendingToken(ctx, database, "instance_admin", "mallory")
+		if err != nil || stored == nil || *stored != "good-code" {
+			t.Fatalf("stored code after %s = %v (err %v)", when, stored, err)
+		}
+	}
+
+	grant := func(token string) int {
+		code, _ := doJSON(t, h, http.MethodPost, "/api/auth/create-user-with-config",
+			map[string]any{
+				"userData": map[string]any{
+					"username": "mallory", "password": "password123", "instanceAdmin": true,
+				},
+				"verificationToken": token,
+			}, adminToken)
+		return code
+	}
+
+	// A wrong code is matched on the token value, so it cannot erase the real
+	// one - and it must not create the admin either.
+	if code := grant("wrong-code"); code != http.StatusForbidden {
+		t.Fatalf("wrong code: code=%d", code)
+	}
+	stillStored("a rejected code")
+
+	// Force the user insert to fail after the code has checked out.
+	if _, err := database.Exec(`CREATE TRIGGER reject_mallory BEFORE INSERT ON users
+		WHEN NEW.username = 'mallory'
+		BEGIN SELECT RAISE(ABORT, 'forced insert failure'); END`); err != nil {
+		t.Fatalf("trigger: %v", err)
+	}
+	if code := grant("good-code"); code == http.StatusOK {
+		t.Fatalf("a failed user insert was reported as a successful grant")
+	}
+	stillStored("a failed user insert")
+}

@@ -49,7 +49,10 @@ func TestFetchContainerRowsMatchesContainerToRow(t *testing.T) {
 		{ID: "ccc333", Name: "x", Image: "unknown:1", Status: "running", State: "running"},
 	}
 
-	batched := FetchContainerRows(ctx, database, 1, rr, ctrs)
+	batched, err := FetchContainerRows(ctx, database, 1, rr, ctrs)
+	if err != nil {
+		t.Fatalf("FetchContainerRows: %v", err)
+	}
 	if len(batched) != len(ctrs) {
 		t.Fatalf("batched rows = %d, want %d", len(batched), len(ctrs))
 	}
@@ -148,7 +151,10 @@ func TestLiveRowsRecoverPinnedImageIdentity(t *testing.T) {
 		State:       "running",
 	}
 
-	rows := FetchContainerRows(ctx, database, 1, rr, []domain.Container{pinned})
+	rows, err := FetchContainerRows(ctx, database, 1, rr, []domain.Container{pinned})
+	if err != nil {
+		t.Fatalf("FetchContainerRows: %v", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(rows))
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -112,11 +113,20 @@ func TestScanRunnerApps(t *testing.T) {
 	insertAppRunner(t, database, 1, "c", runnerC.URL, 0)
 
 	checked, updated, err := svc.ScanRunnerApps(ctx, 1)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
+	// Runner b answers 500, so the scan is partial and must say so: folding the
+	// failure into a "skipped" count made an unreachable fleet indistinguishable
+	// from a clean scan that found nothing.
+	var partial *PartialScanError
+	if !errors.As(err, &partial) {
+		t.Fatalf("scan error = %v, want PartialScanError", err)
 	}
-	// itemsChecked counts only the reachable runner's apps (Node: the
-	// rejected branch contributes 0/0/skipped=1).
+	if partial.Scanned != 1 || partial.Failed != 1 {
+		t.Errorf("partial = %d scanned / %d failed, want 1/1", partial.Scanned, partial.Failed)
+	}
+	if !strings.Contains(err.Error(), "b:") {
+		t.Errorf("partial error does not name the failed runner: %v", err)
+	}
+	// itemsChecked counts only the reachable runner's apps.
 	if checked != 4 || updated != 2 {
 		t.Fatalf("checked=%d updated=%d, want 4/2", checked, updated)
 	}

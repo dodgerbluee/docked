@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"testing"
 )
 
@@ -34,8 +35,11 @@ func TestSetTrackedAppCurrentVersionAdvancesDigestBaseline(t *testing.T) {
 	}
 
 	snapshot := TrackedAppSnapshot{
-		LatestVersion: sql.NullString{String: "v2", Valid: true},
-		LatestDigest:  sql.NullString{String: "sha256:new", Valid: true},
+		LatestVersion:  sql.NullString{String: "v2", Valid: true},
+		LatestDigest:   sql.NullString{String: "sha256:new", Valid: true},
+		CurrentVersion: sql.NullString{String: "v1", Valid: true},
+		SourceType:     sql.NullString{String: "docker", Valid: true},
+		ImageName:      sql.NullString{String: "example/app:latest", Valid: true},
 	}
 	applied, err := SetTrackedAppCurrentVersion(ctx, database, id, 1, "v2", "v2", snapshot, nil, false)
 	if err != nil {
@@ -85,7 +89,12 @@ func TestSetTrackedAppCurrentVersionClearsStaleDigestWithoutLatest(t *testing.T)
 		t.Fatalf("seed: %v", err)
 	}
 
-	snapshot := TrackedAppSnapshot{LatestVersion: sql.NullString{String: "v2", Valid: true}}
+	snapshot := TrackedAppSnapshot{
+		LatestVersion:  sql.NullString{String: "v2", Valid: true},
+		CurrentVersion: sql.NullString{String: "v1", Valid: true},
+		SourceType:     sql.NullString{String: "docker", Valid: true},
+		ImageName:      sql.NullString{String: "example/app:latest", Valid: true},
+	}
 	applied, err := SetTrackedAppCurrentVersion(ctx, database, id, 1, "v2", "v2", snapshot, nil, false)
 	if err != nil {
 		t.Fatalf("set current version: %v", err)
@@ -344,5 +353,79 @@ func TestDeleteTrackedAppDetachesHistory(t *testing.T) {
 	}
 	if dangling != 1 {
 		t.Fatalf("history rows preserved = %d, want 1 (the audit trail must survive)", dangling)
+	}
+}
+
+// The acknowledge write must also refuse when only the CURRENT state or the
+// SOURCE identity moved, not just the latest pair. Someone else re-deploying or
+// rolling the app back, or the user editing the upstream repo while deciding,
+// both invalidate an acknowledgement computed against the old view.
+func TestSetTrackedAppCurrentVersionGuardsCurrentAndSource(t *testing.T) {
+	database, err := Open(t.TempDir() + "/ta-guard.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	if err := Migrate(ctx, database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		move string // SQL that moves the row out from under the observed snapshot
+		want bool
+	}{
+		{name: "nothing moved", want: true},
+		{
+			name: "current version moved by someone else",
+			move: "current_version = 'v1.5'",
+		},
+		{
+			name: "source type switched",
+			move: "source_type = 'github-releases'",
+		},
+		{
+			name: "upstream image edited",
+			move: "image_name = 'other/app:latest'",
+		},
+	}
+
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// One row per case: the null-safe identity index rejects repeats of
+			// the same (user, image, repo) triple.
+			image := "app" + strconv.Itoa(i) + "/app:latest"
+			var id int64
+			err := database.QueryRowContext(ctx,
+				`INSERT INTO tracked_apps (user_id, name, image_name, source_type,
+				    current_version, current_digest, latest_version, latest_digest, has_update)
+				 VALUES (1, 'app', ?, 'docker', 'v1', 'sha256:old', 'v2', 'sha256:new', 1)
+				 RETURNING id`, image).Scan(&id)
+			if err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+
+			row, err := GetTrackedAppByID(ctx, database, id, 1)
+			if err != nil || row == nil {
+				t.Fatalf("load seeded row: %v", err)
+			}
+			snapshot := row.ObservedSnapshot()
+
+			if tc.move != "" {
+				if _, err := database.ExecContext(ctx,
+					"UPDATE tracked_apps SET "+tc.move+" WHERE id = ?", id); err != nil {
+					t.Fatalf("move row: %v", err)
+				}
+			}
+
+			applied, err := SetTrackedAppCurrentVersion(ctx, database, id, 1, "v2", "v2", snapshot, nil, false)
+			if err != nil {
+				t.Fatalf("set current version: %v", err)
+			}
+			if applied != tc.want {
+				t.Fatalf("applied = %v, want %v", applied, tc.want)
+			}
+		})
 	}
 }

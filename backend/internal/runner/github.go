@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
@@ -39,6 +40,37 @@ func ReleaseCacheSize() int {
 	return len(releaseCache)
 }
 
+// Cache size bounds: an expired entry used to leave the map only by being
+// overwritten, so it grew with every repo the instance had ever looked up.
+const (
+	releaseCacheSweep = 1024
+	releaseCacheMax   = 4096
+)
+
+// sweepReleaseCacheLocked drops expired entries, then the entries that expire
+// soonest if the map is still over the cap. Caller must hold releaseCacheMu.
+func sweepReleaseCacheLocked(now time.Time) {
+	for k, e := range releaseCache {
+		if now.Sub(e.fetched) >= releaseTTL {
+			delete(releaseCache, k)
+		}
+	}
+	if len(releaseCache) <= releaseCacheMax {
+		return
+	}
+	fetched := make([]time.Time, 0, len(releaseCache))
+	for _, e := range releaseCache {
+		fetched = append(fetched, e.fetched)
+	}
+	sort.Slice(fetched, func(i, j int) bool { return fetched[i].Before(fetched[j]) })
+	cutoff := fetched[len(fetched)-releaseCacheMax]
+	for k, e := range releaseCache {
+		if !e.fetched.After(cutoff) {
+			delete(releaseCache, k)
+		}
+	}
+}
+
 // ClearReleaseCache empties the runner release cache (debug cache-clear).
 func ClearReleaseCache() {
 	releaseCacheMu.Lock()
@@ -56,8 +88,14 @@ func LatestReleaseTag(ctx context.Context, repo string, skipCache bool) (string,
 	if !skipCache {
 		releaseCacheMu.Lock()
 		entry, hit := releaseCache[repo]
+		if hit && time.Since(entry.fetched) >= releaseTTL {
+			// Drop it here: an expired entry that is never overwritten again
+			// would otherwise sit in the map indefinitely.
+			delete(releaseCache, repo)
+			hit = false
+		}
 		releaseCacheMu.Unlock()
-		if hit && time.Since(entry.fetched) < releaseTTL {
+		if hit {
 			return entry.tag, true
 		}
 	}
@@ -97,6 +135,9 @@ func LatestReleaseTag(ctx context.Context, repo string, skipCache bool) (string,
 
 	releaseCacheMu.Lock()
 	releaseCache[repo] = cachedRelease{tag: payload.TagName, fetched: time.Now()}
+	if len(releaseCache) >= releaseCacheSweep {
+		sweepReleaseCacheLocked(time.Now())
+	}
 	releaseCacheMu.Unlock()
 	return payload.TagName, true
 }
