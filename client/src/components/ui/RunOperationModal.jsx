@@ -102,7 +102,10 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
                   setErrorMsg(`Exited with code ${payload.exitCode}`);
                 }
               } catch {
-                setStatus(STATUS.DONE);
+                // A done event we cannot parse carries no exit code, so it
+                // cannot prove success.
+                setErrorMsg("Operation ended with an unreadable completion event");
+                setStatus(STATUS.ERROR);
               }
             } else if (eventLine === "error") {
               sawTerminalEvent = true;
@@ -120,10 +123,16 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
 
         if (cancelled) return;
 
-        // Stream ended without an explicit done/error event: the operation is
-        // over either way, so close out instead of staying Running forever.
+        // Stream ended without an explicit done/error event. That is NOT
+        // evidence of success: a proxy timeout or server restart closes the
+        // stream while the operation may still be running or may have failed.
+        // Report it as an unresolved outcome instead of "Completed (exit 0)".
         if (!sawTerminalEvent) {
-          setStatus(STATUS.DONE);
+          setErrorMsg(
+            "Connection ended before the operation reported completion. " +
+              "Check the runner's operation history for the actual result."
+          );
+          setStatus(STATUS.ERROR);
         }
       } catch (err) {
         if (err.name === "AbortError" || cancelled) return;
