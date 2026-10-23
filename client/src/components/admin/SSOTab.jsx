@@ -29,12 +29,15 @@ function SSOTab() {
     deleteProvider,
     testConnection,
     updateSettings,
+    settingsError,
+    refreshProviders,
   } = useSSOProviders();
 
   const [showModal, setShowModal] = useState(false);
   const [editingProvider, setEditingProvider] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, providerId: null });
   const [successMessage, setSuccessMessage] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const showSuccess = (msg) => {
     setSuccessMessage(msg);
@@ -75,9 +78,13 @@ function SSOTab() {
 
   const handleAllowLocalLoginToggle = async (value) => {
     try {
-      await updateSettings({ allowLocalLogin: value === "true" });
+      const result = await updateSettings({ allowLocalLogin: value === "true" });
+      if (result && !result.success) {
+        setActionError(result.error || "Failed to update SSO settings");
+      }
     } catch (err) {
       console.error("Failed to update SSO settings:", err);
+      setActionError(err.message || "Failed to update SSO settings");
     }
   };
 
@@ -95,6 +102,22 @@ function SSOTab() {
       </p>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {settingsError && (
+        <Alert variant="error" role="alert">
+          <p>
+            SSO settings could not be loaded: {settingsError} The local-login toggle below shows a
+            default, not what is stored, so saving is disabled.
+          </p>
+          <Button type="button" onClick={() => refreshProviders()}>
+            Retry
+          </Button>
+        </Alert>
+      )}
+      {actionError && (
+        <Alert variant="error" role="alert">
+          {actionError}
+        </Alert>
+      )}
       {successMessage && <Alert variant="info">{successMessage}</Alert>}
 
       {/* Global Settings */}

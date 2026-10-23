@@ -241,11 +241,20 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
                 }
 
                 try {
-                  const { data } = await graphqlClient
+                  const { data, error: gqlError } = await graphqlClient
                     .query(USER_EXISTS_QUERY, { username: user.username })
                     .toPromise();
 
-                  if (data?.userExists) {
+                  if (gqlError) {
+                    console.warn(`Error checking if user ${user.username} exists:`, gqlError);
+                    // Keep the user (the server still enforces uniqueness), but
+                    // say so: silently classifying an unknown as "new" made the
+                    // pre-flight summary claim a clean import that then failed.
+                    validUsers.push(user);
+                    preImportErrors.push(
+                      `Could not check whether "${user.username}" already exists`
+                    );
+                  } else if (data?.userExists) {
                     existingUsers.push(user.username);
                     preImportErrors.push(`User "${user.username}" already exists`);
                   } else {
@@ -255,6 +264,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
                   console.warn(`Error checking if user ${user.username} exists:`, err);
                   // If check fails, include the user
                   validUsers.push(user);
+                  preImportErrors.push(`Could not check whether "${user.username}" already exists`);
                 }
               }
 

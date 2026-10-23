@@ -17,6 +17,8 @@ import {
 import { useUpgradeHistory } from "../../hooks/useUpgradeHistory";
 import EmptyState from "../ui/EmptyState";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import Alert from "../ui/Alert";
+import Button from "../ui/Button";
 import UpgradeHistoryDetailModal from "./UpgradeHistoryDetailModal";
 import styles from "./UpgradeHistoryTab.module.css";
 
@@ -53,7 +55,7 @@ function UpgradeHistoryTab() {
   const [selectedUpgrade, setSelectedUpgrade] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const { history, loading, error, stats } = useUpgradeHistory({
+  const { history, loading, error, stats, statsError, refetchStats } = useUpgradeHistory({
     limit: 200,
   });
 
@@ -119,6 +121,19 @@ function UpgradeHistoryTab() {
 
   return (
     <div className={styles.container}>
+      {/* A failed stats read used to remove the bar entirely, which read as a
+          legitimate "no numbers" state rather than an outage. */}
+      {statsError && (
+        <Alert variant="error" role="alert">
+          <p>Upgrade statistics could not be loaded: {statsError}</p>
+          {refetchStats && (
+            <Button type="button" onClick={() => refetchStats()}>
+              Retry
+            </Button>
+          )}
+        </Alert>
+      )}
+
       {/* Header with stats */}
       {stats && (
         <div className={styles.statsBar}>

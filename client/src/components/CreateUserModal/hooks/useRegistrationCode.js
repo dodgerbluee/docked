@@ -2,7 +2,7 @@
  * Hook for managing registration code logic
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { graphqlClient } from "../../../graphql/client";
 import {
   REGISTRATION_CODE_STATUS_QUERY,
@@ -19,6 +19,7 @@ import { getErrorMessage } from "../../../utils/errorHandling";
  */
 export const useRegistrationCode = (isOpen) => {
   const [requiresCode, setRequiresCode] = useState(false);
+  const [codeStatusError, setCodeStatusError] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
   const [codeGenerated, setCodeGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -27,30 +28,49 @@ export const useRegistrationCode = (isOpen) => {
   const [verified, setVerified] = useState(undefined);
 
   // Check if registration code is required when modal opens
+  const checkCodeStatus = useCallback(() => {
+    setCheckingCode(true);
+    graphqlClient
+      .query(REGISTRATION_CODE_STATUS_QUERY)
+      .toPromise()
+      .then(({ data, error }) => {
+        if (error) {
+          // urql never rejects, so a transport or GraphQL error used to land in
+          // .then with data undefined and `requiresCode ?? false` silently
+          // skipped the code step. Fail closed instead: the code can still be
+          // generated, so this costs nothing when the check is wrong.
+          setRequiresCode(true);
+          setCodeStatusError(error.message || "Could not determine whether a code is required");
+          return;
+        }
+        if (!data?.registrationCodeStatus) {
+          setRequiresCode(true);
+          setCodeStatusError("Could not determine whether a code is required");
+          return;
+        }
+        setRequiresCode(data.registrationCodeStatus.requiresCode ?? false);
+        setCodeStatusError("");
+      })
+      .catch((err) => {
+        setRequiresCode(true);
+        setCodeStatusError(err?.message || "Could not determine whether a code is required");
+      })
+      .finally(() => {
+        setCheckingCode(false);
+      });
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
-      setCheckingCode(true);
-
-      graphqlClient
-        .query(REGISTRATION_CODE_STATUS_QUERY)
-        .toPromise()
-        .then(({ data }) => {
-          setRequiresCode(data?.registrationCodeStatus?.requiresCode ?? false);
-        })
-        .catch(() => {
-          // Default to false if check fails
-          setRequiresCode(false);
-        })
-        .finally(() => {
-          setCheckingCode(false);
-        });
+      checkCodeStatus();
     } else {
       // Reset state when modal closes
       setVerified(undefined);
       setVerifying(false);
       setCodeGenerated(false);
+      setCodeStatusError("");
     }
-  }, [isOpen]);
+  }, [isOpen, checkCodeStatus]);
 
   // Generate registration code
   const handleGenerateCode = async () => {
@@ -160,6 +180,8 @@ export const useRegistrationCode = (isOpen) => {
 
   return {
     requiresCode,
+    codeStatusError,
+    retryCodeStatus: checkCodeStatus,
     checkingCode,
     codeGenerated,
     generating,

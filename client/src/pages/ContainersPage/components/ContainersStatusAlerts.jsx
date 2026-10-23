@@ -5,6 +5,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import Alert from "../../../components/ui/Alert";
+import Button from "../../../components/ui/Button";
 import styles from "../../ContainersPage.module.css";
 
 /**
@@ -20,8 +21,10 @@ const ContainersStatusAlerts = ({
   pullingSourcesOnly,
   localPullError,
   onDismissError,
+  blocklistError,
+  onRetryBlocklist,
 }) => {
-  if (!pullingDockerHub && !pullingSourcesOnly && !localPullError) {
+  if (!pullingDockerHub && !pullingSourcesOnly && !localPullError && !blocklistError) {
     return null;
   }
 
@@ -104,6 +107,27 @@ const ContainersStatusAlerts = ({
           </div>
         </Alert>
       )}
+      {blocklistError && (
+        <Alert variant="error" role="alert" className={styles.alert}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <span>
+              {blocklistError}. Blocked containers are not being marked, so they look upgradeable.
+            </span>
+            {onRetryBlocklist && (
+              <Button type="button" onClick={() => onRetryBlocklist()}>
+                Retry
+              </Button>
+            )}
+          </div>
+        </Alert>
+      )}
     </div>
   );
 };
@@ -113,6 +137,8 @@ ContainersStatusAlerts.propTypes = {
   pullingSourcesOnly: PropTypes.bool.isRequired,
   localPullError: PropTypes.string.isRequired,
   onDismissError: PropTypes.func.isRequired,
+  blocklistError: PropTypes.string,
+  onRetryBlocklist: PropTypes.func,
 };
 
 export default ContainersStatusAlerts;

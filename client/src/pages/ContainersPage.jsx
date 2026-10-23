@@ -192,6 +192,8 @@ function ContainersPage({
         pullingSourcesOnly={pullingSourcesOnly}
         localPullError={localPullError}
         onDismissError={handleDismissError}
+        blocklistError={containersPage.blocklistError}
+        onRetryBlocklist={containersPage.retryBlocklist}
       />
 
       <div className={styles.sourcesSidebarLayout}>

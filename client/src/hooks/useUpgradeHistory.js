@@ -182,5 +182,6 @@ export const useUpgradeHistory = (options = {}) => {
     statsError,
     statsLoading,
     refetch: fetchHistory,
+    refetchStats: fetchStats,
   };
 };

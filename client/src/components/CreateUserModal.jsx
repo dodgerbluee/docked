@@ -31,6 +31,8 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
   // Use extracted hooks
   const {
     requiresCode,
+    codeStatusError,
+    retryCodeStatus,
     checkingCode,
     codeGenerated,
     generating,
@@ -258,6 +260,17 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create User Account" size="md">
+      {codeStatusError && (
+        <Alert variant="error" role="alert">
+          <p>
+            {codeStatusError}. The registration-code step is being shown until this is resolved, so
+            the account cannot be created from a guess.
+          </p>
+          <Button type="button" onClick={() => retryCodeStatus()}>
+            Retry
+          </Button>
+        </Alert>
+      )}
       {renderContent()}
     </Modal>
   );

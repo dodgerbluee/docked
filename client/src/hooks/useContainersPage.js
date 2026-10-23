@@ -165,18 +165,29 @@ export function useContainersPage({
   // Fetch the upgrade blocklist so we can grey-out blocked containers
   const [blockedNames, setBlockedNames] = useState(new Set());
   const [defaultPatterns, setDefaultPatterns] = useState([]);
+  const [blocklistError, setBlocklistError] = useState("");
   const blockedFetched = useRef(false);
 
-  useEffect(() => {
-    if (blockedFetched.current) return;
+  const fetchBlocklist = useCallback(() => {
     blockedFetched.current = true;
     graphqlClient
       .query(DISALLOWED_CONTAINERS_QUERY)
       .toPromise()
       .then(({ data, error }) => {
-        if (error) return;
+        if (error) {
+          // Swallowing this left every blocked container looking upgradeable:
+          // the guard silently turned itself off. Allow a retry.
+          blockedFetched.current = false;
+          setBlocklistError(error.message || "Failed to load the upgrade blocklist");
+          return;
+        }
         const settings = data?.disallowedContainers;
-        if (!settings) return;
+        if (!settings) {
+          blockedFetched.current = false;
+          setBlocklistError("Upgrade blocklist could not be read");
+          return;
+        }
+        setBlocklistError("");
         const list = settings.containers;
         if (Array.isArray(list) && list.length > 0) {
           setBlockedNames(new Set(list.map((n) => n.toLowerCase())));
@@ -185,10 +196,16 @@ export function useContainersPage({
           setDefaultPatterns(settings.defaultPatterns);
         }
       })
-      .catch(() => {
-        // Ignore — fallback to no blocklist
+      .catch((err) => {
+        blockedFetched.current = false;
+        setBlocklistError(err?.message || "Failed to load the upgrade blocklist");
       });
   }, []);
+
+  useEffect(() => {
+    if (blockedFetched.current) return;
+    fetchBlocklist();
+  }, [fetchBlocklist]);
 
   // Check if a container is on the upgrade blocklist
   const isPortainerContainer = useCallback(
@@ -308,6 +325,8 @@ export function useContainersPage({
     // Helpers
     isPortainerContainer,
     getBlockedMessage,
+    blocklistError,
+    retryBlocklist: fetchBlocklist,
     formatBytes: formatBytesUtil,
 
     // Actions

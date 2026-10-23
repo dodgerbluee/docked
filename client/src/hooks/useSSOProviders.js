@@ -20,6 +20,7 @@ export function useSSOProviders() {
   const [settings, setSettings] = useState({ allowLocalLogin: true });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [settingsError, setSettingsError] = useState(null);
 
   const fetchProviders = useCallback(async () => {
     try {
@@ -36,9 +37,17 @@ export function useSSOProviders() {
     try {
       const { data, error: gqlError } = await graphqlClient.query(SSO_SETTINGS_QUERY).toPromise();
       if (gqlError) throw new Error(gqlError.message);
-      if (data?.ssoSettings) setSettings(data.ssoSettings);
+      if (data?.ssoSettings) {
+        setSettings(data.ssoSettings);
+        setSettingsError(null);
+      }
     } catch (err) {
       console.error("Error fetching SSO settings:", err);
+      // settings stays at its allowLocalLogin:true default. Without this the
+      // admin sees the default, and saving writes that default over whatever
+      // is actually stored - potentially re-enabling local logins they had
+      // deliberately turned off.
+      setSettingsError(err.message || "Failed to load SSO settings");
     }
   }, []);
 
@@ -99,6 +108,13 @@ export function useSSOProviders() {
 
   const updateSettings = useCallback(
     async (newSettings) => {
+      if (settingsError) {
+        return {
+          success: false,
+          error:
+            "SSO settings could not be loaded, so saving is disabled. Saving now would replace them with defaults.",
+        };
+      }
       const { error: gqlError } = await graphqlClient
         .mutation(SET_SSO_SETTINGS_MUTATION, {
           allowLocalLogin: Boolean(newSettings.allowLocalLogin),
@@ -108,7 +124,7 @@ export function useSSOProviders() {
       await fetchSettings();
       return { success: true };
     },
-    [fetchSettings]
+    [fetchSettings, settingsError]
   );
 
   return {
@@ -116,6 +132,7 @@ export function useSSOProviders() {
     settings,
     loading,
     error,
+    settingsError,
     createProvider,
     updateProvider,
     deleteProvider,
