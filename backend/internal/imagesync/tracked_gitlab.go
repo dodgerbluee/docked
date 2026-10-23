@@ -207,11 +207,16 @@ func glGetLatestRelease(ctx context.Context, repoInput, token string) (*glReleas
 		return nil, handleGitLabError(err, status, body, owner, repo)
 	}
 	if status != 200 {
-		slog.Warn("gitlab non-200 response", "repo", repoInput, "status", status)
-		return nil, nil
+		// Not every non-200 is an answer. An expired token (401), a rate limit
+		// (429) or a moved project (404) is a lookup that failed, and reporting
+		// it as "no releases" would erase an update an earlier check confirmed.
+		return nil, handleGitLabError(fmt.Errorf("status %d", status), status, body, owner, repo)
 	}
 	var raw []glRawRelease
-	if err := json.Unmarshal(body, &raw); err != nil || len(raw) == 0 {
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("GitLab release list for %s/%s could not be parsed", owner, repo)
+	}
+	if len(raw) == 0 {
 		slog.Warn("no gitlab releases found", "repo", repoInput)
 		return nil, nil
 	}

@@ -223,16 +223,21 @@ func ghGetLatestRelease(ctx context.Context, repoInput string) (*ghRelease, erro
 	if err != nil {
 		return nil, handleGitHubError(err, owner, repo)
 	}
-	if status == 200 && len(body) > 0 {
+	if status == 200 {
 		var rel ghRelease
 		if err := json.Unmarshal(body, &rel); err == nil {
 			cacheSet(cacheKey, []*ghRelease{&rel})
 			return &rel, nil
 		}
+		return nil, fmt.Errorf("GitHub release response for %s/%s could not be parsed", owner, repo)
 	}
-	// Non-200 (<500): Node returns null here; the all-releases fallback in
-	// fetchLatestRelease only fires on axios-thrown 404s, which cannot happen
-	// with validateStatus<500 — ported faithfully.
+	if status != 404 {
+		// 404 is the only definitive answer GitHub gives here ("this repo has
+		// no releases"). Anything else — 401 for an expired token, 403 for a
+		// rate limit, 5xx — is a lookup that failed, and a failed lookup must
+		// not be reported as "no update available".
+		return nil, handleGitHubError(fmt.Errorf("status %d", status), owner, repo)
+	}
 	return nil, nil
 }
 
@@ -258,11 +263,13 @@ func ghGetAllReleases(ctx context.Context, repoInput string, limit int) ([]*ghRe
 		return nil, handleGitHubError(err, owner, repo)
 	}
 	if status != 200 {
-		return nil, nil
+		// Same rule as the latest-release lookup: anything but 200 is a failed
+		// lookup, not an empty list.
+		return nil, handleGitHubError(fmt.Errorf("status %d", status), owner, repo)
 	}
 	var raw []*ghRelease
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("GitHub release list for %s/%s could not be parsed", owner, repo)
 	}
 	filtered := make([]*ghRelease, 0, len(raw))
 	for _, r := range raw {
@@ -308,6 +315,11 @@ func ghGetReleaseByTag(ctx context.Context, repoInput, tagName string) (*ghRelea
 			cacheSet(cacheKey, &rel)
 			return &rel, nil
 		}
+	}
+	if status != 404 {
+		// Only 404 means "no release with that tag". Reporting a 401/403/5xx as
+		// that would let a transient failure be cached as a missing release.
+		return nil, handleGitHubError(fmt.Errorf("status %d", status), owner, repo)
 	}
 	return nil, nil
 }

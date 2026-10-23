@@ -671,6 +671,80 @@ func TestCheckGitHubTrackedAppNotFoundKeepsLatest(t *testing.T) {
 	}
 }
 
+// A failed upstream lookup is not an observation. An expired or missing token
+// (401) must leave a confirmed update exactly as it was, in the row and in the
+// reported result.
+func TestCheckGitHubTrackedAppAuthFailureKeepsUpdate(t *testing.T) {
+	svc := newTrackedTestService(t)
+	githubServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gh401", "github_repo": "owner/repo", "source_type": "github",
+		"current_version": "1.0", "latest_version": "2.0", "has_update": 1,
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !res.HasUpdate {
+		t.Error("a failed lookup must not report that the update is gone")
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "2.0" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+}
+
+// A GitHub rate limit (403) aborts the check without touching the row.
+func TestCheckGitHubTrackedAppRateLimitDoesNotWrite(t *testing.T) {
+	svc := newTrackedTestService(t)
+	githubServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gh403", "github_repo": "owner/repo", "source_type": "github",
+		"current_version": "1.0", "latest_version": "2.0", "has_update": 1,
+	})
+
+	if _, err := svc.CheckTrackedApp(context.Background(), app); err == nil {
+		t.Fatal("a GitHub rate limit must surface as an error")
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "2.0" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+}
+
+// GitLab reports "no releases" as 200 + [], so every non-200 (here a rejected
+// token) is a failed lookup and must not erase the confirmed update.
+func TestCheckGitLabTrackedAppTokenRejectedKeepsUpdate(t *testing.T) {
+	svc := newTrackedTestService(t)
+	gitlabServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+
+	app := insertTrackedApp(t, svc.DB, map[string]any{
+		"name": "gl401", "github_repo": "group/proj", "source_type": "gitlab",
+		"current_version": "3.0", "latest_version": "3.1", "has_update": 1,
+	})
+
+	res, err := svc.CheckTrackedApp(context.Background(), app)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !res.HasUpdate {
+		t.Error("a rejected token must not report that the update is gone")
+	}
+	got, _ := db.GetTrackedAppByID(context.Background(), svc.DB, app.ID, 1)
+	if got.HasUpdate != 1 || got.LatestVersion.String != "3.1" {
+		t.Errorf("db: has_update=%d latest=%q", got.HasUpdate, got.LatestVersion.String)
+	}
+}
+
 // Negative cache must short-circuit repeat lookups: second call issues zero
 // HTTP requests (approved fix over Node's dead falsy-cache check).
 func TestFindReleaseByTagNegativeCache(t *testing.T) {
