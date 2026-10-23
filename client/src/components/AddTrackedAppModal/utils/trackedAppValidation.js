@@ -42,7 +42,10 @@ export const isValidDockerImage = (imageName) => {
   const trimmed = imageName.trim();
   // Basic Docker image format validation
   // Matches: image, repo/image, repo/image:tag, registry.com/repo/image:tag
-  return /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(\/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?$/i.test(
+  // The optional ":port" after the first component is what makes a private
+  // registry reference (registry.com:5000/repo/image) valid instead of
+  // rejecting it as a malformed tag.
+  return /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]{2,5})?(\/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?$/i.test(
     trimmed
   );
 };

@@ -99,6 +99,7 @@ AddNewCard.propTypes = {
  * @param {number} props.trackedAppsCount - Total number of tracked apps
  * @param {boolean} props.isLoading - Whether data is loading
  * @param {boolean} props.hasLoadedOnce - Whether we've loaded data at least once
+ * @param {boolean} props.loadError - Whether the most recent load failed
  * @param {Function} props.onNavigateToSettings - Handler for navigating to Settings page
  */
 const TrackedAppsContentArea = ({
@@ -114,6 +115,7 @@ const TrackedAppsContentArea = ({
   trackedAppsCount = 0,
   isLoading = false,
   hasLoadedOnce = false,
+  loadError = false,
   onNavigateToSettings,
 }) => {
   // Render upgrade history tab separately
@@ -252,21 +254,29 @@ const TrackedAppsContentArea = ({
             <TrackedAppsPageSkeleton />
           ) : trackedAppsCount === 0 ? (
             <div className={styles.emptyStateMessage}>
-              <p className={styles.emptyStateText}>
-                No tracked apps configured.{" "}
-                <button type="button" onClick={onAddNew} className={styles.emptyStateLink}>
-                  Add a tracked app
-                </button>
-                {" or "}
-                <button
-                  type="button"
-                  onClick={onNavigateToSettings}
-                  className={styles.emptyStateLink}
-                >
-                  disable the page in Settings
-                </button>
-                .
-              </p>
+              {loadError ? (
+                // A failed load looks exactly like "no apps" otherwise, which
+                // invites the user to start re-adding apps they already have.
+                <p className={styles.emptyStateText}>
+                  Could not load tracked apps. Check the error above and try again.
+                </p>
+              ) : (
+                <p className={styles.emptyStateText}>
+                  No tracked apps configured.{" "}
+                  <button type="button" onClick={onAddNew} className={styles.emptyStateLink}>
+                    Add a tracked app
+                  </button>
+                  {" or "}
+                  <button
+                    type="button"
+                    onClick={onNavigateToSettings}
+                    className={styles.emptyStateLink}
+                  >
+                    disable the page in Settings
+                  </button>
+                  .
+                </p>
+              )}
             </div>
           ) : (
             <div className={styles.grid}>
@@ -292,6 +302,7 @@ TrackedAppsContentArea.propTypes = {
   trackedAppsCount: PropTypes.number,
   isLoading: PropTypes.bool,
   hasLoadedOnce: PropTypes.bool,
+  loadError: PropTypes.bool,
   onNavigateToSettings: PropTypes.func,
 };
 

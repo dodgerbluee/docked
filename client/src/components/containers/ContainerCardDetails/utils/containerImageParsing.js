@@ -3,17 +3,30 @@
  */
 
 /**
+ * Split an image reference into [name, tag].
+ *
+ * Only a colon that appears after the last "/" separates a tag, so a registry
+ * port (registry.example.com:5000/app) and a digest pin (repo@sha256:abc) stay
+ * intact instead of being chopped at the wrong colon.
+ */
+const splitImageTag = (imageName) => {
+  const lastSlash = imageName.lastIndexOf("/");
+  const colon = imageName.indexOf(":", lastSlash + 1);
+  if (colon === -1) return [imageName, ""];
+  // A digest is not a tag: keep "@sha256:..." with the name.
+  if (imageName.lastIndexOf("@") > lastSlash) return [imageName, ""];
+  return [imageName.slice(0, colon), imageName.slice(colon + 1)];
+};
+
+/**
  * Extract version/tag from image name
  * @param {string} imageName - Full image name (e.g., "nginx:1.21" or "ghcr.io/user/repo:tag")
  * @returns {string} Version/tag or "latest" if not found
  */
 export const extractVersion = (imageName) => {
   if (!imageName) return "latest";
-  if (imageName.includes(":")) {
-    const parts = imageName.split(":");
-    return parts[parts.length - 1]; // Get the last part after the last colon
-  }
-  return "latest"; // No version specified, default to "latest"
+  const [, tag] = splitImageTag(imageName);
+  return tag || "latest"; // No version specified, default to "latest"
 };
 
 /**
@@ -23,11 +36,8 @@ export const extractVersion = (imageName) => {
  */
 export const extractImageName = (imageName) => {
   if (!imageName) return imageName;
-  if (imageName.includes(":")) {
-    const parts = imageName.split(":");
-    return parts.slice(0, -1).join(":"); // Get everything except the last part
-  }
-  return imageName; // No version, return as-is
+  const [name] = splitImageTag(imageName);
+  return name; // No version, return as-is
 };
 
 /**

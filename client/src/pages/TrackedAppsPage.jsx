@@ -208,6 +208,7 @@ function TrackedAppsPage({
             trackedAppsCount={trackedApps.length}
             isLoading={isLoading}
             hasLoadedOnce={hasLoadedOnce}
+            loadError={!!trackedAppError}
             onNavigateToSettings={onNavigateToSettings}
           />
 

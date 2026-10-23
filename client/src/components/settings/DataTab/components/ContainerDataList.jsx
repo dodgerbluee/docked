@@ -32,12 +32,14 @@ const ContainerDataList = forwardRef(
     const [viewMode, setViewMode] = useState("formatted"); // "formatted" or "raw"
     const databaseRecordsViewRef = useRef(null);
 
-    // Get correlated records from first entry if available (use original dataEntries, not filtered)
-    // This ensures correlated records are always available regardless of search
+    // The formatted view shows one container's correlated rows. With a search
+    // active, prefer the entry that actually matched so the rows belong to the
+    // container the user searched for instead of whatever happens to be first.
     const correlatedRecords =
-      dataEntries.length > 0 && dataEntries[0]?.correlatedRecords
-        ? dataEntries[0].correlatedRecords
-        : null;
+      (
+        dataEntries.find((entry) => entry?._matchingContainerNames?.length > 0) ||
+        dataEntries.find((entry) => entry?.correlatedRecords)
+      )?.correlatedRecords || null;
 
     const handleViewModeChange = (newMode) => {
       setViewMode(newMode);
