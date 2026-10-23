@@ -43,8 +43,8 @@ const RepositoryTokenSelector = React.memo(function RepositoryTokenSelector({
   }, [provider]);
 
   const handleAddToken = useCallback(
-    async (tokenProvider, name, accessToken, tokenId) => {
-      const result = await createOrUpdateToken(tokenProvider, name, accessToken, tokenId);
+    async (tokenProvider, accessToken) => {
+      const result = await createOrUpdateToken(tokenProvider, accessToken);
       if (result && result.success) {
         await fetchTokens();
         // Auto-select the newly created token by ID

@@ -42,14 +42,21 @@ export function useRepositoryAccessTokens({ activeSection }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
+  // The API keeps one token per provider and replaces it wholesale: there is no
+  // rename and no "blank keeps the current value", so a blank submission would
+  // erase the stored credential. Reject it here as well as in the form.
   const createOrUpdateToken = useCallback(
-    async (provider, _name, accessToken, _tokenId = null) => {
+    async (provider, accessToken) => {
       try {
         setLoading(true);
         setError("");
+        const token = (accessToken || "").trim();
+        if (!token) {
+          throw new Error("An access token is required");
+        }
         const result = await graphqlClient
           .mutation(SAVE_REPOSITORY_TOKEN_MUTATION, {
-            input: { provider, token: accessToken },
+            input: { provider, token },
           })
           .toPromise();
         if (result.error) throw new Error(result.error.message);

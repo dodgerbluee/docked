@@ -1,6 +1,11 @@
 /**
  * Add Repository Access Token Modal
- * Popup form to add or edit a repository access token (GitHub/GitLab)
+ * Popup form to add or replace a repository access token (GitHub/GitLab).
+ *
+ * The API keeps exactly one token per provider and replaces it wholesale, so
+ * there is no rename and no "leave blank to keep the current value": a blank
+ * submission would erase the saved credential. The token is therefore required,
+ * and the provider cannot be switched while editing one that already exists.
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -31,22 +36,16 @@ const AddRepositoryAccessTokenModal = React.memo(function AddRepositoryAccessTok
   loading = false,
 }) {
   const [provider, setProvider] = useState(existingToken?.provider || "github");
-  const [name, setName] = useState(existingToken?.name || "");
   const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      if (existingToken) {
-        setProvider(existingToken.provider);
-        setName(existingToken.name || "");
-        // Don't pre-fill token for security
-        setAccessToken("");
-      } else {
-        setProvider("github");
-        setName("");
-        setAccessToken("");
-      }
+      // The stored token is never shown, so the field always starts blank -
+      // and a blank submission is rejected rather than replacing the saved
+      // credential with an empty one.
+      setProvider(existingToken ? existingToken.provider : "github");
+      setAccessToken("");
       setError("");
     }
   }, [existingToken, isOpen]);
@@ -56,64 +55,46 @@ const AddRepositoryAccessTokenModal = React.memo(function AddRepositoryAccessTok
       e.preventDefault();
       setError("");
 
-      // Validate name is required
-      if (!name || name.trim().length === 0) {
-        setError("Token name is required");
+      const token = accessToken.trim();
+      if (!token) {
+        setError(
+          existingToken
+            ? "Enter a new access token - saving a blank value would remove the stored one."
+            : "Access token is required"
+        );
         return;
       }
 
-      // Only require token if creating new token (not editing)
-      if (!existingToken && (!accessToken || accessToken.trim().length === 0)) {
-        setError("Access token is required");
-        return;
-      }
-
-      if (onSuccess) {
-        // Pass empty string if token is blank when editing (to keep existing)
-        const tokenToSave = accessToken.trim() || "";
-        const result = await onSuccess(provider, name.trim(), tokenToSave, existingToken?.id);
-        if (result && result.success) {
-          // Reset form and close modal
-          setName("");
-          setAccessToken("");
-          setError("");
-          onClose();
-        } else if (result && result.error) {
+      if (!onSuccess) return;
+      try {
+        const result = await onSuccess(provider, token);
+        if (result && result.error) {
           setError(result.error);
+          return;
         }
+        setAccessToken("");
+        onClose();
+      } catch (err) {
+        setError(err.message || "Failed to save token");
       }
     },
-    [name, accessToken, existingToken, provider, onSuccess, onClose]
+    [accessToken, existingToken, provider, onSuccess, onClose]
   );
 
   const handleClose = useCallback(() => {
     if (!loading) {
       setError("");
-      setName("");
       setAccessToken("");
       onClose();
     }
   }, [loading, onClose]);
 
   const isFormValid = useMemo(() => {
-    // Name is always required
-    if (!name || name.trim().length === 0) {
-      return false;
-    }
-    // When editing, token is optional (can leave blank to keep existing)
-    // When creating, token is required
-    if (existingToken) {
-      return provider;
-    }
-    return provider && accessToken && accessToken.trim().length > 0;
-  }, [name, provider, accessToken, existingToken]);
+    return provider && accessToken.trim().length > 0;
+  }, [provider, accessToken]);
 
   const handleProviderChange = useCallback((newProvider) => {
     setProvider(newProvider);
-  }, []);
-
-  const handleNameChange = useCallback((e) => {
-    setName(e.target.value);
   }, []);
 
   const handleTokenChange = useCallback((e) => {
@@ -168,31 +149,16 @@ const AddRepositoryAccessTokenModal = React.memo(function AddRepositoryAccessTok
         </div>
 
         <Input
-          label="Token Name"
-          type="text"
-          value={name}
-          onChange={handleNameChange}
-          required
-          placeholder="e.g., Production Token, Personal Token"
-          disabled={loading}
-          helperText="A unique name to identify this token"
-        />
-
-        <Input
           label="Access Token"
           type="password"
           value={accessToken}
           onChange={handleTokenChange}
-          required={!existingToken}
-          placeholder={
-            existingToken
-              ? "Enter new token to update (leave blank to keep current)"
-              : "Enter your access token"
-          }
+          required
+          placeholder={existingToken ? "Enter the new access token" : "Enter your access token"}
           disabled={loading}
           helperText={
             existingToken
-              ? "Enter a new token to update, or leave blank to keep current token"
+              ? "Replaces the stored token. The current value is never shown."
               : provider === "github"
                 ? "Create a Personal Access Token at github.com/settings/tokens"
                 : "Create a Personal Access Token in your GitLab account settings"

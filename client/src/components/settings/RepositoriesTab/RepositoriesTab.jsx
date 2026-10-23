@@ -38,9 +38,7 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
   }, []);
 
   const handleTokenSave = useCallback(
-    async (provider, name, accessToken, tokenId) => {
-      return await createOrUpdateToken(provider, name, accessToken, tokenId);
-    },
+    async (provider, accessToken) => createOrUpdateToken(provider, accessToken),
     [createOrUpdateToken]
   );
 
