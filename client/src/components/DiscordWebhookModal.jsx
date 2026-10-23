@@ -30,6 +30,11 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
   const [loading, setLoading] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
 
+  // The DiscordWebhook type has no "hasWebhook" flag: the row itself is the
+  // evidence that a webhook is stored (its URL stays masked). Testing an
+  // existing webhook is done by id.
+  const hasStoredWebhook = Boolean(existingWebhook?.id);
+
   // Clear form and error when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -70,7 +75,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
       let webhookUrl = formData.webhookUrl.trim();
 
       // If editing and no URL provided, test the existing webhook by ID
-      if (!webhookUrl && existingWebhook?.hasWebhook) {
+      if (!webhookUrl && hasStoredWebhook) {
         const result = await graphqlClient
           .mutation(TEST_DISCORD_WEBHOOK_MUTATION, { id: existingWebhook.id })
           .toPromise();
@@ -250,7 +255,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         <div className={styles.formGroup}>
           <label htmlFor="discordWebhookUrl" className={styles.label}>
             Discord Webhook URL {existingWebhook ? "" : "*"}
-            {existingWebhook && existingWebhook.hasWebhook && (
+            {hasStoredWebhook && (
               <span className={styles.webhookConfigured}>(Webhook is configured)</span>
             )}
           </label>
@@ -266,7 +271,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
             className={styles.input}
           />
           <small className={styles.helperText}>
-            {existingWebhook && existingWebhook.hasWebhook
+            {hasStoredWebhook
               ? "Enter a new webhook URL to replace the current one, or leave empty to keep the current webhook"
               : 'Create a webhook in your Discord server settings. Go to Server Settings → Integrations → Webhooks → New Webhook. Recommended: Rename the webhook to "Docked" and use the Docked logo as the avatar.'}
           </small>
@@ -301,16 +306,14 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           </small>
         </div>
 
-        {(formData.webhookUrl || existingWebhook?.hasWebhook) && (
+        {(formData.webhookUrl || hasStoredWebhook) && (
           <div className={styles.testButtonContainer}>
             <Button
               type="button"
               variant="secondary"
               onClick={handleTestWebhook}
               disabled={
-                loading ||
-                testingWebhook ||
-                (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)
+                loading || testingWebhook || (!formData.webhookUrl.trim() && !hasStoredWebhook)
               }
               size="sm"
             >

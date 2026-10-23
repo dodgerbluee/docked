@@ -374,13 +374,22 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // Logout mid-flight: stop the chain, the next mutation would run under
       // whoever is signed in now.
       if (isSessionStale(gen)) return;
-      if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
+      // urql resolves GraphQL failures instead of rejecting, so the error
+      // branch below never sees them: without this a rejected check left the
+      // button spinning down with no explanation.
+      if (result.error) {
+        setTrackedAppError(result.error.message || "Failed to check for updates");
+        return;
+      }
+      if (result.data?.checkTrackedAppUpdates?.success) {
         await fetchTrackedApps({ showRefreshing: true });
         if (isSessionStale(gen)) return;
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately
         setTrackedAppSuccess("success");
         setTimeout(() => setTrackedAppSuccess(""), 100);
+      } else {
+        setTrackedAppError("Failed to check for updates");
       }
     } catch (err) {
       if (isSessionStale(gen)) return;

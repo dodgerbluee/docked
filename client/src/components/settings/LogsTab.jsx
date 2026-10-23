@@ -176,16 +176,20 @@ function LogsTab() {
 
   const handleTailLinesBlur = useCallback(() => {
     const parsed = parseInt(tailLinesInput, 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      const clamped = Math.min(parsed, MAX_TAIL_LINES);
-      setTailLinesInput(String(clamped));
-      setTailLines(clamped);
-      lastFileSizeRef.current = 0;
-      setLogLines([]);
-      setIsInitialLoad(true);
-    } else {
+    if (isNaN(parsed) || parsed <= 0) {
       setTailLinesInput(String(tailLines));
+      return;
     }
+    const clamped = Math.min(parsed, MAX_TAIL_LINES);
+    setTailLinesInput(String(clamped));
+    if (clamped === tailLines) return;
+    // The tailLines effect below performs the full re-tail. Marking this an
+    // initial load would make that effect skip the fetch (and pause the
+    // auto-refresh interval), leaving the viewer blank with nothing left to
+    // refill it.
+    lastFileSizeRef.current = 0;
+    setLogLines([]);
+    setTailLines(clamped);
   }, [tailLinesInput, tailLines]);
 
   const handleTailLinesKeyDown = useCallback((e) => {
