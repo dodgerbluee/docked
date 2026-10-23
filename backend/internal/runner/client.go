@@ -91,20 +91,23 @@ func FetchContainers(ctx context.Context, runner db.RunnerRow) ([]domain.Contain
 
 // normalize converts a dockhand container to the domain shape.
 func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Container {
-	// Strip image prefix from repoDigests to get sha256-only format,
-	// matching the Node.js normalizeRunnerContainer logic.
-	cleanDigests := make([]string, 0, len(dockhandCtr.RepoDigests))
+	// RepoDigests stay RAW ("repo@sha256:..."): the repository prefix is the
+	// only recoverable image identity for containers pinned to an image ID by
+	// the upgrade pipeline, and stripping it here makes the scan parse a bogus
+	// "sha256" repo. The bare "sha256:..." form is derived where persistence
+	// needs it (imagesync) - not at the transport boundary.
+	var currentDigest *string
 	for _, repoDigest := range dockhandCtr.RepoDigests {
 		if index := strings.Index(repoDigest, "@sha256:"); index >= 0 {
-			cleanDigests = append(cleanDigests, "sha256:"+repoDigest[index+len("@sha256:"):])
-		} else {
-			cleanDigests = append(cleanDigests, repoDigest)
+			digest := "sha256:" + repoDigest[index+len("@sha256:"):]
+			currentDigest = &digest
+			break
 		}
-	}
-
-	var currentDigest *string
-	if len(cleanDigests) > 0 {
-		currentDigest = &cleanDigests[0]
+		if strings.HasPrefix(repoDigest, "sha256:") && len(repoDigest) > len("sha256:") {
+			digest := repoDigest
+			currentDigest = &digest
+			break
+		}
 	}
 
 	runnerName := runnerRow.Name
@@ -116,7 +119,7 @@ func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Con
 		Image:       dockhandCtr.Image,
 		Status:      dockhandCtr.Status,
 		State:       dockhandCtr.State,
-		RepoDigests: cleanDigests,
+		RepoDigests: dockhandCtr.RepoDigests,
 		Source:      "runner",
 		RunnerID:    &runnerRow.ID,
 		RunnerName:  &runnerName,
@@ -133,6 +136,10 @@ func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Con
 
 	if dockhandCtr.ComposeProject != "" {
 		container.StackName = &dockhandCtr.ComposeProject
+	} else if stack := dockhandCtr.Labels["com.docker.stack.namespace"]; stack != "" {
+		// Swarm services carry no compose project label; the stack namespace
+		// is their stack identity (same fallback the upgrade pipeline uses).
+		container.StackName = &stack
 	}
 
 	return container

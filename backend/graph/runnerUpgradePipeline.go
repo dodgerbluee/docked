@@ -15,7 +15,9 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +26,30 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/runner"
 )
+
+// OriginalImageLabel is stamped on every container the upgrade pipeline
+// recreates (main replacement, provider restoration, dependent recreation,
+// verification retry). Its value is the ORIGINAL user-visible image
+// reference from the pre-upgrade Config.Image (e.g. "nginx:1.25") — NOT the
+// pinned sha256 digest the create actually runs from. The UI needs the human
+// reference; execution stays pinned to the immutable digest.
+const OriginalImageLabel = "docked.original_image"
+
+// stampOriginalImage attaches OriginalImageLabel to a create payload without
+// mutating the inspect document (buildUpgradeConfig/buildRecreateContainerConfig
+// alias the Config.Labels map).
+func stampOriginalImage(cfg map[string]any, originalImage string) {
+	if originalImage == "" {
+		return
+	}
+	labels, _ := cfg["Labels"].(map[string]any)
+	stamped := make(map[string]any, len(labels)+1)
+	for k, v := range labels {
+		stamped[k] = v
+	}
+	stamped[OriginalImageLabel] = originalImage
+	cfg["Labels"] = stamped
+}
 
 // ── Decoded-JSON access helpers ─────────────────────────────────────────────
 
@@ -44,6 +70,31 @@ func (r *Resolver) startLockHeartbeat(targetKey, owner string) (stop func()) {
 			case <-ticker.C:
 				if err := db.RefreshUpgradeLock(context.Background(), r.DB, targetKey, owner); err != nil {
 					slog.Warn("upgrade lock refresh failed", "target", targetKey, "error", err.Error())
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() { once.Do(func() { close(done) }) }
+}
+
+// startDepLockHeartbeat keeps every held dependent lock in
+// acquireUpgradeLockSet alive on the same 60s cadence as startLockHeartbeat
+// (which only covers a single target key).
+func (r *Resolver) startDepLockHeartbeat(targetKeys []string, owner string) (stop func()) {
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				for _, key := range targetKeys {
+					if err := db.RefreshUpgradeLock(context.Background(), r.DB, key, owner); err != nil {
+						slog.Warn("dependent upgrade lock refresh failed", "target", key, "error", err.Error())
+					}
 				}
 			case <-done:
 				return
@@ -236,6 +287,14 @@ func prepareNetworkingConfig(details map[string]any, shared bool) map[string]any
 		if jsTruthy(data["Aliases"]) {
 			endpoint["Aliases"] = data["Aliases"]
 		}
+		// DriverOpts is a writable endpoint setting (macvlan options,
+		// com.docker.network.driver.mtu, ...): dropping it silently strips
+		// configured network identity. Dynamic per-attach fields (IPAddress,
+		// Gateway, GatewayPriority, MAC) are NOT create-writable and stay
+		// dropped so Docker re-assigns them.
+		if jsTruthy(data["DriverOpts"]) {
+			endpoint["DriverOpts"] = data["DriverOpts"]
+		}
 		// Keep the network even when the endpoint config is empty: dropping
 		// it detaches the container from that secondary network on recreate.
 		// Docker accepts an empty endpoint object and attaches with defaults.
@@ -335,7 +394,11 @@ func prepareContainerConfig(details map[string]any, newImage, containerName stri
 	cleanHC, shared := cleanHostConfigForCreate(jObj(details, "HostConfig"), containerName)
 	preserveAnonymousVolumes(details, cleanHC)
 	netCfg := prepareNetworkingConfig(details, shared)
-	return buildUpgradeConfig(details, newImage, cleanHC, netCfg, shared), shared, stackName
+	cfg := buildUpgradeConfig(details, newImage, cleanHC, netCfg, shared)
+	// Keep the user-visible image reference on the recreated container even
+	// though the create may run from a pinned digest or a moved tag.
+	stampOriginalImage(cfg, jStr(jObj(details, "Config"), "Image"))
+	return cfg, shared, stackName
 }
 
 // preserveAnonymousVolumes re-attaches image-declared anonymous volumes to a
@@ -428,7 +491,16 @@ func preserveAnonymousVolumes(details map[string]any, cleanHC map[string]any) {
 			continue
 		}
 		bind := key + ":" + dst
-		if mode := jStr(mm, "Mode"); mode != "" {
+		mode := jStr(mm, "Mode")
+		if mode == "" {
+			// Inspect reports RW as the authoritative access flag and Mode
+			// is often empty for volume mounts: without this a read-only
+			// volume would come back writable on recreate.
+			if rw, ok := mm["RW"].(bool); ok && !rw {
+				mode = "ro"
+			}
+		}
+		if mode != "" {
 			bind += ":" + mode
 		}
 		binds = append(binds, bind)
@@ -513,6 +585,57 @@ func readinessCheck(ctx context.Context, rr db.RunnerRow, details map[string]any
 	return false, nil
 }
 
+// acquireUpgradeLockSet atomically acquires upgrade locks for a set of
+// container IDs (lock keys are sorted for deterministic ordering). When
+// requireAll is true, any contended ID releases the whole set and returns an
+// error; when false, contended IDs are simply omitted from the returned map,
+// which is keyed by container ID. The returned release function frees every
+// held lock and stops the heartbeat.
+func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.RunnerRow, owner string, ids []string, requireAll bool) (map[string]bool, func(), error) {
+	idByKey := make(map[string]string, len(ids))
+	for _, id := range ids {
+		key := containerTargetKey(id, &rr.ID)
+		if _, dup := idByKey[key]; !dup {
+			idByKey[key] = id
+		}
+	}
+	keys := make([]string, 0, len(idByKey))
+	for k := range idByKey {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	held := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		locked, err := db.AcquireUpgradeLock(ctx, r.DB, key, owner)
+		if err != nil || !locked {
+			if requireAll {
+				for k := range held {
+					_ = db.ReleaseUpgradeLock(ctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+				}
+				if err == nil {
+					err = fmt.Errorf("lock already held by another operation")
+				}
+				return nil, nil, fmt.Errorf("container %q is being modified by another operation: %w", key, err)
+			}
+			continue
+		}
+		held[idByKey[key]] = true
+	}
+	if len(held) == 0 {
+		return held, func() {}, nil
+	}
+
+	stopHB := r.startDepLockHeartbeat(keys, owner)
+	release := func() {
+		stopHB()
+		for k := range held {
+			_ = db.ReleaseUpgradeLock(ctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+		}
+	}
+	return held, release, nil
+}
+
 // waitForContainerReady polls the new container until it is healthy/stable.
 func waitForContainerReady(ctx context.Context, rr db.RunnerRow, containerID, containerName, imageName string) error {
 	const maxWait = 120 * time.Second
@@ -538,7 +661,15 @@ func waitForContainerReady(ctx context.Context, rr db.RunnerRow, containerID, co
 		if ready {
 			return nil
 		}
-		consecutive++
+		// Only RUNNING samples count toward the stable-run streak: the old
+		// unconditional increment let a container that polled "created" or
+		// "restarting" ten times pass the consecutive threshold on its very
+		// first running sample. Any non-running sample resets the streak.
+		if inspectRunning(details) {
+			consecutive++
+		} else {
+			consecutive = 0
+		}
 	}
 
 	// Final check: a running container at timeout still counts as ready.
@@ -562,13 +693,20 @@ func waitForContainerReady(ctx context.Context, rr db.RunnerRow, containerID, co
 type depContainer struct {
 	ID   string
 	Name string
+	// Running is the dependent's state at capture time. Stopped
+	// network_mode dependents are captured too (their network_mode dies with
+	// the provider, so they must be recreated against the new one) but must
+	// NOT be started back: the user stopped them deliberately.
+	Running bool
 	// Details is the inspect document captured BEFORE the dependent was
 	// removed; it is the only way back if the pipeline fails midway.
 	Details map[string]any
 }
 
 // findDependentContainers lists containers whose network_mode references the
-// target by name or full ID and which are currently running.
+// target by name or full ID. Running AND stopped dependents are captured:
+// a stopped dependent's network_mode reference dies with the provider too,
+// so it must be recreated (but left stopped).
 func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cleanName string) []depContainer {
 	list, err := runner.FetchContainers(ctx, rr)
 	if err != nil {
@@ -589,8 +727,15 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 		// or `docker run --net container:<64-hex-id>` reference the provider
 		// by ID, and name-only matching silently skipped them — rollback then
 		// left them wired to the deleted old provider ID.
-		if networkModeMatches(nm, cleanName, targetID, targetID) && restartStatus(details) == "running" {
-			deps = append(deps, depContainer{ID: c.ID, Name: c.Name, Details: details})
+		if !networkModeMatches(nm, cleanName, targetID, targetID) {
+			continue
+		}
+		status := restartStatus(details)
+		if status == "running" || status == "exited" || status == "stopped" {
+			deps = append(deps, depContainer{
+				ID: c.ID, Name: c.Name, Details: details,
+				Running: status == "running",
+			})
 		}
 	}
 	return deps
@@ -598,10 +743,14 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 
 // stopAndRemoveDependentContainers removes (not just stops) dependents so
 // compose does not auto-recreate them against the old provider container ID.
+// Only running dependents are stopped first; stopped ones are removed
+// directly (stopping them would fail, and they must not come back up).
 func stopAndRemoveDependentContainers(ctx context.Context, rr db.RunnerRow, deps []depContainer) {
 	for _, d := range deps {
-		if err := runner.StopContainer(ctx, rr, d.ID); err != nil {
-			log.Printf("upgrade: dependent %s may already be stopped: %v", d.Name, err)
+		if d.Running {
+			if err := runner.StopContainer(ctx, rr, d.ID); err != nil {
+				log.Printf("upgrade: dependent %s may already be stopped: %v", d.Name, err)
+			}
 		}
 		if err := runner.RemoveContainer(ctx, rr, d.ID, false); err != nil {
 			log.Printf("upgrade: failed to remove dependent %s: %v", d.Name, err)
@@ -664,13 +813,17 @@ func restoreRemovedDependents(ctx context.Context, rr db.RunnerRow, deps []depCo
 	}
 
 	var errs []error
+	oldProviderID := jStr(providerDetails, "Id")
 	for _, d := range deps {
 		if d.Details == nil {
 			log.Printf("upgrade: no snapshot for dependent %s, cannot restore", d.Name)
 			errs = append(errs, fmt.Errorf("no snapshot for dependent %s", d.Name))
 			continue
 		}
-		if err := recreateNetworkModeContainer(ctx, rr, depAfter{ID: d.ID, Name: d.Name}, d.Details, providerID); err != nil {
+		// Running state comes from the PRE-STOP snapshot: a dependent the
+		// user had stopped must come back recreated-but-not-started.
+		dep := depAfter{ID: d.ID, Name: d.Name, Running: d.Running && inspectRunning(d.Details)}
+		if err := recreateNetworkModeContainer(ctx, rr, dep, d.Details, providerID, oldProviderID); err != nil {
 			log.Printf("upgrade: could not restore dependent %s: %v", d.Name, err)
 			errs = append(errs, err)
 		}
@@ -859,6 +1012,32 @@ func buildRecreateHostConfig(original map[string]any, prefix, newID string) map[
 	return clean
 }
 
+// remapSharedModeRefs rewrites IpcMode/PidMode references that point at the
+// provider container the pipeline just deleted. buildRecreateHostConfig
+// re-points NetworkMode at the new provider, but a copied IpcMode/PidMode of
+// "container:<old ref>" (or the bare sandbox-ID form swarm tasks use) would
+// make Docker reject the create — or silently join a stale container.
+// oldRef is the dependent's network_mode reference (provider name or ID),
+// oldID the provider's full container ID before deletion.
+func remapSharedModeRefs(cleanHC map[string]any, oldRef, oldID, newID string) {
+	for _, key := range []string{"IpcMode", "PidMode"} {
+		v, ok := cleanHC[key].(string)
+		if !ok || v == "" {
+			continue
+		}
+		if rest, isCtr := strings.CutPrefix(v, "container:"); isCtr {
+			if (oldRef != "" && rest == oldRef) || (oldID != "" && rest == oldID) {
+				cleanHC[key] = "container:" + newID
+			}
+			continue
+		}
+		// Bare form: the raw sandbox container ID.
+		if oldID != "" && v == oldID && fullIDRe.MatchString(v) {
+			cleanHC[key] = newID
+		}
+	}
+}
+
 // buildRecreateNetworkingConfig is the recreate-path variant: null fields fall
 // back to empty defaults which are then dropped (differs subtly from the
 // main-path variant's JS-truthy retention; both mirror Node).
@@ -885,6 +1064,11 @@ func buildRecreateNetworkingConfig(details map[string]any, shared bool) map[stri
 		}
 		if aliases, ok := data["Aliases"].([]any); ok && len(aliases) > 0 {
 			endpoint["Aliases"] = aliases
+		}
+		// DriverOpts is create-writable network identity (see the main-path
+		// variant); dynamic fields (IPAddress, Gateway, MAC) stay dropped.
+		if d, ok := data["DriverOpts"].(map[string]any); ok && len(d) > 0 {
+			endpoint["DriverOpts"] = d
 		}
 		// Keep empty endpoint configs: dropping the entry detaches the
 		// container from that network on recreate (see the main-path
@@ -933,6 +1117,9 @@ func buildRecreateContainerConfig(details map[string]any, cleanHC, netCfg map[st
 	if netCfg != nil {
 		out["NetworkingConfig"] = netCfg
 	}
+	// Execution is pinned to the digest above; keep the user-visible
+	// reference for the UI (contract with the imagesync/UI side).
+	stampOriginalImage(out, jStr(config, "Image"))
 	return out
 }
 
@@ -957,20 +1144,26 @@ func removeExistingContainer(ctx context.Context, rr db.RunnerRow, containerName
 }
 
 // verifyAndRetryContainer re-creates once if Docker stored a wrong NetworkMode.
-// Returns the ID of the container to use (original on any verification error).
-func verifyAndRetryContainer(ctx context.Context, rr db.RunnerRow, newID, containerName, expectedNM string, containerConfig, cleanHC map[string]any) string {
+// Returns the ID of the container the caller must use, or an error when no
+// usable container survives: the old code returned the ORIGINAL ID after
+// having already removed it (retry create/inspect failed), so the caller
+// proceeded to start a container that no longer existed.
+func verifyAndRetryContainer(ctx context.Context, rr db.RunnerRow, newID, containerName, expectedNM string, containerConfig, cleanHC map[string]any) (string, error) {
 	details, err := runner.InspectContainer(ctx, rr, newID)
 	if err != nil {
 		log.Printf("upgrade: could not verify created container NetworkMode: %v", err)
-		return newID
+		return newID, nil
 	}
 	actual := jStr(jObj(details, "HostConfig"), "NetworkMode")
 	if actual == expectedNM {
-		return newID
+		return newID, nil
 	}
 	log.Printf("upgrade: created container NetworkMode mismatch: got %q, want %q; retrying", actual, expectedNM)
+	removedFirst := false
 	if err := runner.RemoveContainer(ctx, rr, newID, false); err != nil {
 		log.Printf("upgrade: could not remove mismatched container: %v", err)
+	} else {
+		removedFirst = true
 	}
 	time.Sleep(2 * time.Second)
 
@@ -987,30 +1180,40 @@ func verifyAndRetryContainer(ctx context.Context, rr db.RunnerRow, newID, contai
 
 	retryID, err := runner.CreateContainer(ctx, rr, retry, containerName)
 	if err != nil {
+		if removedFirst {
+			// The mismatched container is gone and the retry failed: there
+			// is nothing to hand back. Fail so the outer recreate retries
+			// from a clean slate instead of starting a deleted ID.
+			return "", fmt.Errorf("retry create for %s failed after the mismatched container was removed: %w", containerName, err)
+		}
 		log.Printf("upgrade: retry create failed, keeping original: %v", err)
-		return newID
+		return newID, nil
 	}
 	retryDetails, err := runner.InspectContainer(ctx, rr, retryID)
 	if err != nil {
-		log.Printf("upgrade: could not verify retry container, keeping original: %v", err)
-		return newID
+		// The retry exists but is unverifiable: hand back the SURVIVING
+		// retry ID, never the removed original.
+		log.Printf("upgrade: could not verify retry container, keeping it: %v", err)
+		return retryID, nil
 	}
 	if jStr(jObj(retryDetails, "HostConfig"), "NetworkMode") == expectedNM {
-		return retryID
+		return retryID, nil
 	}
-	log.Printf("upgrade: retry NetworkMode still incorrect, keeping original")
-	return newID
+	log.Printf("upgrade: retry NetworkMode still incorrect, failing for outer retry")
+	return "", fmt.Errorf("created container %s NetworkMode stayed %q, want %q", containerName,
+		jStr(jObj(retryDetails, "HostConfig"), "NetworkMode"), expectedNM)
 }
 
 // recreateNetworkModeContainer rebuilds a network_mode dependent so its
 // network_mode points at the new provider container ID. The dependent was
 // already REMOVED by the caller, so a failed recreation is data loss: retry a
 // bounded number of times (transient engine errors are the common case)
-// before reporting the failure upward.
-func recreateNetworkModeContainer(ctx context.Context, rr db.RunnerRow, dep depAfter, details map[string]any, newID string) error {
+// before reporting the failure upward. oldID is the provider's full ID
+// before deletion (for IpcMode/PidMode reference remapping).
+func recreateNetworkModeContainer(ctx context.Context, rr db.RunnerRow, dep depAfter, details map[string]any, newID, oldID string) error {
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
-		if err := recreateNetworkModeContainerOnce(ctx, rr, dep, details, newID); err != nil {
+		if err := recreateNetworkModeContainerOnce(ctx, rr, dep, details, newID, oldID); err != nil {
 			lastErr = err
 			log.Printf("upgrade: dependent %s recreate attempt %d/3 failed: %v", dep.Name, attempt, err)
 			if ctx.Err() != nil {
@@ -1024,7 +1227,7 @@ func recreateNetworkModeContainer(ctx context.Context, rr db.RunnerRow, dep depA
 	return lastErr
 }
 
-func recreateNetworkModeContainerOnce(ctx context.Context, rr db.RunnerRow, dep depAfter, details map[string]any, newID string) error {
+func recreateNetworkModeContainerOnce(ctx context.Context, rr db.RunnerRow, dep depAfter, details map[string]any, newID, oldID string) error {
 	containerNM := jStr(jObj(details, "HostConfig"), "NetworkMode")
 	prefix := "container:"
 	if strings.HasPrefix(containerNM, "service:") {
@@ -1036,6 +1239,10 @@ func recreateNetworkModeContainerOnce(ctx context.Context, rr db.RunnerRow, dep 
 		originalHC = map[string]any{}
 	}
 	cleanHC := buildRecreateHostConfig(originalHC, prefix, newID)
+	// NetworkMode was re-pointed above; IpcMode/PidMode copied verbatim can
+	// still reference the DELETED provider, which makes Docker reject the
+	// create or misconfigure the dependent. Re-point those too.
+	remapSharedModeRefs(cleanHC, networkModeRef(containerNM), oldID, newID)
 	preserveAnonymousVolumes(details, cleanHC)
 
 	updatedNM := jStr(cleanHC, "NetworkMode")
@@ -1067,9 +1274,16 @@ func recreateNetworkModeContainerOnce(ctx context.Context, rr db.RunnerRow, dep 
 	if err != nil {
 		return fmt.Errorf("create dependent %s: %w", containerName, err)
 	}
-	verifiedID := verifyAndRetryContainer(ctx, rr, newDepID, containerName, expectedNM, containerConfig, cleanHC)
-	if err := runner.StartContainer(ctx, rr, verifiedID); err != nil {
-		return fmt.Errorf("start dependent %s: %w", containerName, err)
+	verifiedID, err := verifyAndRetryContainer(ctx, rr, newDepID, containerName, expectedNM, containerConfig, cleanHC)
+	if err != nil {
+		return fmt.Errorf("verify dependent %s: %w", containerName, err)
+	}
+	// Only start dependents that were RUNNING before the operation: a
+	// deliberately stopped one comes back recreated-but-stopped.
+	if dep.Running {
+		if err := runner.StartContainer(ctx, rr, verifiedID); err != nil {
+			return fmt.Errorf("start dependent %s: %w", containerName, err)
+		}
 	}
 	return nil
 }
@@ -1078,7 +1292,8 @@ func recreateNetworkModeContainerOnce(ctx context.Context, rr db.RunnerRow, dep 
 // dependents, then recreates them against the new provider ID. Recreation
 // failures are returned: these dependents were removed by us, so swallowing
 // the error would report a clean upgrade over permanent config loss.
-func handleNetworkModeContainers(ctx context.Context, rr db.RunnerRow, deps []depAfter, newID string) error {
+// oldID is the upgraded provider's full ID before deletion.
+func (r *mutationResolver) handleNetworkModeContainers(ctx context.Context, rr db.RunnerRow, deps []depAfter, newID, oldID string) error {
 	detailsMap := map[string]map[string]any{}
 	for _, d := range deps {
 		details, err := runner.InspectContainer(ctx, rr, d.ID)
@@ -1088,11 +1303,30 @@ func handleNetworkModeContainers(ctx context.Context, rr db.RunnerRow, deps []de
 		}
 		detailsMap[d.ID] = details
 	}
+	// These dependents were NOT part of the up-front locked set (inspect
+	// flake during the pre-scan, or created mid-pipeline): claim their
+	// upgrade locks too, sorted and non-blocking, so a concurrent
+	// authorized upgrade of one of them cannot interleave with our
+	// remove+recreate. Contended dependents are left untouched.
+	lockOwner := fmt.Sprintf("pipeline-sweep-%d-%d", time.Now().UnixNano(), rand.Int63())
+	lockIDs := make([]string, 0, len(deps))
+	for _, d := range deps {
+		if _, ok := detailsMap[d.ID]; ok {
+			lockIDs = append(lockIDs, d.ID)
+		}
+	}
+	locked, releaseLocks, _ := r.acquireUpgradeLockSet(ctx, rr, lockOwner, lockIDs, false)
+	defer releaseLocks()
+
 	for _, d := range deps {
 		if _, ok := detailsMap[d.ID]; !ok {
 			// No snapshot means no recreation: removing it here would
 			// destroy a working (or stopped) dependent's config for good
 			// over a transient inspect failure. Leave it alone.
+			continue
+		}
+		if !locked[d.ID] {
+			log.Printf("upgrade: dependent %s is part of another upgrade, leaving it alone", d.Name)
 			continue
 		}
 		if err := runner.RemoveContainer(ctx, rr, d.ID, false); err != nil {
@@ -1107,7 +1341,10 @@ func handleNetworkModeContainers(ctx context.Context, rr db.RunnerRow, deps []de
 			log.Printf("upgrade: no details stored for dependent %s, skipping recreation", d.Name)
 			continue
 		}
-		if err := recreateNetworkModeContainer(ctx, rr, d, details, newID); err != nil {
+		if !locked[d.ID] {
+			continue
+		}
+		if err := recreateNetworkModeContainer(ctx, rr, d, details, newID, oldID); err != nil {
 			log.Printf("upgrade: failed to recreate dependent %s: %v", d.Name, err)
 			errs = append(errs, err)
 		}
@@ -1141,7 +1378,13 @@ func restartSingleContainer(ctx context.Context, rr db.RunnerRow, d depAfter) er
 // shared network (it is a consumer, not a provider). preRestored names were
 // just recreated from pre-stop snapshots by the success path; skipping them
 // keeps the sweep from remove+recreating them a second time.
-func restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool, preRestored map[string]bool) error {
+// restartDependentContainers is the post-upgrade recovery sweep. It recreates
+// any dependent that was removed (or never existed) and restarts the survivors
+// so they re-attach to the new provider. It also covers stack dependents that
+// were not stopped up front: network_mode dependents are recreated against the
+// new provider, and stack dependents are only restarted when they were already
+// running (stopped ones stay stopped).
+func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool, preRestored map[string]bool) error {
 	if shared {
 		return nil
 	}
@@ -1175,7 +1418,7 @@ func restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cle
 	if len(netDeps) > 0 {
 		// These dependents were REMOVED by the pipeline; a recreation
 		// failure is permanent loss and must reach the caller.
-		if err := handleNetworkModeContainers(ctx, rr, netDeps, newID); err != nil {
+		if err := r.handleNetworkModeContainers(ctx, rr, netDeps, newID, originalID); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1308,12 +1551,35 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		return fmt.Errorf("container %q is in the upgrade blocklist and cannot be upgraded", cleanName)
 	}
 
+	// AutoRemove containers are removed by the engine as soon as they exit,
+	// so the stop-then-recreate flow can never bring them back. Reject them
+	// up front instead of destroying the container.
+	if autoRemove, _ := jObj(details, "HostConfig")["AutoRemove"].(bool); autoRemove {
+		return fmt.Errorf("container %s has AutoRemove enabled and cannot be upgraded in place: the engine would remove it when stopped", cleanName)
+	}
+
 	// Upgrade keeps the current tag: pull the newest digest for that tag.
 	newImage := upgradeImageRef(imageName)
 
-	// Stop+remove network_mode dependents BEFORE removing their provider.
+	// Discover dependents BEFORE any destructive operation so that a failed
+	// upgrade can recreate them from their original (old-image) config instead
+	// of leaving them permanently stopped or removed. Also acquire upgrade
+	// locks for them: without these, a concurrent operation (stack restart,
+	// another upgrade) could stop or remove a dependent while we recreate it,
+	// leaving the dependency permanently broken. The target container's own
+	// lock is already held by the caller.
 	deps := findDependentContainers(ctx, *rr, container.ContainerID, cleanName)
 	if len(deps) > 0 {
+		depIDs := make([]string, 0, len(deps))
+		for _, d := range deps {
+			depIDs = append(depIDs, d.ID)
+		}
+		depLockOwner := fmt.Sprintf("pipeline-%d-%d", time.Now().UnixNano(), rand.Int63())
+		_, releaseDepLocks, lockErr := r.acquireUpgradeLockSet(ctx, *rr, depLockOwner, depIDs, true)
+		if lockErr != nil {
+			return fmt.Errorf("acquire upgrade locks for dependent containers: %w", lockErr)
+		}
+		defer releaseDepLocks()
 		stopAndRemoveDependentContainers(ctx, *rr, deps)
 	}
 	// From here the dependents are already gone: any failure below must put
@@ -1434,7 +1700,7 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 			preRestored[d.Name] = true
 		}
 	}
-	if err := restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored); err != nil {
+	if err := r.restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored); err != nil {
 		log.Printf("upgrade %s: restart dependent containers failed: %v", cleanName, err)
 		return fmt.Errorf("provider %s upgraded, but dependent recovery failed: %w", cleanName, err)
 	}

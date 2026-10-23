@@ -43,10 +43,26 @@ func TestIntentMatcherMirrorsNodeSemantics(t *testing.T) {
 		t.Fatal("latest digest already present in multi-arch repoDigests must not be eligible")
 	}
 
+	// Missing repoDigests must not suppress a real update. Node compares
+	// repoDigests when it has them and the current digest otherwise; the Go
+	// port that bailed out on missing repoDigests silently hid updates for
+	// every container whose image was pulled without a registry digest.
 	unknown := eligible
 	unknown.RepoDigests.Valid = false
-	if containerHasUpdate(unknown) {
-		t.Fatal("missing repoDigests must avoid Node-incompatible false positives")
+	if !containerHasUpdate(unknown) {
+		t.Error("missing repoDigests must fall back to the current-digest comparison")
+	}
+	upToDate := unknown
+	upToDate.CurrentDigest.String = "new"
+	if containerHasUpdate(upToDate) {
+		t.Error("current digest already equal to latest must not be eligible")
+	}
+	// A repo-qualified digest entry (the raw form dockhand reports) must
+	// normalize the same way as the bare form.
+	raw := eligible
+	raw.RepoDigests.String = `["ghcr.io/acme/web@sha256:new"]`
+	if containerHasUpdate(raw) {
+		t.Error("repo-qualified repoDigests must normalize to the bare digest")
 	}
 }
 

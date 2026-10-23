@@ -136,15 +136,31 @@ func MarkIntentExecutionFailed(ctx context.Context, database *sql.DB, id int64, 
 	return err
 }
 
+// IntentExecutionStaleSeconds is how long an intent execution may go without
+// any sign of life (no container results recorded) before a peer is allowed to
+// treat it as abandoned. The executor's per-container upgrade timeout is 15
+// minutes and it records a container row per container, so a live execution
+// keeps writing within this window.
+const IntentExecutionStaleSeconds = 30 * 60
+
 // CleanupStaleIntentExecutions marks interrupted executions failed on
-// startup (Node's cleanupStaleIntentExecutions).
-func CleanupStaleIntentExecutions(ctx context.Context, database *sql.DB) (int64, error) {
+// startup (Node's cleanupStaleIntentExecutions). Only executions whose lease
+// has expired are reaped: the API and the image-sync runner share this
+// database, and the runner's executions are still alive while it works on
+// them. Liveness is measured by the newest container result written for the
+// execution; executions with no results yet fall back to started_at.
+func CleanupStaleIntentExecutions(ctx context.Context, database *sql.DB, staleSeconds int) (int64, error) {
 	res, err := database.ExecContext(ctx,
 		`UPDATE intent_executions
 		 SET status = 'failed',
 		     completed_at = CURRENT_TIMESTAMP,
 		     error_message = 'Execution was interrupted (server restart detected)'
-		 WHERE status IN ('pending', 'running') AND completed_at IS NULL`)
+		 WHERE status IN ('pending', 'running') AND completed_at IS NULL
+		   AND datetime(COALESCE(
+		     (SELECT MAX(created_at) FROM intent_execution_containers ec WHERE ec.execution_id = intent_executions.id),
+		     started_at
+		   )) < datetime('now', ?)`,
+		fmt.Sprintf("-%d seconds", staleSeconds))
 	if err != nil {
 		return 0, fmt.Errorf("cleanup stale intent executions: %w", err)
 	}

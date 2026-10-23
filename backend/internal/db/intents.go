@@ -189,16 +189,25 @@ func GetEnabledIntents(ctx context.Context, database *sql.DB, userID int64) ([]I
 // timestamp (Node writes the cron trigger time as an ISO string, never
 // wall-clock, so a cron point can only fire once). executionID < 0 leaves
 // last_execution_id untouched (the evaluator's pre-mark step).
+//
+// Both writes are monotonic, using the same datetime()-normalised comparison
+// as ClaimIntentEvaluation: the API and the image-sync runner share this
+// database, and a late write from one process must never rewind the other's
+// newer pointer and let a cron point fire a second time. "<=" (not "<") so a
+// write for the point the pointer already holds still attaches
+// last_execution_id.
 func SetIntentLastEvaluatedAt(ctx context.Context, database *sql.DB, intentID, userID int64, evaluatedAt string, executionID int64) error {
+	const guard = ` AND (last_evaluated_at IS NULL OR datetime(last_evaluated_at) IS NULL
+			        OR datetime(last_evaluated_at) <= datetime(?))`
 	if executionID < 0 {
 		_, err := database.ExecContext(ctx,
-			`UPDATE intents SET last_evaluated_at = ? WHERE id = ? AND user_id = ?`,
-			evaluatedAt, intentID, userID)
+			`UPDATE intents SET last_evaluated_at = ? WHERE id = ? AND user_id = ?`+guard,
+			evaluatedAt, intentID, userID, evaluatedAt)
 		return err
 	}
 	_, err := database.ExecContext(ctx,
-		`UPDATE intents SET last_evaluated_at = ?, last_execution_id = ? WHERE id = ? AND user_id = ?`,
-		evaluatedAt, executionID, intentID, userID)
+		`UPDATE intents SET last_evaluated_at = ?, last_execution_id = ? WHERE id = ? AND user_id = ?`+guard,
+		evaluatedAt, executionID, intentID, userID, evaluatedAt)
 	return err
 }
 

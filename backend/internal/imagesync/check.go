@@ -19,10 +19,16 @@ type UpdateInfo struct {
 	HasUpdate         bool
 	LatestTag         string
 	LatestDigestFull  *string
+	LatestVersion     *string
 	LatestPublishDate *string
 	ExistsInRegistry  bool
 	Provider          string
 	IsFallback        bool
+
+	// InspectDigest is the digest the inspect document itself reports
+	// (RepoDigests). It is the freshest observation of what is actually
+	// running, ahead of both the list payload and the stored baseline.
+	InspectDigest *string
 }
 
 // extractImageInfo splits an image reference into (repo, tag) using the one
@@ -52,26 +58,94 @@ func configImage(details map[string]any) string {
 	return img
 }
 
-// firstRepoDigest returns the image's first "repo@sha256:..." digest
-// reference (inspect document first, then the list payload). Used to recover
-// a usable repository/tag reference for containers whose Config.Image was
-// pinned to a bare image ID by the upgrade pipeline.
+// repoQualifiedDigest reports the "@sha256:" separator index of a repository
+// digest reference ("nginx@sha256:aaa", "registry:5000/x@sha256:aaa"). A bare
+// "sha256:<image ID>" has no repository in front of the separator and is NOT a
+// digest reference: SplitRepoTag would turn it into the bogus repo "sha256".
+func repoQualifiedDigest(value string) int {
+	idx := strings.Index(value, "@sha256:")
+	if idx <= 0 {
+		return -1
+	}
+	return idx
+}
+
+// firstRepoDigest returns the image's first repository digest reference
+// ("repo@sha256:...", inspect document first, then the list payload). Used to
+// recover a usable repository/tag reference for containers whose Config.Image
+// was pinned to a bare image ID by the upgrade pipeline.
 func firstRepoDigest(details map[string]any, listDigests []string) string {
 	if details != nil {
 		if arr, ok := details["RepoDigests"].([]any); ok {
 			for _, v := range arr {
-				if s, ok := v.(string); ok && s != "" {
+				if s, ok := v.(string); ok && repoQualifiedDigest(s) >= 0 {
 					return s
 				}
 			}
 		}
 	}
 	for _, s := range listDigests {
-		if s != "" {
+		if repoQualifiedDigest(s) >= 0 {
 			return s
 		}
 	}
 	return ""
+}
+
+// originalImageReference digs the docked.original_image label out of the
+// inspect document. The upgrade pipeline stamps it with the reference the
+// container was built from, so it is the authoritative recovery source for a
+// pinned dependent whose Config.Image and RepoDigests are both useless.
+func originalImageReference(details map[string]any) string {
+	ref := configLabel(details, "docked.original_image")
+	if ref == "" {
+		return ""
+	}
+	// A bare image ID in the label recovers nothing; only a repository
+	// reference is usable.
+	if strings.HasPrefix(ref, "sha256:") && repoQualifiedDigest(ref) < 0 {
+		return ""
+	}
+	return ref
+}
+
+// digestFromReference extracts the "sha256:..." part of an image reference
+// ("repo@sha256:abc" -> "sha256:abc"), or "" when the reference is tag-based.
+func digestFromReference(reference string) string {
+	idx := strings.Index(reference, "@sha256:")
+	if idx < 0 {
+		return ""
+	}
+	return "sha256:" + reference[idx+len("@sha256:"):]
+}
+
+// inspectDigest ports dockerRegistryService.getCurrentImageDigest's inspect
+// half: the digest the inspect document reports for the image that is actually
+// running. Repository-qualified entries win; a bare entry still identifies the
+// running image's digest even though it cannot be re-parsed into a reference.
+func inspectDigest(details map[string]any) *string {
+	if details == nil {
+		return nil
+	}
+	arr, ok := details["RepoDigests"].([]any)
+	if !ok {
+		return nil
+	}
+	var bare *string
+	for _, v := range arr {
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		if digest := digestFromReference(s); digest != "" {
+			return &digest
+		}
+		if bare == nil && strings.HasPrefix(s, "sha256:") && len(s) > len("sha256:") {
+			trimmed := strings.TrimSpace(s)
+			bare = &trimmed
+		}
+	}
+	return bare
 }
 
 // configLabel digs one label out of Config.Labels.
@@ -182,6 +256,7 @@ func CheckImageUpdates(ctx context.Context, mgr *registry.Manager, database *sql
 	info := &UpdateInfo{
 		CurrentTag:        currentTag,
 		CurrentDigestFull: currentDigest,
+		InspectDigest:     inspectDigest(details),
 		ExistsInRegistry:  true,
 	}
 
@@ -200,6 +275,7 @@ func CheckImageUpdates(ctx context.Context, mgr *registry.Manager, database *sql
 	}
 
 	info.LatestDigestFull = latest.Digest
+	info.LatestVersion = latest.Version
 	info.LatestTag = latest.Tag
 	if info.LatestTag == "" && latest.Version != nil {
 		info.LatestTag = *latest.Version

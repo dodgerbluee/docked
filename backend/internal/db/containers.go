@@ -55,7 +55,7 @@ type ContainerRow struct {
 // The query is a direct port of the Node.js getContainersWithUpdates function.
 // It handles image_repo normalisation (docker.io/ prefix) and tag normalisation
 // (@sha256 suffix) to match deployed_images against registry_image_versions.
-const containersQuery = `
+var containersQuery = `
 SELECT
     c.id,
     c.container_id,
@@ -101,29 +101,7 @@ FROM containers c
 LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
 LEFT JOIN registry_image_versions riv
     ON  di.user_id = riv.user_id
-    AND (
-        (di.image_repo = riv.image_repo)
-        OR (REPLACE(di.image_repo, 'docker.io/', '') = REPLACE(riv.image_repo, 'docker.io/', ''))
-        OR (
-            CASE
-                WHEN INSTR(di.image_repo, ':') > 0
-                    THEN SUBSTR(di.image_repo, 1, INSTR(di.image_repo, ':') - 1)
-                WHEN INSTR(di.image_repo, '@') > 0
-                    THEN SUBSTR(di.image_repo, 1, INSTR(di.image_repo, '@') - 1)
-                ELSE di.image_repo
-            END = REPLACE(riv.image_repo, 'docker.io/', '')
-        )
-        OR (
-            REPLACE(di.image_repo, 'docker.io/', '') =
-            CASE
-                WHEN INSTR(riv.image_repo, ':') > 0
-                    THEN SUBSTR(riv.image_repo, 1, INSTR(riv.image_repo, ':') - 1)
-                WHEN INSTR(riv.image_repo, '@') > 0
-                    THEN SUBSTR(riv.image_repo, 1, INSTR(riv.image_repo, '@') - 1)
-                ELSE REPLACE(riv.image_repo, 'docker.io/', '')
-            END
-        )
-    )
+    AND ` + canonicalRepoSQL("di.image_repo") + ` = ` + canonicalRepoSQL("riv.image_repo") + `
     AND (
         (di.image_tag = riv.tag)
         OR (di.image_tag = REPLACE(riv.tag, '@sha256', ''))
@@ -138,6 +116,25 @@ LEFT JOIN runners         r  ON c.runner_id           = r.id
 WHERE c.user_id = ?
 ORDER BY c.last_seen DESC, c.id
 `
+
+// canonicalRepoSQL normalizes a repo expression for the
+// deployed_images ↔ registry_image_versions join: drop a leaked @digest or
+// :tag, then strip a leading "docker.io/" host. Both cuts are anchored, so a
+// registry host with a port keeps its full name ("localhost:5000/app" no
+// longer truncates to "localhost" and joins the hub row for that name) and a
+// look-alike host is not cut in half ("mydocker.io/x" no longer becomes
+// "myx"). A colon only ends a tag when no "/" follows it, which is exactly how
+// Docker separates "host:port/repo" from "repo:tag".
+func canonicalRepoSQL(expr string) string {
+	cut := fmt.Sprintf(`(CASE
+            WHEN INSTR(%[1]s, '@') > 0
+                THEN SUBSTR(%[1]s, 1, INSTR(%[1]s, '@') - 1)
+            WHEN INSTR(%[1]s, ':') > 0 AND INSTR(SUBSTR(%[1]s, INSTR(%[1]s, ':') + 1), '/') = 0
+                THEN SUBSTR(%[1]s, 1, INSTR(%[1]s, ':') - 1)
+            ELSE %[1]s
+        END)`, expr)
+	return fmt.Sprintf(`(CASE WHEN %[1]s LIKE 'docker.io/%%' THEN SUBSTR(%[1]s, 11) ELSE %[1]s END)`, cut)
+}
 
 // GetContainers returns all containers for the given user with their full update info.
 func GetContainers(ctx context.Context, database *sql.DB, userID int64) ([]ContainerRow, error) {

@@ -17,23 +17,27 @@ type RegistryData struct {
 	LastChecked       sql.NullString
 }
 
-// CanonicalRepoKey normalizes a docker.io repo for registry lookups, the
-// same way the containers↔registry_image_versions SQL join does
-// (REPLACE(x, 'docker.io/', ”)). Scans store Hub repos without the host
-// ("library/nginx"), while live Docker refs may carry it
-// ("docker.io/library/nginx"); without this the live join misses.
+// CanonicalRepoKey normalizes a docker.io repo for registry lookups, the same
+// way the containers↔registry_image_versions SQL join does (see
+// canonicalRepoSQL). Scans store Hub repos without the host ("library/nginx"),
+// while live Docker refs may carry it ("docker.io/library/nginx"); without
+// this the live join misses.
 func CanonicalRepoKey(repo string) string {
 	return strings.TrimPrefix(repo, "docker.io/")
 }
 
 // GetRegistryData looks up the latest registry version info for a given image repo/tag.
 func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageRepo, imageTag string) (*RegistryData, error) {
+	// ORDER BY keeps the precedence explicit: an exact tag row wins over the
+	// tag-agnostic (NULL tag) row. Without it SQLite returns whichever row it
+	// scans first, so a repo with both can report the tag-agnostic version.
 	row := database.QueryRowContext(ctx,
 		`SELECT latest_digest, latest_version, tag, latest_publish_date, provider, last_checked
 		 FROM registry_image_versions
 		 WHERE user_id = ? AND REPLACE(image_repo, 'docker.io/', '') = ? AND (tag = ? OR tag IS NULL)
+		 ORDER BY CASE WHEN tag = ? THEN 0 ELSE 1 END
 		 LIMIT 1`,
-		userID, CanonicalRepoKey(imageRepo), imageTag)
+		userID, CanonicalRepoKey(imageRepo), imageTag, imageTag)
 
 	var d RegistryData
 	err := row.Scan(&d.LatestDigest, &d.LatestVersion, &d.LatestTag,
@@ -131,26 +135,35 @@ func GetAssociatedImages(ctx context.Context, database *sql.DB, userID, tokenID 
 // AssociateImagesWithToken replaces the image associations for a token
 // (clear existing, then set the new list), mirroring Node's
 // associateImagesWithToken. An empty list just clears all associations.
+//
+// The clear and the set are one write transaction: two concurrent
+// replacements otherwise interleave and leave the union of both lists, so the
+// token ends up authorizing images neither caller asked for.
 func AssociateImagesWithToken(ctx context.Context, database *sql.DB, userID, tokenID int64, imageRepos []string) error {
-	if _, err := database.ExecContext(ctx,
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin token associations: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
 		`UPDATE deployed_images SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
 		 WHERE user_id = ? AND repository_token_id = ?`, userID, tokenID); err != nil {
 		return fmt.Errorf("clear token associations: %w", err)
 	}
-	if len(imageRepos) == 0 {
-		return nil
+	if len(imageRepos) > 0 {
+		placeholders := strings.Repeat("?, ", len(imageRepos))
+		placeholders = placeholders[:len(placeholders)-2]
+		args := make([]any, 0, len(imageRepos)+2)
+		args = append(args, tokenID, userID)
+		for _, repo := range imageRepos {
+			args = append(args, repo)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE deployed_images SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
+			 WHERE user_id = ? AND image_repo IN (`+placeholders+`)`, args...); err != nil {
+			return fmt.Errorf("set token associations: %w", err)
+		}
 	}
-	placeholders := strings.Repeat("?, ", len(imageRepos))
-	placeholders = placeholders[:len(placeholders)-2]
-	args := make([]any, 0, len(imageRepos)+2)
-	args = append(args, tokenID, userID)
-	for _, repo := range imageRepos {
-		args = append(args, repo)
-	}
-	if _, err := database.ExecContext(ctx,
-		`UPDATE deployed_images SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
-		 WHERE user_id = ? AND image_repo IN (`+placeholders+`)`, args...); err != nil {
-		return fmt.Errorf("set token associations: %w", err)
-	}
-	return nil
+	return tx.Commit()
 }

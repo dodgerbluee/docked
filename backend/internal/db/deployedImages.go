@@ -98,11 +98,17 @@ func containerHasUpdate(c ContainerRow) bool {
 		latest := normalizeVersion(c.LatestVersion.String)
 		return current != "" && latest != "" && current != latest
 	}
-	if !c.LatestDigest.Valid || !c.CurrentDigest.Valid || !c.RepoDigests.Valid {
+	if !c.LatestDigest.Valid || !c.CurrentDigest.Valid {
 		return false
 	}
+	// Accept both digest forms: the bare "sha256:<hash>" this package stores,
+	// and the repository-qualified "repo@sha256:<hash>" Docker reports (live
+	// inventory carries it raw).
 	normalizeDigest := func(value string) string {
 		value = strings.TrimSpace(strings.ToLower(value))
+		if idx := strings.Index(value, "@sha256:"); idx >= 0 {
+			return value[idx+len("@sha256:"):]
+		}
 		return strings.TrimPrefix(value, "sha256:")
 	}
 	latest := normalizeDigest(c.LatestDigest.String)
@@ -110,15 +116,20 @@ func containerHasUpdate(c ContainerRow) bool {
 		return false
 	}
 	var repoDigests []string
-	if json.Unmarshal([]byte(c.RepoDigests.String), &repoDigests) != nil || len(repoDigests) == 0 {
-		return false
-	}
-	for _, digest := range repoDigests {
-		if normalizeDigest(digest) == latest {
-			return false
+	if c.RepoDigests.Valid && json.Unmarshal([]byte(c.RepoDigests.String), &repoDigests) == nil && len(repoDigests) > 0 {
+		for _, digest := range repoDigests {
+			if normalizeDigest(digest) == latest {
+				return false
+			}
 		}
+		return true
 	}
-	return true
+	// No repo_digests to compare against: fall back to the stored current
+	// digest. Bailing out here instead suppressed updates for every container
+	// whose image was pulled without a registry digest (locally built images,
+	// runners that report no repo digests).
+	current := normalizeDigest(c.CurrentDigest.String)
+	return current != "" && current != latest
 }
 
 // intentIncludes ANDs the inclusion criteria. An UNSET criterion (nil, i.e.

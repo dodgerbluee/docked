@@ -58,6 +58,10 @@ func TestScanRunnerRecoversPinnedImageReference(t *testing.T) {
 	if err := db.Migrate(ctx, database); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO runners (id, user_id, name, url, api_key) VALUES (7, 1, 'runner7', ?, 'k')`, srv.URL); err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
 
 	s := &Service{DB: database, Registry: registry.NewManager(database)}
 	rr := db.RunnerRow{ID: 7, URL: srv.URL, APIKey: "k"}
@@ -108,6 +112,10 @@ func TestScanRunnerSkipsPinnedImageWithoutRepoDigests(t *testing.T) {
 	ctx := context.Background()
 	if err := db.Migrate(ctx, database); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO runners (id, user_id, name, url, api_key) VALUES (8, 1, 'runner8', ?, 'k')`, srv.URL); err != nil {
+		t.Fatalf("seed runner: %v", err)
 	}
 
 	s := &Service{DB: database, Registry: registry.NewManager(database)}

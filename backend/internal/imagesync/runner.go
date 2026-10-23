@@ -18,20 +18,78 @@ import (
 	"github.com/dockedapp/backend/internal/runner"
 )
 
-// pickCurrentDigest resolves the digest to persist for a scanned container.
-// Tag-based containers inspected through the runner carry no digest in the
-// inspect doc, so info.CurrentDigestFull is nil; the list shape DOES know the
-// pulled digest (RepoDigests). Persisting nil would blank the stored digest
-// and containerHasUpdate then rejects the row (CurrentDigest NULL),
-// suppressing the update notification forever.
+// pickCurrentDigest resolves the digest to persist for a scanned container,
+// freshest signal first:
+//  1. the inspect document's own repo digest - what is actually running now;
+//  2. the runner list payload's digest for this container;
+//  3. the stored baseline (info.CurrentDigestFull), which comes from an
+//     earlier scan and goes stale the moment the container is recreated on a
+//     newer image, so it is only a last resort.
+//
+// Persisting nil would blank the stored digest and containerHasUpdate then
+// rejects the row (CurrentDigest NULL), suppressing the update notification
+// forever - hence the fallbacks.
 func pickCurrentDigest(info *UpdateInfo, ctr domain.Container) *string {
-	if info.CurrentDigestFull != nil {
-		return info.CurrentDigestFull
+	if info.InspectDigest != nil && *info.InspectDigest != "" {
+		return info.InspectDigest
 	}
 	if ctr.CurrentDigest != nil && *ctr.CurrentDigest != "" {
 		return ctr.CurrentDigest
 	}
+	if info.CurrentDigestFull != nil && *info.CurrentDigestFull != "" {
+		return info.CurrentDigestFull
+	}
 	return nil
+}
+
+// cleanDigests converts raw repository digest references ("repo@sha256:x") to
+// the bare "sha256:x" form the deployed_images columns store. Bare entries pass
+// through unchanged.
+func cleanDigests(raw []string) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, rd := range raw {
+		if digest := digestFromReference(rd); digest != "" {
+			out = append(out, digest)
+			continue
+		}
+		if strings.HasPrefix(rd, "sha256:") && len(rd) > len("sha256:") {
+			out = append(out, strings.TrimSpace(rd))
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// buildVersionData decides what registry observation to persist alongside a
+// container. Every CONFIRMED observation is stored, not just "update
+// available" ones: keeping a stale latest_digest after an up-to-date scan lets
+// a later comparison re-flag a phantom update. A failed lookup deliberately
+// does NOT overwrite stored data - provider failures surface as non-nil,
+// digest-less placeholders (processProviderResult/ensureProvider) and writing
+// those would NULL out a previously known latest digest. A version-only
+// success (GitHub releases report a version, no digest) is still a confirmed
+// observation and must be stored.
+func buildVersionData(info *UpdateInfo, fallbackTag string) *db.VersionData {
+	if !info.ExistsInRegistry || (info.LatestDigestFull == nil && info.LatestVersion == nil) {
+		return nil
+	}
+	latestTag := info.LatestTag
+	if latestTag == "" {
+		latestTag = fallbackTag
+	}
+	return &db.VersionData{
+		CurrentTag:        info.CurrentTag,
+		LatestTag:         latestTag,
+		LatestDigest:      info.LatestDigestFull,
+		LatestVersion:     info.LatestVersion,
+		LatestPublishDate: info.LatestPublishDate,
+		Provider:          info.Provider,
+	}
 }
 
 // Service ports the runner half of the docker-hub-pull batch job:
@@ -221,6 +279,14 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		return 0, 0
 	}
 
+	// The full snapshot (not just the containers we managed to persist) is
+	// what the post-scan reconcile keeps: a container whose registry lookup or
+	// inspect failed is still present on the runner.
+	snapshotIDs := make([]string, 0, len(containers))
+	for _, ctr := range containers {
+		snapshotIDs = append(snapshotIDs, ctr.ID)
+	}
+
 	for _, ctr := range containers {
 		details, derr := runner.InspectContainer(ctx, rr, ctr.ID)
 		imageName := ""
@@ -233,11 +299,17 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		// A dependent recreated by the upgrade pipeline is pinned to an image
 		// ID, so Config.Image becomes "sha256:<id>" — SplitRepoTag would parse
 		// that as a bogus "sha256" repo and silently break the container's
-		// update tracking. Recover the original reference from repo digests.
-		if strings.HasPrefix(imageName, "sha256:") {
-			imageName = firstRepoDigest(details, ctr.RepoDigests)
+		// update tracking. Recover the original reference: the label the
+		// pipeline stamped first (authoritative), then any repository digest
+		// reference. A bare image ID is not a reference and never qualifies.
+		pinned := strings.HasPrefix(imageName, "sha256:")
+		if pinned {
+			imageName = originalImageReference(details)
 			if imageName == "" {
-				slog.Debug("container pinned to an image ID with no repo digests, skipping",
+				imageName = firstRepoDigest(details, ctr.RepoDigests)
+			}
+			if imageName == "" {
+				slog.Debug("container pinned to an image ID with no recoverable reference, skipping",
 					"runnerId", rr.ID, "containerId", ctr.ID)
 				continue
 			}
@@ -251,6 +323,14 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 			slog.Debug("failed to scan runner container",
 				"runnerId", rr.ID, "containerId", ctr.ID, "error", err)
 			continue
+		}
+		// The recovered reference carries the running image's digest; the
+		// inspect document reported nothing usable for a pinned container, so
+		// seed the digest from the reference instead of losing the baseline.
+		if pinned && info.InspectDigest == nil {
+			if digest := digestFromReference(imageName); digest != "" {
+				info.InspectDigest = &digest
+			}
 		}
 
 		parsed, err := registry.ParseImageName(imageName)
@@ -268,15 +348,22 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		}
 
 		stackName := configLabel(details, "com.docker.compose.project")
+		if stackName == "" {
+			stackName = configLabel(details, "com.docker.stack.namespace")
+		}
+		if stackName == "" && ctr.StackName != nil {
+			stackName = *ctr.StackName
+		}
 		var stackPtr *string
 		if stackName != "" {
 			stackPtr = &stackName
 		}
 
 		// Recalculate hasUpdate using repoDigests when available, to avoid
-		// false positives on multi-arch images (same as Node).
+		// false positives on multi-arch images (same as Node). The raw list
+		// form is "repo@sha256:...", so it must be normalized before compare.
 		hasUpdate := info.HasUpdate
-		cleanRepoDigests := ctr.RepoDigests
+		cleanRepoDigests := cleanDigests(ctr.RepoDigests)
 		if len(cleanRepoDigests) > 0 && info.LatestDigestFull != nil {
 			latestHash := strings.TrimPrefix(*info.LatestDigestFull, "sha256:")
 			hasUpdate = true
@@ -291,44 +378,32 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		currentDigest := pickCurrentDigest(info, ctr)
 
 		data := &db.ContainerVersionUpsert{
-			ContainerID:   ctr.ID,
-			ContainerName: containerName,
-			ImageName:     imageName,
-			ImageRepo:     parsed.ImageRepo,
-			ImageTag:      parsed.Tag,
-			Status:        nullIfEmpty(ctr.Status),
-			State:         nullIfEmpty(ctr.State),
-			StackName:     stackPtr,
-			CurrentDigest: currentDigest,
-			Registry:      parsed.Registry,
-			Namespace:     parsed.Namespace,
-			Repository:    parsed.Repository,
-			RepoDigests:   cleanRepoDigests,
+			ContainerID:     ctr.ID,
+			ContainerName:   containerName,
+			ImageName:       imageName,
+			ImageRepo:       parsed.ImageRepo,
+			ImageTag:        parsed.Tag,
+			Status:          nullIfEmpty(ctr.Status),
+			State:           nullIfEmpty(ctr.State),
+			StackName:       stackPtr,
+			CurrentDigest:   currentDigest,
+			Registry:        parsed.Registry,
+			Namespace:       parsed.Namespace,
+			Repository:      parsed.Repository,
+			RepoDigests:     cleanRepoDigests,
+			UsesNetworkMode: ctr.UsesNetworkMode,
+			ProvidesNetwork: ctr.ProvidesNetwork,
 		}
 
-		// Persist EVERY confirmed registry observation, not just "update
-		// available" ones. Storing only on hasUpdate left a stale
-		// latest_digest after a successful up-to-date scan, which later
-		// inventory comparisons could re-flag as a phantom update. A failed
-		// lookup deliberately does NOT overwrite stored data: provider
-		// failures can surface as non-nil, digest-less placeholders
-		// (processProviderResult/ensureProvider), and writing those would
-		// NULL out a previously known latest digest.
-		var version *db.VersionData
-		if info.ExistsInRegistry && info.LatestDigestFull != nil {
-			latestTag := info.LatestTag
-			if latestTag == "" {
-				latestTag = parsed.Tag
-			}
-			version = &db.VersionData{
-				CurrentTag: info.CurrentTag,
-				LatestTag:  latestTag,
-				// Node passes latestVersion: null and latestDigest from the check.
-				LatestDigest: info.LatestDigestFull,
-			}
-		}
+		version := buildVersionData(info, parsed.Tag)
 
 		if _, err := db.UpsertContainerWithVersion(ctx, s.DB, userID, data, version, rr.ID); err != nil {
+			if errors.Is(err, db.ErrRunnerGone) {
+				// The runner was deleted mid-scan and DeleteRunner already
+				// removed its rows; nothing else will clean up after us.
+				slog.Info("runner deleted during image scan, stopping", "runnerId", rr.ID)
+				return checked, updated
+			}
 			slog.Debug("failed to upsert runner container",
 				"runnerId", rr.ID, "containerId", ctr.ID, "error", err)
 			continue
@@ -338,6 +413,13 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		if hasUpdate {
 			updated++
 		}
+	}
+
+	// The snapshot is authoritative for this runner: anything stored that the
+	// snapshot does not list has been removed. Containers that were listed but
+	// failed to process are still in the snapshot, so they survive.
+	if _, err := db.ReconcileRunnerSnapshot(ctx, s.DB, userID, rr.ID, snapshotIDs); err != nil {
+		slog.Warn("failed to reconcile runner container inventory", "runnerId", rr.ID, "error", err)
 	}
 
 	slog.Info("runner image scan complete", "runnerId", rr.ID, "runnerName", rr.Name,

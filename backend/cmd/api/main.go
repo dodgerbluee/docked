@@ -96,7 +96,7 @@ func main() {
 	// Mark intent executions interrupted by a restart as failed (Node's
 	// cleanupStaleIntentExecutions in BatchManager.start). Runs before the
 	// evaluator starts so stale rows never shadow fresh executions.
-	if n, err := db.CleanupStaleIntentExecutions(ctx, database); err != nil {
+	if n, err := db.CleanupStaleIntentExecutions(ctx, database, db.IntentExecutionStaleSeconds); err != nil {
 		slog.Error("failed to clean up stale intent executions", "error", err)
 	} else if n > 0 {
 		slog.Info("marked interrupted intent executions as failed", "count", n)

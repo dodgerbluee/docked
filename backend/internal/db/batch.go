@@ -182,6 +182,13 @@ var ErrBatchRunActive = errors.New("batch run already active")
 // check and the INSERT are a single statement, so the scheduler process and
 // the GraphQL process racing on the same user+job can never both create a
 // 'running' row (the previous check-then-insert pair could).
+//
+// The guard uses the same "still open" definition as every finalize/reap
+// predicate (status='running' AND completed_at IS NULL). A row that already
+// carries completed_at is finished, whatever its status text says, so it must
+// not hold the slot forever: rows written by the older UpdateBatchRun (which
+// stamped completed_at on progress updates) would otherwise wedge the job
+// with no reaper able to touch them.
 func CreateBatchRunIfNoneRunning(ctx context.Context, database *sql.DB, userID int64, jobType string, isManual bool) (int64, error) {
 	manual := 0
 	if isManual {
@@ -192,7 +199,7 @@ func CreateBatchRunIfNoneRunning(ctx context.Context, database *sql.DB, userID i
 		 SELECT ?, ?, 'running', ?
 		 WHERE NOT EXISTS (
 		   SELECT 1 FROM batch_runs
-		   WHERE user_id = ? AND job_type = ? AND status = 'running'
+		   WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL
 		 )`,
 		userID, jobType, manual, userID, jobType)
 	if err != nil {
@@ -222,19 +229,24 @@ func CompleteBatchRun(ctx context.Context, database *sql.DB, id int64, status st
 }
 
 // ReapStaleBatchRun conditionally marks one 'running' batch run failed,
-// re-checking lease staleness INSIDE the UPDATE. The read-check-write pair
+// re-checking staleness INSIDE the UPDATE. The read-check-write pair
 // it replaces raced: a heartbeat landing between the staleness check and
 // the write used to get a healthy run marked failed anyway. Returns true
 // when this caller actually reaped the row.
+//
+// The predicate keys on status='running' alone, so a row wedged by an older
+// write (status still 'running' but completed_at already stamped) can still
+// be repaired; completed_at is only filled in when it is missing.
 func ReapStaleBatchRun(ctx context.Context, database *sql.DB, id int64, staleSeconds int) (bool, error) {
 	res, err := database.ExecContext(ctx,
 		`UPDATE batch_runs
-		 SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
-			 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
+		 SET status = 'failed',
+			 completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+			 duration_ms = CAST((julianday(COALESCE(completed_at, CURRENT_TIMESTAMP))-julianday(started_at))*86400000 AS INTEGER),
 			 containers_checked = 0, containers_updated = 0,
 			 error_message = 'Job marked as failed: stale running job detected'
-		 WHERE id = ? AND status = 'running' AND completed_at IS NULL
-		   AND datetime(COALESCE(heartbeat_at, started_at)) < datetime('now', ?)`,
+		 WHERE id = ? AND status = 'running'
+		   AND datetime(COALESCE(heartbeat_at, completed_at, started_at)) < datetime('now', ?)`,
 		id, fmt.Sprintf("-%d seconds", staleSeconds))
 	if err != nil {
 		return false, fmt.Errorf("reap stale batch run: %w", err)
@@ -246,15 +258,37 @@ func ReapStaleBatchRun(ctx context.Context, database *sql.DB, id int64, staleSec
 	return n == 1, nil
 }
 
-// UpdateBatchRun finalizes a client-driven batch run (parity with Node's updateBatchRun:
-// status, duration from started_at, counts, error message, and logs; scoped by user).
-// The completed_at IS NULL guard keeps completion monotonic.
+// batchRunTerminalStatuses are the statuses that finish a client-driven run.
+// Anything else (pending/running) is a progress update.
+func batchRunTerminalStatus(status string) bool {
+	switch status {
+	case "completed", "failed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+// UpdateBatchRun records a client-driven batch run's status and counts
+// (parity with Node's updateBatchRun: status, duration from started_at,
+// counts, error message, and logs; scoped by user).
+//
+// Only a terminal status finalizes the row. The old version stamped
+// completed_at on every call, so a client that reported progress
+// (status='running') released the single-running-run slot while its run was
+// still going: the next createBatchRun then started a second concurrent run,
+// and the progress row itself became a 'running' row with completed_at set,
+// which no reaper could fix (they all filter on completed_at IS NULL).
+// Completion stays monotonic: a row already finalized is never re-written.
 func UpdateBatchRun(ctx context.Context, database *sql.DB, id, userID int64, status string, checked, updated int, errMsg, logs *string) error {
-	res, err := database.ExecContext(ctx,
-		`UPDATE batch_runs SET status = ?, completed_at = CURRENT_TIMESTAMP,
-		 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
-		 containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
-		 WHERE id = ? AND user_id = ? AND completed_at IS NULL`,
+	query := `UPDATE batch_runs SET status = ?,
+		 containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?`
+	if batchRunTerminalStatus(status) {
+		query += `, completed_at = CURRENT_TIMESTAMP,
+		 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER)`
+	}
+	query += ` WHERE id = ? AND user_id = ? AND completed_at IS NULL`
+	res, err := database.ExecContext(ctx, query,
 		status, checked, updated, errMsg, logs, id, userID)
 	if err != nil {
 		return err

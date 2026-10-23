@@ -147,8 +147,59 @@ func TestCountContainersWithUpdateParity(t *testing.T) {
 		}
 	}
 	// c1 repo_digests current -> no; c2 differs -> yes; c3 docker.io join +
-	// differs -> yes; c4 no repo_digests -> no; c5 wrong-tag riv -> no.
-	if count != 2 {
-		t.Errorf("withUpdates = %d, want 2", count)
+	// differs -> yes; c4 no repo_digests but a differing current digest -> yes
+	// (fallback comparison); c5 wrong-tag riv -> no.
+	if count != 3 {
+		t.Errorf("withUpdates = %d, want 3", count)
+	}
+}
+
+// The deployed_images -> registry_image_versions join must canonicalize the
+// docker.io hub prefix ONLY as a prefix. The old REPLACE/OR form also stripped
+// the prefix from the middle of a repository name and truncated registry-hosted
+// repos at their first colon, so "localhost:5000/app" joined the hub row for
+// "localhost" and "mydocker.io/x" joined "myx" - a container then showed
+// another image's update.
+func TestContainersQueryCanonicalRepoJoin(t *testing.T) {
+	database := testDB(t)
+	minimalContainersSchema(t, database)
+	ctx := context.Background()
+
+	seed := func(q string, args ...any) {
+		t.Helper()
+		if _, err := database.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	seed(`INSERT INTO deployed_images (id, user_id, image_repo, image_tag, image_digest, repo_digests) VALUES
+		(1, 1, 'localhost:5000/app', '1.0', 'sha256:a1', '["sha256:a1"]'),
+		(2, 1, 'mydocker.io/x',      '1.0', 'sha256:b1', '["sha256:b1"]'),
+		(3, 1, 'docker.io/library/nginx', '1.0', 'sha256:c1', '["sha256:c1"]')`)
+	seed(`INSERT INTO registry_image_versions (user_id, image_repo, tag, latest_digest) VALUES
+		(1, 'localhost',        '1.0', 'sha256:WRONG'),
+		(1, 'myx',              '1.0', 'sha256:WRONG'),
+		(1, 'localhost:5000/app', '1.0', 'sha256:a2'),
+		(1, 'library/nginx',    '1.0', 'sha256:c2')`)
+	seed(`INSERT INTO containers (id, user_id, container_id, container_name, deployed_image_id) VALUES
+		(1, 1, 'c1', 'registry-hosted', 1),
+		(2, 1, 'c2', 'lookalike', 2),
+		(3, 1, 'c3', 'hub', 3)`)
+
+	rows, err := GetContainers(ctx, database, 1)
+	if err != nil {
+		t.Fatalf("GetContainers: %v", err)
+	}
+	latest := map[string]string{}
+	for _, r := range rows {
+		latest[r.ContainerName] = r.LatestDigest.String
+	}
+	if got := latest["registry-hosted"]; got != "sha256:a2" {
+		t.Errorf("localhost:5000/app joined %q, want its own registry row", got)
+	}
+	if got := latest["lookalike"]; got != "" {
+		t.Errorf("mydocker.io/x joined %q, want no registry row", got)
+	}
+	if got := latest["hub"]; got != "sha256:c2" {
+		t.Errorf("docker.io/library/nginx joined %q, want the hub row (prefix strip)", got)
 	}
 }
