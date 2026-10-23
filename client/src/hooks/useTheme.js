@@ -9,6 +9,9 @@ import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
  */
 export const useTheme = (isAuthenticated, authToken) => {
   const [colorScheme, setColorScheme] = useState("system"); // 'system', 'light', or 'dark'
+  // Set when the stored preference could not be read, so the fallback in use is
+  // not mistaken for the user's actual choice.
+  const [colorSchemeError, setColorSchemeError] = useState("");
   const [darkMode, setDarkMode] = useState(() => {
     // Check localStorage first for saved dark mode state
     try {
@@ -35,12 +38,18 @@ export const useTheme = (isAuthenticated, authToken) => {
         .query(USER_PREFERENCES_QUERY, undefined, { requestPolicy: "network-only" })
         .toPromise();
       if (isSessionStale(generation)) return;
+      // urql resolves rather than rejects, so without this a failed read would
+      // look like "no preferences" and the form would carry a fallback theme
+      // that a later save writes back over the stored one.
+      if (res.error) throw res.error;
       if (res.data?.userPreferences) {
         setColorScheme(res.data.userPreferences.colorScheme || "system");
       }
+      setColorSchemeError("");
     } catch (err) {
       console.error("Error fetching color scheme:", err);
       if (isSessionStale(generation)) return;
+      setColorSchemeError(err.message || "Could not load your colour scheme");
       // Fallback to localStorage if API fails (for backward compatibility during migration)
       const saved = localStorage.getItem("colorScheme");
       if (saved) {
@@ -114,6 +123,7 @@ export const useTheme = (isAuthenticated, authToken) => {
 
   return {
     colorScheme,
+    colorSchemeError,
     darkMode,
     fetchColorScheme,
     handleColorSchemeChange,

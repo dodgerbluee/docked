@@ -256,6 +256,9 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
         // result.error, not a rejection: without this the source is reported
         // deleted (and removed from the list) even when the server refused.
         if (result.error) throw new Error(result.error.message || "Failed to delete source");
+        if (!result.data?.deleteRunner?.success) {
+          throw new Error(result.data?.deleteRunner?.message || "Failed to delete source");
+        }
       }
       onDeleted();
     } catch (err) {

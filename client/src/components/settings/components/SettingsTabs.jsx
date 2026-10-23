@@ -63,6 +63,8 @@ const SettingsTabs = ({
             generalSettingsSaving={settings.generalSettingsSaving}
             generalSettingsSuccess={settings.generalSettingsSuccess}
             handleSaveGeneralSettings={settings.handleSaveGeneralSettings}
+            preferencesError={settings.preferencesError}
+            fetchUserPreferences={settings.fetchUserPreferences}
           />
         )}
       </>
@@ -112,6 +114,8 @@ const SettingsTabs = ({
     return (
       <UserDetailsTab
         userInfo={settings.userInfo}
+        userInfoError={settings.userInfoError}
+        fetchUserInfo={settings.fetchUserInfo}
         newUsername={settings.newUsername}
         setNewUsername={settings.setNewUsername}
         usernamePassword={settings.usernamePassword}

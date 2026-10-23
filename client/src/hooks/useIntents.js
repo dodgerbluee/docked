@@ -181,6 +181,11 @@ export function useIntents(isAuthenticated, authToken) {
           try {
             const result = await graphqlClient.mutation(DELETE_INTENT_MUTATION, { id }).toPromise();
             if (result.error) throw new Error(result.error.message);
+            // The payload carries its own verdict; without this a refused
+            // delete closed the dialog and announced success.
+            if (!result.data?.deleteIntent?.success) {
+              throw new Error(result.data?.deleteIntent?.message || "Failed to delete intent");
+            }
 
             await fetchIntents(false);
             setConfirmDialog({

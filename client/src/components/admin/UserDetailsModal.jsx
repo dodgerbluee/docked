@@ -222,10 +222,15 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
     setError(null);
 
     try {
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(DELETE_USER_MUTATION, { userId: String(user.id) })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      // The payload carries its own verdict; without this a refused delete
+      // closed the modal as if the user were gone.
+      if (!data?.deleteUser?.success) {
+        throw new Error(data?.deleteUser?.message || "Failed to delete user");
+      }
       onClose();
       if (onUserUpdated) {
         onUserUpdated();

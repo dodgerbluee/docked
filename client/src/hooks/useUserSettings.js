@@ -35,14 +35,21 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
     };
   }, []);
 
+  const [userInfoError, setUserInfoError] = useState("");
+
   const fetchUserInfo = useCallback(async () => {
     try {
       const res = await graphqlClient.query(ME_QUERY).toPromise();
+      // urql resolves rather than rejects, so without this a failed read left
+      // userInfo null and the account card simply vanished.
+      if (res.error) throw new Error(res.error.message);
       if (res.data?.me) {
         setUserInfo(res.data.me);
+        setUserInfoError("");
       }
     } catch (err) {
       console.error("Error fetching user info:", err);
+      setUserInfoError(err.message || "Could not load your account details");
     }
   }, []);
 
@@ -198,6 +205,7 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
 
   return {
     userInfo,
+    userInfoError,
     fetchUserInfo,
     newUsername,
     setNewUsername,

@@ -95,6 +95,8 @@ export function useTrackedAppUpgradeHistory() {
     }
   }, []);
 
+  const [statsError, setStatsError] = useState("");
+
   const fetchStats = useCallback(async () => {
     const gen = getSessionGeneration();
     try {
@@ -120,9 +122,14 @@ export function useTrackedAppUpgradeHistory() {
         cachedStats = mapped;
         setStats(mapped);
       }
+      setStatsError("");
     } catch (err) {
-      // Don't set error for stats failure, it's not critical
+      // The stats bar is not critical, but a failed read is not the same as
+      // "no upgrades have happened": say which one the user is looking at.
       console.error("Failed to fetch upgrade history stats:", err);
+      if (mountedRef.current && !isSessionStale(gen)) {
+        setStatsError(err.message || "Failed to load upgrade statistics");
+      }
     }
   }, []);
 
@@ -145,6 +152,7 @@ export function useTrackedAppUpgradeHistory() {
     stats,
     loading,
     error,
+    statsError,
     fetchHistory,
     fetchStats,
   };

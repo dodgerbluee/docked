@@ -60,6 +60,13 @@ export function useDiscordSettings(isAuthenticated, authToken) {
           .mutation(DELETE_DISCORD_WEBHOOK_MUTATION, { id })
           .toPromise();
         if (result.error) throw new Error(result.error.message);
+        // The payload carries its own verdict; without this a refused delete
+        // still announced success.
+        if (!result.data?.deleteDiscordWebhook?.success) {
+          throw new Error(
+            result.data?.deleteDiscordWebhook?.message || "Failed to remove Discord webhook"
+          );
+        }
 
         setDiscordSuccess("Discord webhook removed successfully!");
         await fetchDiscordWebhooks();

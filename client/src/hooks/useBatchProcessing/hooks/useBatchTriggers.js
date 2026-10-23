@@ -169,7 +169,7 @@ export const useBatchTriggers = ({
         if (stale()) return;
 
         if (runId) {
-          await graphqlClient
+          const upd = await graphqlClient
             .mutation(UPDATE_BATCH_RUN_MUTATION, {
               id: runId,
               status: "COMPLETED",
@@ -179,7 +179,18 @@ export const useBatchTriggers = ({
             })
             .toPromise();
           if (stale()) return;
-          log(`Batch run ${runId} marked as completed`);
+          // A run whose status never landed is not a clean finish.
+          const bookkeepingFailed = upd.error?.message
+            ? upd.error.message
+            : upd.data?.updateBatchRun?.success === false
+              ? upd.data.updateBatchRun.message || "server rejected the update"
+              : "";
+          if (bookkeepingFailed) {
+            log(`Could not record the batch run result: ${bookkeepingFailed}`);
+            console.error("Error updating batch run:", bookkeepingFailed);
+          } else {
+            log(`Batch run ${runId} marked as completed`);
+          }
         }
       } else {
         throw new Error(result.error?.message || "Failed to check tracked apps");
@@ -196,7 +207,7 @@ export const useBatchTriggers = ({
 
       if (runId) {
         try {
-          await graphqlClient
+          const upd = await graphqlClient
             .mutation(UPDATE_BATCH_RUN_MUTATION, {
               id: runId,
               status: "FAILED",
@@ -205,7 +216,17 @@ export const useBatchTriggers = ({
             })
             .toPromise();
           if (stale()) return;
-          log(`Batch run ${runId} marked as failed`);
+          const bookkeepingFailed = upd.error?.message
+            ? upd.error.message
+            : upd.data?.updateBatchRun?.success === false
+              ? upd.data.updateBatchRun.message || "server rejected the update"
+              : "";
+          if (bookkeepingFailed) {
+            log(`Could not record the batch run failure: ${bookkeepingFailed}`);
+            console.error("Error updating batch run:", bookkeepingFailed);
+          } else {
+            log(`Batch run ${runId} marked as failed`);
+          }
         } catch (updateErr) {
           if (stale()) return;
           console.error("Error updating batch run:", updateErr);

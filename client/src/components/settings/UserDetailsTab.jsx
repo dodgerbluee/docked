@@ -17,6 +17,8 @@ import AvatarSection from "./UserDetailsTab/components/AvatarSection";
  */
 const UserDetailsTab = React.memo(function UserDetailsTab({
   userInfo,
+  userInfoError,
+  fetchUserInfo,
   // Username props
   newUsername,
   setNewUsername,
@@ -74,6 +76,18 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
       <h3 className={styles.title}>User Settings</h3>
 
       {/* User Information Section */}
+      {/* The card hides itself when there is no userInfo, so a failed read
+          looked like the account had no details rather than like a failed read. */}
+      {userInfoError && (
+        <Alert variant="error" role="alert">
+          Your account details could not be loaded: {userInfoError}
+          {fetchUserInfo && (
+            <Button type="button" onClick={() => fetchUserInfo()}>
+              Retry
+            </Button>
+          )}
+        </Alert>
+      )}
       <UserInfoCard userInfo={userInfo} />
 
       {/* Username Section */}
@@ -149,6 +163,8 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
 
 UserDetailsTab.propTypes = {
   userInfo: PropTypes.object,
+  userInfoError: PropTypes.string,
+  fetchUserInfo: PropTypes.func,
   // Username props
   newUsername: PropTypes.string.isRequired,
   setNewUsername: PropTypes.func.isRequired,

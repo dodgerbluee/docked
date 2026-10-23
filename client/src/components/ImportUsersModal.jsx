@@ -4,7 +4,7 @@
  * Refactored to use extracted hooks and components for better maintainability
  */
 
-import React, { useMemo, useCallback, useEffect } from "react";
+import React, { useMemo, useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import Modal from "./ui/Modal";
 import Button from "./ui/Button";
@@ -83,6 +83,11 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     setImportErrors,
     fileInputRef,
   } = state;
+
+  // Reads a file's contents asynchronously, so an older selection can finish
+  // after a newer one. Each selection takes the next ticket and only the
+  // current ticket is allowed to publish parsed users.
+  const readTicket = useRef(0);
 
   // Use hooks for business logic
   const { handleGenerateToken, handleRegenerateToken, handleVerifyToken } = useInstanceAdminToken({
@@ -216,11 +221,18 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
           return;
         }
         setFile(selectedFile);
+        // The parsed list has to go with the file it came from. Leaving the
+        // previous file's data in place kept "Start Import" enabled and sent
+        // the old file after a new one failed to parse.
+        setUsersData(null);
+        setImportErrors([]);
         setError("");
         setLoading(true);
 
+        const ticket = ++readTicket.current;
         const reader = new FileReader();
         reader.onload = async (e) => {
+          if (ticket !== readTicket.current) return;
           try {
             const result = parseUserImportFile(e.target.result);
             if (result.success) {
@@ -281,19 +293,25 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
                   : user.instance_admin === true || user.instance_admin === 1;
               });
 
+              // A newer selection may have replaced this one while the
+              // pre-flight checks were in flight; only the current read may
+              // publish.
+              if (ticket !== readTicket.current) return;
               setUsersData(filteredUsersData);
               setImportErrors(preImportErrors);
             } else {
+              if (ticket !== readTicket.current) return;
               setError(result.error);
             }
           } catch (err) {
             console.error("Error processing file:", err);
-            setError("Failed to process file");
+            if (ticket === readTicket.current) setError("Failed to process file");
           } finally {
-            setLoading(false);
+            if (ticket === readTicket.current) setLoading(false);
           }
         };
         reader.onerror = () => {
+          if (ticket !== readTicket.current) return;
           setError("Failed to read file");
           setLoading(false);
         };

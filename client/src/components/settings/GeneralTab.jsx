@@ -22,6 +22,8 @@ const GeneralTab = React.memo(function GeneralTab({
   generalSettingsSaving,
   generalSettingsSuccess,
   handleSaveGeneralSettings,
+  preferencesError,
+  fetchUserPreferences,
 }) {
   const colorSchemeOptions = [
     { value: COLOR_SCHEMES.SYSTEM, label: "System", icon: Monitor },
@@ -38,6 +40,17 @@ const GeneralTab = React.memo(function GeneralTab({
     <div className={styles.updateSection}>
       <h3 className={styles.title}>General Settings</h3>
       {generalSettingsSuccess && <Alert variant={"info"}>{generalSettingsSuccess}</Alert>}
+      {/* Until the stored preferences load, every value in this form is a
+          fallback; saving would write those fallbacks over the real ones. */}
+      {preferencesError && (
+        <Alert variant="error" role="alert">
+          Your preferences could not be loaded: {preferencesError} Saving is disabled until the read
+          succeeds so the values shown here cannot overwrite what is stored.
+          <Button type="button" onClick={() => fetchUserPreferences()}>
+            Retry
+          </Button>
+        </Alert>
+      )}
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -82,7 +95,12 @@ const GeneralTab = React.memo(function GeneralTab({
           <Button
             type="submit"
             variant="primary"
-            disabled={!generalSettingsChanged || generalSettingsSaving}
+            disabled={
+              !generalSettingsChanged ||
+              generalSettingsSaving ||
+              !!preferencesError ||
+              localRefreshingTogglesEnabled === null
+            }
             className={styles.saveButton}
           >
             {generalSettingsSaving ? "Saving..." : "Save Changes"}
@@ -119,12 +137,16 @@ const GeneralTab = React.memo(function GeneralTab({
 GeneralTab.propTypes = {
   localColorScheme: PropTypes.string.isRequired,
   setLocalColorScheme: PropTypes.func.isRequired,
-  localRefreshingTogglesEnabled: PropTypes.bool.isRequired,
+  // null until the stored preference has actually been read
+  localRefreshingTogglesEnabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.oneOf([null])])
+    .isRequired,
   handleRefreshingTogglesChange: PropTypes.func.isRequired,
   generalSettingsChanged: PropTypes.bool.isRequired,
   generalSettingsSaving: PropTypes.bool.isRequired,
   generalSettingsSuccess: PropTypes.string,
   handleSaveGeneralSettings: PropTypes.func.isRequired,
+  preferencesError: PropTypes.string,
+  fetchUserPreferences: PropTypes.func.isRequired,
 };
 
 export default GeneralTab;

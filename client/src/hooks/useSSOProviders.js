@@ -15,6 +15,14 @@ import {
  * Manages SSO/OAuth provider CRUD and global SSO settings for the admin UI
  * (served by the GraphQL backend; all ops require instance admin).
  */
+
+// urql resolves instead of rejecting, so a GraphQL error is only half of the
+// story: these payloads also carry an application-level success flag, and
+// ignoring it turned a rejected write into a reported success.
+function requireSuccess(payload, fallback) {
+  if (!payload?.success) throw new Error(payload?.message || fallback);
+}
+
 export function useSSOProviders() {
   const [providers, setProviders] = useState([]);
   const [settings, setSettings] = useState({ allowLocalLogin: true });
@@ -64,10 +72,11 @@ export function useSSOProviders() {
 
   const createProvider = useCallback(
     async (providerData) => {
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(CREATE_SSO_PROVIDER_MUTATION, { input: providerData })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      requireSuccess(data?.createSSOProvider, "Could not create the provider");
       await fetchProviders();
       return { success: true };
     },
@@ -76,10 +85,11 @@ export function useSSOProviders() {
 
   const updateProvider = useCallback(
     async (id, providerData) => {
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(UPDATE_SSO_PROVIDER_MUTATION, { id: String(id), input: providerData })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      requireSuccess(data?.updateSSOProvider, "Could not update the provider");
       await fetchProviders();
       return { success: true };
     },
@@ -88,10 +98,11 @@ export function useSSOProviders() {
 
   const deleteProvider = useCallback(
     async (id) => {
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(DELETE_SSO_PROVIDER_MUTATION, { id: String(id) })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      requireSuccess(data?.deleteSSOProvider, "Could not delete the provider");
       await fetchProviders();
       return { success: true };
     },
@@ -115,12 +126,18 @@ export function useSSOProviders() {
             "SSO settings could not be loaded, so saving is disabled. Saving now would replace them with defaults.",
         };
       }
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(SET_SSO_SETTINGS_MUTATION, {
           allowLocalLogin: Boolean(newSettings.allowLocalLogin),
         })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      if (!data?.setSSOSettings?.success) {
+        return {
+          success: false,
+          error: data?.setSSOSettings?.message || "Could not save the SSO settings",
+        };
+      }
       await fetchSettings();
       return { success: true };
     },

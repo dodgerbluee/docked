@@ -198,15 +198,21 @@ export function useTrackedApps(isAuthenticated, authToken) {
       const gen = getSessionGeneration();
       // If we have an app ID, check the version first, then refresh once
       if (appId) {
-        try {
-          await graphqlClient
-            .mutation(CHECK_TRACKED_APP_UPDATE_MUTATION, { id: appId })
-            .toPromise();
-        } catch (err) {
-          // Silently fail - version check is not critical, just a nice-to-have
-          console.error("Error checking version for tracked app:", err);
-        }
+        const chk = await graphqlClient
+          .mutation(CHECK_TRACKED_APP_UPDATE_MUTATION, { id: appId })
+          .toPromise();
         if (isSessionStale(gen)) return; // logout mid-flight: no follow-up request
+        const checkFailed = chk.error?.message
+          ? chk.error.message
+          : chk.data?.checkTrackedAppUpdate?.success === false
+            ? "the server did not complete the check"
+            : "";
+        if (checkFailed) {
+          // The app itself is saved; only the immediate version check failed.
+          // Saying nothing left the row looking fully checked when it was not.
+          console.error("Error checking version for tracked app:", checkFailed);
+          setTrackedAppError(`Saved, but the version check failed: ${checkFailed}`);
+        }
       }
 
       // Single refresh after all mutations are done
@@ -459,14 +465,16 @@ export function useTrackedApps(isAuthenticated, authToken) {
         if (isSessionStale(gen)) return;
         const updatedApps = cachedTrackedApps || [];
         const appsChecked = updatedApps.length;
-        const appsWithUpdates = updatedApps.filter((app) => Boolean(app.hasUpdate)).length;
+        // cachedTrackedApps holds the snake_case shape mapTrackedApp produces;
+        // reading hasUpdate here made every batch record zero available updates.
+        const appsWithUpdates = updatedApps.filter((app) => Boolean(app.has_update)).length;
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         setLastScanTime(new Date());
 
         // Update batch run as completed
         if (runId) {
-          await graphqlClient
+          const upd = await graphqlClient
             .mutation(UPDATE_BATCH_RUN_MUTATION, {
               id: runId,
               status: "COMPLETED",
@@ -476,7 +484,19 @@ export function useTrackedApps(isAuthenticated, authToken) {
             })
             .toPromise();
           if (isSessionStale(gen)) return;
-          log(`Batch run ${runId} marked as completed`);
+          // A run whose status never landed is not a clean finish; say so
+          // instead of logging that it was marked completed.
+          const bookkeepingFailed = upd.error?.message
+            ? upd.error.message
+            : upd.data?.updateBatchRun?.success === false
+              ? upd.data.updateBatchRun.message || "server rejected the update"
+              : "";
+          if (bookkeepingFailed) {
+            log(`Could not record the batch run result: ${bookkeepingFailed}`);
+            console.error("Error updating batch run:", bookkeepingFailed);
+          } else {
+            log(`Batch run ${runId} marked as completed`);
+          }
         }
       } else {
         throw new Error(result.error?.message || "Failed to check tracked apps");
@@ -493,7 +513,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // Update batch run as failed
       if (runId && !isSessionStale(gen)) {
         try {
-          await graphqlClient
+          const upd = await graphqlClient
             .mutation(UPDATE_BATCH_RUN_MUTATION, {
               id: runId,
               status: "FAILED",
@@ -501,7 +521,17 @@ export function useTrackedApps(isAuthenticated, authToken) {
               logs: logs.join("\n"),
             })
             .toPromise();
-          log(`Batch run ${runId} marked as failed`);
+          const bookkeepingFailed = upd.error?.message
+            ? upd.error.message
+            : upd.data?.updateBatchRun?.success === false
+              ? upd.data.updateBatchRun.message || "server rejected the update"
+              : "";
+          if (bookkeepingFailed) {
+            log(`Could not record the batch run failure: ${bookkeepingFailed}`);
+            console.error("Error updating batch run:", bookkeepingFailed);
+          } else {
+            log(`Batch run ${runId} marked as failed`);
+          }
         } catch (updateErr) {
           console.error("Error updating batch run:", updateErr);
         }

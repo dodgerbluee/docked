@@ -41,6 +41,11 @@ export function useGeneralSettings({
   // that state writes defaults back over the stored schedules and silently
   // disables jobs the user had enabled.
   const [batchConfigLoadError, setBatchConfigLoadError] = useState("");
+  // The preferences read is what makes the theme and toggle values in this form
+  // trustworthy. urql resolves instead of rejecting, so a failed read used to
+  // fall through to the hard-coded default and a later save wrote that default
+  // back over the stored preference.
+  const [preferencesError, setPreferencesError] = useState("");
 
   const fetchRefreshingTogglesEnabled = useCallback(async () => {
     const generation = getSessionGeneration();
@@ -51,6 +56,10 @@ export function useGeneralSettings({
       // A response that lands after logout belongs to a dead session (it can
       // carry another user's preference) — drop it.
       if (isSessionStale(generation)) return;
+      if (res.error) {
+        setPreferencesError(res.error.message || "Could not load your preferences");
+        return;
+      }
       if (res.data?.userPreferences) {
         const fetchedEnabled = res.data.userPreferences.refreshingTogglesEnabled || false;
         setRefreshingTogglesEnabled(fetchedEnabled);
@@ -60,12 +69,11 @@ export function useGeneralSettings({
         setRefreshingTogglesEnabled(defaultEnabled);
         setLocalRefreshingTogglesEnabled(defaultEnabled);
       }
+      setPreferencesError("");
     } catch (err) {
       console.error("Error fetching refreshing toggles enabled:", err);
       if (isSessionStale(generation)) return;
-      const defaultEnabled = false;
-      setRefreshingTogglesEnabled(defaultEnabled);
-      setLocalRefreshingTogglesEnabled(defaultEnabled);
+      setPreferencesError(err.message || "Could not load your preferences");
     }
   }, []);
 
@@ -161,6 +169,14 @@ export function useGeneralSettings({
   }, [refreshingTogglesEnabled, isInitialized]);
 
   const handleSaveGeneralSettings = useCallback(async () => {
+    // Nothing in this form is trustworthy until the preferences read has
+    // resolved: colorScheme comes from the theme hook's copy of the same query
+    // and refreshingTogglesEnabled starts as null. Saving an unresolved form
+    // writes the fallbacks over the stored values.
+    if (localRefreshingTogglesEnabled === null || preferencesError) {
+      setGeneralSettingsSuccess("");
+      return;
+    }
     setGeneralSettingsSaving(true);
     setGeneralSettingsSuccess("");
     isSavingRef.current = true;
@@ -213,7 +229,7 @@ export function useGeneralSettings({
         isSavingRef.current = false;
       }, 0);
     }
-  }, [localColorScheme, localRefreshingTogglesEnabled, onColorSchemeChange]);
+  }, [localColorScheme, localRefreshingTogglesEnabled, preferencesError, onColorSchemeChange]);
 
   const handleRefreshingTogglesChange = useCallback((enabled) => {
     setLocalRefreshingTogglesEnabled(enabled === "on");
@@ -326,6 +342,8 @@ export function useGeneralSettings({
     batchConfigLoadError,
     handleBatchConfigSubmit,
     fetchBatchConfig,
+    preferencesError,
+    fetchUserPreferences: fetchRefreshingTogglesEnabled,
     isInitialized, // Expose initialization state
   };
 }

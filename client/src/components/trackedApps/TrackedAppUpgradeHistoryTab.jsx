@@ -19,6 +19,8 @@ import {
 import { useTrackedAppUpgradeHistory } from "../../hooks/useTrackedAppUpgradeHistory";
 import EmptyState from "../ui/EmptyState";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import Alert from "../ui/Alert";
+import Button from "../ui/Button";
 import TrackedAppUpgradeHistoryDetailModal from "./TrackedAppUpgradeHistoryDetailModal";
 import styles from "./TrackedAppUpgradeHistoryTab.module.css";
 
@@ -56,7 +58,7 @@ function TrackedAppUpgradeHistoryTab() {
   const [selectedUpgrade, setSelectedUpgrade] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const { history, loading, error, stats } = useTrackedAppUpgradeHistory();
+  const { history, loading, error, stats, statsError, fetchStats } = useTrackedAppUpgradeHistory();
 
   // Filter and sort history
   const filteredHistory = useMemo(() => {
@@ -138,6 +140,17 @@ function TrackedAppUpgradeHistoryTab() {
 
   return (
     <div className={styles.container}>
+      {/* A failed stats read is not "no upgrades have happened"; say which
+          one the user is looking at and let them try again. */}
+      {statsError && (
+        <Alert variant="error" role="alert">
+          <p>Upgrade statistics could not be loaded: {statsError}</p>
+          <Button type="button" onClick={() => fetchStats()}>
+            Retry
+          </Button>
+        </Alert>
+      )}
+
       {/* Header with stats */}
       {stats && (
         <div className={styles.statsBar}>

@@ -197,13 +197,18 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     setError(null);
 
     try {
-      const { error: gqlError } = await graphqlClient
+      const { data, error: gqlError } = await graphqlClient
         .mutation(ASSOCIATE_IMAGES_MUTATION, {
           tokenId: key,
           input: { imageRepos },
         })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      // The payload carries its own verdict; without this a refused save still
+      // closed the modal and the associations silently disappeared.
+      if (!data?.associateImages?.success) {
+        throw new Error(data?.associateImages?.message || "Failed to associate images");
+      }
 
       // The modal may have been re-pointed at another token (or closed) while
       // the save was in flight; closing then would dismiss the new target.

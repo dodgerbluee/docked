@@ -50,6 +50,12 @@ export const useContainerClear = ({
         const result = await graphqlClient.mutation(CLEAR_CONTAINER_DATA_MUTATION, {}).toPromise();
         if (result.error) throw result.error;
         if (stale()) return;
+        // The payload carries its own verdict. Emptying the UI before the
+        // server had actually cleared anything showed an empty fleet that the
+        // next refetch would contradict.
+        if (!result.data?.clearContainerData?.success) {
+          throw new Error(result.data?.clearContainerData?.message || "Failed to clear cache");
+        }
 
         const clearFrontendState = () => {
           setContainers([]);
