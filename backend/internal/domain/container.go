@@ -2,6 +2,25 @@ package domain
 
 import "strings"
 
+// OriginalImageLabel is stamped by the upgrade pipeline on every container it
+// recreates, holding the user-visible reference (repo:tag or repo@digest) the
+// container was built from. It is the authoritative way to recover image
+// identity for a container Docker now reports as a bare image ID. It lives
+// here because graph, imagesync and runner all need it and none of them may
+// import another.
+const OriginalImageLabel = "docked.original_image"
+
+// RepoQualifiedDigest returns the index of the "@sha256:" separator in an image
+// reference ("repo@sha256:abc"), or -1 when the value is not repository
+// qualified. A bare "sha256:..." image ID never qualifies: it identifies an
+// image but carries no repository to look updates up with.
+func RepoQualifiedDigest(value string) int {
+	if idx := strings.Index(value, "@sha256:"); idx > 0 {
+		return idx
+	}
+	return -1
+}
+
 // ProviderFromImageRepo maps an image repository (no tag) to the registry
 // provider vocabulary (dockerhub/ghcr/gitlab/gcr) used by
 // registry_image_versions.provider and the imageInfo.provider field. Lives
@@ -44,6 +63,11 @@ type Container struct {
 	Status    string  `json:"status"`
 	State     string  `json:"state"`
 	StackName *string `json:"stackName"`
+
+	// Labels are the container's own labels. Only docked.original_image is
+	// read today: it is how a container the upgrade pipeline recreated from a
+	// bare image ID gets its real image reference back.
+	Labels map[string]string `json:"labels,omitempty"`
 
 	// Digest & update info
 	CurrentDigest     *string  `json:"currentDigest"`

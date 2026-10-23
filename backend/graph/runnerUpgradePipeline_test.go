@@ -521,3 +521,33 @@ func TestPreserveAnonymousVolumes(t *testing.T) {
 		t.Errorf("pinned mount must not also be re-added as a bind: %v", b)
 	}
 }
+
+// The pipeline stamps docked.original_image so a container running from a bare
+// image ID can still be identified. Stamping a bare image ID is worse than not
+// stamping at all: a container upgraded twice had its good reference
+// overwritten by the second recreation, and both the scan and the live listing
+// then lost its update status.
+func TestStampOriginalImageKeepsUsableReference(t *testing.T) {
+	cfg := map[string]any{
+		"Labels": map[string]any{
+			OriginalImageLabel: "nginx:1.25",
+		},
+	}
+	stampOriginalImage(cfg, "sha256:1111111111111111111111111111111111111111111111111111111111111111")
+	labels := cfg["Labels"].(map[string]any)
+	if got := labels[OriginalImageLabel]; got != "nginx:1.25" {
+		t.Errorf("bare image ID overwrote the reference: got %v", got)
+	}
+
+	// A real reference still wins, and a container with no labels at all gets
+	// one.
+	stampOriginalImage(cfg, "nginx:1.26")
+	if got := cfg["Labels"].(map[string]any)[OriginalImageLabel]; got != "nginx:1.26" {
+		t.Errorf("reference not stamped: got %v", got)
+	}
+	fresh := map[string]any{}
+	stampOriginalImage(fresh, "redis:7")
+	if got := fresh["Labels"].(map[string]any)[OriginalImageLabel]; got != "redis:7" {
+		t.Errorf("labels created for an unstamped container: got %v", got)
+	}
+}

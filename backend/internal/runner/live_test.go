@@ -110,3 +110,88 @@ func TestLiveRowsCarryRegistryForIntentMatching(t *testing.T) {
 		t.Errorf("provider should land on Provider, got %q", row.Provider.String)
 	}
 }
+
+// A container the upgrade pipeline recreated runs from a bare image ID, so
+// Docker reports Config.Image as "sha256:<id>". Parsed naively that is a bogus
+// "sha256" repository: the registry lookup misses, and because a live row
+// replaces the inventory row for a reachable runner, the container lost update
+// status that had already been confirmed for it. The live path must recover the
+// reference the same way the scan path does.
+func TestLiveRowsRecoverPinnedImageIdentity(t *testing.T) {
+	database, err := db.Open(filepath.Join(t.TempDir(), "pinned.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx, database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO registry_image_versions (user_id, image_repo, registry, repository, tag, latest_version, provider)
+		 VALUES (1, 'quay.io/acme/app', 'quay.io', 'app', NULL, '2.9.0', 'quay')`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rr := db.RunnerRow{ID: 7, Name: "r1", URL: "http://runner.invalid"}
+	pinned := domain.Container{
+		ID:    "aaa111",
+		Name:  "app",
+		Image: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		Labels: map[string]string{
+			domain.OriginalImageLabel: "quay.io/acme/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		// Bare image ID only: carries no repository, so it cannot rescue this
+		// container on its own.
+		RepoDigests: []string{"sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+		Status:      "running",
+		State:       "running",
+	}
+
+	rows := FetchContainerRows(ctx, database, 1, rr, []domain.Container{pinned})
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	got := rows[0]
+	if got.ImageRepo.String != "quay.io/acme/app" {
+		t.Errorf("ImageRepo = %q, want the label's repository", got.ImageRepo.String)
+	}
+	if got.ImageTag.String != "latest" {
+		t.Errorf("ImageTag = %q, want latest", got.ImageTag.String)
+	}
+	if got.Registry.String != "quay.io" {
+		t.Errorf("Registry = %q, want quay.io", got.Registry.String)
+	}
+	if !got.LatestVersion.Valid || got.LatestVersion.String != "2.9.0" {
+		t.Errorf("registry join failed for a pinned container: %+v", got.LatestVersion)
+	}
+
+	// No label (a container pinned by the user, not by an upgrade): fall back
+	// to any repository-qualified digest reference.
+	viaDigest := containerRowBase(rr, domain.Container{
+		ID:          "bbb222",
+		Name:        "d",
+		Image:       "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+		RepoDigests: []string{"quay.io/acme/app@sha256:4444444444444444444444444444444444444444444444444444444444444444"},
+	})
+	if viaDigest.ImageRepo.String != "quay.io/acme/app" {
+		t.Errorf("digest fallback ImageRepo = %q, want quay.io/acme/app", viaDigest.ImageRepo.String)
+	}
+
+	// Nothing recoverable: the image string is kept rather than invented.
+	lost := containerRowBase(rr, domain.Container{
+		ID:          "ccc333",
+		Name:        "l",
+		Image:       "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+		RepoDigests: []string{"sha256:6666666666666666666666666666666666666666666666666666666666666666"},
+	})
+	if lost.ImageRepo.String != "sha256" {
+		t.Errorf("unrecoverable container ImageRepo = %q, want the unchanged parse", lost.ImageRepo.String)
+	}
+
+	// An ordinary tag must never be touched by the recovery path.
+	normal := containerRowBase(rr, domain.Container{ID: "ddd444", Name: "n", Image: "postgres:15"})
+	if normal.ImageRepo.String != "postgres" || normal.ImageTag.String != "15" {
+		t.Errorf("ordinary image changed: %q / %q", normal.ImageRepo.String, normal.ImageTag.String)
+	}
+}

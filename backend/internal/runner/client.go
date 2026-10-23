@@ -120,6 +120,7 @@ func normalize(dockhandCtr dockhandContainer, runnerRow db.RunnerRow) domain.Con
 		Status:      dockhandCtr.Status,
 		State:       dockhandCtr.State,
 		RepoDigests: dockhandCtr.RepoDigests,
+		Labels:      dockhandCtr.Labels,
 		Source:      "runner",
 		RunnerID:    &runnerRow.ID,
 		RunnerName:  &runnerName,

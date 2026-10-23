@@ -63,11 +63,7 @@ func configImage(details map[string]any) string {
 // "sha256:<image ID>" has no repository in front of the separator and is NOT a
 // digest reference: SplitRepoTag would turn it into the bogus repo "sha256".
 func repoQualifiedDigest(value string) int {
-	idx := strings.Index(value, "@sha256:")
-	if idx <= 0 {
-		return -1
-	}
-	return idx
+	return domain.RepoQualifiedDigest(value)
 }
 
 // firstRepoDigest returns the image's first repository digest reference
@@ -97,7 +93,7 @@ func firstRepoDigest(details map[string]any, listDigests []string) string {
 // container was built from, so it is the authoritative recovery source for a
 // pinned dependent whose Config.Image and RepoDigests are both useless.
 func originalImageReference(details map[string]any) string {
-	ref := configLabel(details, "docked.original_image")
+	ref := configLabel(details, domain.OriginalImageLabel)
 	if ref == "" {
 		return ""
 	}

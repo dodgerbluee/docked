@@ -24,6 +24,7 @@ import (
 
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/domain"
 	"github.com/dockedapp/backend/internal/runner"
 )
 
@@ -32,14 +33,24 @@ import (
 // verification retry). Its value is the ORIGINAL user-visible image
 // reference from the pre-upgrade Config.Image (e.g. "nginx:1.25") — NOT the
 // pinned sha256 digest the create actually runs from. The UI needs the human
-// reference; execution stays pinned to the immutable digest.
-const OriginalImageLabel = "docked.original_image"
+// reference; execution stays pinned to the immutable digest. imagesync reads
+// it when scanning, and the live container path reads it when listing, so a
+// pinned container keeps its identity and its update status.
+const OriginalImageLabel = domain.OriginalImageLabel
 
 // stampOriginalImage attaches OriginalImageLabel to a create payload without
 // mutating the inspect document (buildUpgradeConfig/buildRecreateContainerConfig
 // alias the Config.Labels map).
 func stampOriginalImage(cfg map[string]any, originalImage string) {
 	if originalImage == "" {
+		return
+	}
+	// A bare image ID is not a reference: stamping it would overwrite the good
+	// reference an earlier recreation left behind and leave the container
+	// unidentifiable to both the scan and the live listing (a container
+	// upgraded twice lost its update status for exactly this reason). Returning
+	// early keeps the inherited label intact.
+	if strings.HasPrefix(originalImage, "sha256:") {
 		return
 	}
 	labels, _ := cfg["Labels"].(map[string]any)

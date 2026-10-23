@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/dockedapp/backend/internal/db"
@@ -20,7 +21,7 @@ import (
 // ContainerToRow converts a live runner container into a db.ContainerRow.
 func ContainerToRow(ctx context.Context, database *sql.DB, uid int64, rr db.RunnerRow, c domain.Container) db.ContainerRow {
 	row := containerRowBase(rr, c)
-	repo, tag := splitImageRepoTag(c.Image)
+	repo, tag := splitImageRepoTag(resolveImageReference(c))
 	registryData, err := db.GetRegistryData(ctx, database, uid, repo, tag)
 	if err != nil {
 		slog.Debug("live runner registry lookup failed", "image", c.Image, "error", err)
@@ -43,7 +44,7 @@ func FetchContainerRows(ctx context.Context, database *sql.DB, uid int64, rr db.
 	for _, c := range ctrs {
 		row := containerRowBase(rr, c)
 		if registry != nil {
-			if d := registry.Get(splitImageRepoTag(c.Image)); d != nil {
+			if d := registry.Get(splitImageRepoTag(resolveImageReference(c))); d != nil {
 				applyRegistryData(&row, d)
 			}
 		}
@@ -65,14 +66,44 @@ func applyRegistryData(row *db.ContainerRow, d *db.RegistryData) {
 	// glob against host vocabulary (docker.io/ghcr.io/...) like persisted rows.
 }
 
+// resolveImageReference recovers the user-visible image reference for a
+// container whose Config.Image Docker reports as a bare image ID. The upgrade
+// pipeline recreates a dependent from the resolved image ID, so its
+// Config.Image becomes "sha256:<id>" and SplitRepoTag parses that as a bogus
+// "sha256" repo: the registry lookup misses, and because a live row replaces
+// the inventory row for a reachable runner, the container silently stops
+// showing updates that were already confirmed for it.
+//
+// Same preference order as the scan path (imagesync.runner): the
+// docked.original_image label the pipeline stamped, then any
+// repository-qualified digest reference. A bare image ID never qualifies.
+func resolveImageReference(c domain.Container) string {
+	if !strings.HasPrefix(c.Image, "sha256:") {
+		return c.Image
+	}
+	if ref := c.Labels[domain.OriginalImageLabel]; ref != "" && domain.RepoQualifiedDigest(ref) >= 0 {
+		return ref
+	}
+	if ref := c.Labels[domain.OriginalImageLabel]; ref != "" && !strings.HasPrefix(ref, "sha256:") {
+		return ref
+	}
+	for _, repoDigest := range c.RepoDigests {
+		if domain.RepoQualifiedDigest(repoDigest) >= 0 {
+			return repoDigest
+		}
+	}
+	return c.Image
+}
+
 // containerRowBase builds the registry-free part of the DB-row shape.
 func containerRowBase(rr db.RunnerRow, c domain.Container) db.ContainerRow {
-	repo, tag := splitImageRepoTag(c.Image)
+	image := resolveImageReference(c)
+	repo, tag := splitImageRepoTag(image)
 
 	row := db.ContainerRow{
 		ContainerID:   c.ID,
 		ContainerName: c.Name,
-		ImageName:     sqlNullStr(c.Image),
+		ImageName:     sqlNullStr(image),
 		ImageRepo:     sqlNullStr(repo),
 		ImageTag:      sqlNullStr(tag),
 		Status:        sqlNullStr(c.Status),
