@@ -379,8 +379,18 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// Limiter budgets mirror Node's express-rate-limit placement:
 	// publicLimiter (20/15min) on the unauthenticated agent endpoints,
 	// writeLimiter (30/15min) on enrollment creation and the operation-run
-	// streams, destructiveLimiter (10/min) on container upgrades.
+	// streams, destructiveLimiter (10/min) on container upgrades. The one
+	// deliberate divergence is runner heartbeats, which get their own budget
+	// (see heartbeatLimiter).
 	agentLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
+	// Heartbeats are the agent liveness signal, and every runner posts one on
+	// its own cadence. They cannot share the enrollment bucket: keyed on the
+	// peer address (the API key is in the body, so the limiter cannot see the
+	// runner identity), a few runners behind one NAT address exhaust 20/15min
+	// and get marked offline. The budget below covers roughly a dozen runners
+	// per address; the global 300/min cap and the API-key check inside the
+	// handler bound abuse.
+	heartbeatLimiter := apimiddleware.NewRateLimiter(600, 15*time.Minute, 10000)
 	writeLimiter := apimiddleware.NewRateLimiter(30, 15*time.Minute, 10000)
 	destructiveLimiter := apimiddleware.NewRateLimiter(10, time.Minute, 10000)
 	authLimiter := apimiddleware.NewRateLimiter(20, 15*time.Minute, 10000)
@@ -442,8 +452,11 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 			r.Use(apimiddleware.RateLimit(agentLimiter, apimiddleware.RESTTooManyRequests))
 			r.Get("/runners/install/{token}", handlers.ServeInstallScript(cfg.DockedURL))
 			r.Post("/runners/register", handlers.RegisterRunner(database))
-			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database, poller))
 			r.Post("/runners/re-enroll", handlers.ReEnrollRunner(database))
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(apimiddleware.RateLimit(heartbeatLimiter, apimiddleware.RESTTooManyRequests))
+			r.Post("/runners/heartbeat", handlers.HeartbeatRunner(database, poller))
 		})
 
 		// Public auth endpoints (Node keeps the edge limiter and proxies).
