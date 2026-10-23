@@ -216,3 +216,41 @@ func TestUpdateTrackedAppFieldsRejectsSourceEdit(t *testing.T) {
 		t.Errorf("latest_version = %q, want v2: the old source's release must not land on the edited row", latestVersion)
 	}
 }
+
+// A row whose source_type is the empty string is still the row the check read.
+// Treating "" as NULL in the guard would reject every write for it and the app
+// would silently stop updating.
+func TestUpdateTrackedAppFieldsMatchesEmptySourceType(t *testing.T) {
+	database, err := Open(t.TempDir() + "/ta5.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	if err := Migrate(ctx, database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	var id int64
+	err = database.QueryRowContext(ctx,
+		`INSERT INTO tracked_apps (user_id, name, image_name, source_type,
+		    current_version, latest_version)
+		 VALUES (1, 'app', 'example/app:latest', '', 'v1', 'v2')
+		 RETURNING id`).Scan(&id)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	row, err := GetTrackedAppByID(ctx, database, id, 1)
+	if err != nil || row == nil {
+		t.Fatalf("load: %v", err)
+	}
+	applied, err := UpdateTrackedAppFields(ctx, database, id, 1,
+		map[string]any{"has_update": 1}, row.ObservedSnapshot())
+	if err != nil {
+		t.Fatalf("update fields: %v", err)
+	}
+	if !applied {
+		t.Errorf("write rejected for a row whose source_type is the empty string")
+	}
+}

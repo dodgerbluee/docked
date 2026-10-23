@@ -229,9 +229,12 @@ func (a *TrackedAppRow) ObservedSnapshot() TrackedAppSnapshot {
 		CurrentDigest:  a.CurrentDigest,
 		LatestVersion:  a.LatestVersion,
 		LatestDigest:   a.LatestDigest,
-		SourceType:     sql.NullString{String: a.SourceType, Valid: a.SourceType != ""},
-		ImageName:      a.ImageName,
-		GithubRepo:     a.GithubRepo,
+		// source_type is scanned into a plain string, so a loaded row always
+		// carries a value here - empty string included. Keeping it Valid stops
+		// an empty source_type from being compared against NULL.
+		SourceType: sql.NullString{String: a.SourceType, Valid: true},
+		ImageName:  a.ImageName,
+		GithubRepo: a.GithubRepo,
 	}
 }
 
