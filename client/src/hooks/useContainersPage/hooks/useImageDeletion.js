@@ -125,8 +125,18 @@ export const useImageDeletion = ({
         if (isSessionStale(gen)) return;
 
         if (data.success) {
-          const deletedCount = data.deleted || uniqueImages.length;
-          const deletedKeys = new Set(uniqueImages.map((img) => getImageKey(img)));
+          // Partial success is real: the server returns success=true with an
+          // errors[] entry per image it could not remove. Removing every
+          // selected row anyway hid those failures and left the local list
+          // disagreeing with the registry.
+          const failed = data.errors || [];
+          const failedIds = new Set(failed.map((e) => String(e.id)));
+          const deletedKeys = new Set(
+            uniqueImages
+              .filter((img) => !failedIds.has(String(img.id)))
+              .map((img) => getImageKey(img))
+          );
+          const deletedCount = deletedKeys.size;
 
           if (onUnusedImagesUpdate) {
             onUnusedImagesUpdate((prev) =>
@@ -143,7 +153,14 @@ export const useImageDeletion = ({
               return next;
             });
           }
-          toast.info(`Successfully deleted ${deletedCount} image(s).`);
+          if (failed.length > 0) {
+            const reason = failed[0]?.error || "unknown error";
+            toast.warning(
+              `Deleted ${deletedCount} image(s), ${failed.length} could not be deleted: ${reason}`
+            );
+          } else {
+            toast.info(`Successfully deleted ${deletedCount} image(s).`);
+          }
           // Don't refetch: optimistic update already removed the images; refetch can re-add them if server is stale
         } else {
           toast.error("Failed to delete images. Check console for details.");

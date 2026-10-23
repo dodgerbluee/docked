@@ -203,6 +203,19 @@ function getMatchValues(initialData, matchType, idToName) {
 }
 
 /**
+ * The form edits one match dimension and one exclude dimension at a time, so
+ * an intent that stores values in more than one of either loses the rest the
+ * next time it is saved from here. Work out which ones get dropped so the form
+ * can warn instead of doing it quietly.
+ */
+function dimensionsBeyondTheFirst(initialData, prefix, keys) {
+  if (!initialData) return [];
+  const active = keys.filter((key) => (initialData[`${prefix}${key}`]?.length ?? 0) > 0);
+  // The first active key is the one the form loads and keeps.
+  return active.slice(1);
+}
+
+/**
  * Convert a simple glob pattern to a RegExp (client-side mirror of server's globToRegex).
  * Supports * (any chars) and ? (single char). Case-insensitive.
  */
@@ -560,6 +573,28 @@ const IntentForm = React.memo(function IntentForm({
   });
 
   const [formError, setFormError] = useState("");
+
+  // Dimensions this form cannot represent (see dimensionsBeyondTheFirst).
+  const droppedDimensions = useMemo(() => {
+    if (!isEditing) return [];
+    const match = dimensionsBeyondTheFirst(initialData, "match", [
+      "Containers",
+      "Images",
+      "Stacks",
+      "Registries",
+      "Sources",
+    ]);
+    const exclude = dimensionsBeyondTheFirst(initialData, "exclude", [
+      "Containers",
+      "Images",
+      "Stacks",
+      "Registries",
+    ]);
+    return [
+      ...match.map((d) => `match ${d.toLowerCase()}`),
+      ...exclude.map((d) => `exclude ${d.toLowerCase()}`),
+    ];
+  }, [initialData, isEditing]);
   const [blockedContainerNames, setBlockedContainerNames] = useState([]);
 
   // Fetch the global blocklist and pre-populate exclusion criteria with blocked container names.
@@ -662,6 +697,10 @@ const IntentForm = React.memo(function IntentForm({
       const submitData = {
         name: formData.name,
         enabled: formData.enabled,
+        // The inactive dimensions are sent as [] on purpose: the server maps
+        // an explicit empty array to NULL ("dimension off"), which is what
+        // switches a previously active match type off. Omitting the field
+        // instead would leave the old dimension in place.
         matchContainers: formData.matchType === MATCH_TYPES.CONTAINERS ? matchValues : [],
         matchImages: formData.matchType === MATCH_TYPES.IMAGES ? matchValues : [],
         matchStacks: formData.matchType === MATCH_TYPES.STACKS ? matchValues : [],
@@ -694,6 +733,12 @@ const IntentForm = React.memo(function IntentForm({
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
       {formError && <div className={styles.formError}>{formError}</div>}
+      {droppedDimensions.length > 0 && (
+        <div className={styles.formWarning}>
+          This intent also has {droppedDimensions.join(", ")}. This form edits one criterion at a
+          time, so saving will remove the others.
+        </div>
+      )}
 
       {/* Name */}
       <Input

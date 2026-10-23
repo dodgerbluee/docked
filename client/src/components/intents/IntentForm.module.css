@@ -24,6 +24,15 @@
   font-size: 0.875rem;
 }
 
+.formWarning {
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  color: var(--warning-orange, #f5a623);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
 .formGroup {
   display: flex;
   flex-direction: column;

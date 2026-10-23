@@ -29,6 +29,8 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   const tokenKey = token ? String(token.id) : null;
   const activeTokenKeyRef = useRef(tokenKey);
   const requestSeqRef = useRef(0);
+  // True when the current token's existing associations could not be loaded.
+  const assocLoadFailedRef = useRef(false);
 
   const isRequestCurrent = useCallback((key, seq) => {
     return seq === requestSeqRef.current && activeTokenKeyRef.current === key;
@@ -48,12 +50,20 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       if (!isRequestCurrent(key, seq)) return;
       const entry = (data?.repositoryTokens || []).find((t) => String(t.id) === String(token.id));
       const associatedImageRepos = (entry?.associatedImages || []).map((i) => i.imageRepo);
+      assocLoadFailedRef.current = false;
       setSelectedImages(new Set(associatedImageRepos));
     } catch (err) {
       console.error("Error fetching associated images:", err);
-      // Don't show error for this - just start with empty selection
+      // The save replaces the whole association set, so a failed load that
+      // looks like "nothing is associated" would silently wipe the existing
+      // links the moment the user presses Save. Remember the failure and
+      // block the save until the load succeeds.
       if (isRequestCurrent(key, seq)) {
+        assocLoadFailedRef.current = true;
         setSelectedImages(new Set());
+        setError(
+          "Failed to load the current image associations. Saving is disabled until they load."
+        );
       }
     }
   }, [token, isRequestCurrent]);
@@ -159,6 +169,12 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     // An empty selection is meaningful: the input replaces the association set,
     // so zero selections is the only way to clear every image from a token.
     if (!token) return;
+    // ...but an empty selection that came from a FAILED load is not a user
+    // intent to clear: refuse rather than wipe associations we never saw.
+    if (assocLoadFailedRef.current) {
+      setError("Image associations failed to load - close and reopen the modal to retry.");
+      return;
+    }
 
     const key = String(token.id);
     const seq = requestSeqRef.current;
