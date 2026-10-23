@@ -139,7 +139,29 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
   const hasTrackedAppData = trackedAppHistory.length > 0;
   const hasAppsData = !appsLoading && appsChartData !== null;
 
+  // The stats bar combines both histories, so the Overview charts and insights
+  // have to combine them too. Picking container history whenever it existed
+  // made the charts disagree with the totals printed beside them.
+  const combinedHistory = useMemo(
+    () => [...(containerHistory || []), ...(trackedAppHistory || [])],
+    [containerHistory, trackedAppHistory]
+  );
+  const overviewChartData = useMemo(() => processChartData(combinedHistory), [combinedHistory]);
+  const overviewStats = useMemo(() => calculateStats(combinedHistory), [combinedHistory]);
+
   if (!hasContainerData && !hasTrackedAppData && !hasAppsData) {
+    // A failed runner-app read leaves no apps data behind, and answering that
+    // with "no data yet" told the user their installation was unused when the
+    // fleet was simply unreachable.
+    if (appsLoadError) {
+      return (
+        <div className={styles.content}>
+          <Alert variant="error" role="alert" className={styles.loadError}>
+            {appsLoadError}
+          </Alert>
+        </div>
+      );
+    }
     return (
       <div className={styles.content}>
         <div className={styles.emptyMessage}>
@@ -172,9 +194,6 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
       : hasContainerData
         ? stats.avgDuration
         : trackedAppStats.avgDuration;
-
-  const overviewChartData = hasContainerData ? chartData : trackedAppChartData;
-  const overviewStats = hasContainerData ? stats : trackedAppStats;
 
   return (
     <div className={styles.content}>

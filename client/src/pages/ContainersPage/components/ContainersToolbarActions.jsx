@@ -88,6 +88,13 @@ const ContainersToolbarActions = ({
       const allImagesSelected =
         sourceUnusedImages.length > 0 &&
         sourceUnusedImages.every((img) => selectedImages.has(getImageKey(img)));
+      // A delete request only ever carries images from the sources currently
+      // shown, so the button has to count that intersection. Counting the whole
+      // selection offered a number the click could not deliver whenever the
+      // user had selected on one host and then filtered to another.
+      const visibleSelectedCount = sourceUnusedImages.filter((img) =>
+        selectedImages.has(getImageKey(img))
+      ).length;
 
       return (
         <>
@@ -121,14 +128,14 @@ const ContainersToolbarActions = ({
             variant="outline"
             size="sm"
             onClick={onBatchDelete}
-            disabled={selectedImages.size === 0 || deletingImages}
-            className={selectedImages.size > 0 ? styles.deleteButtonHover : ""}
+            disabled={visibleSelectedCount === 0 || deletingImages}
+            className={visibleSelectedCount > 0 ? styles.deleteButtonHover : ""}
           >
             {deletingImages
-              ? `Deleting ${selectedImages.size}...`
+              ? `Deleting ${visibleSelectedCount}...`
               : compactLabels
-                ? `Delete (${selectedImages.size})`
-                : `Delete Selected (${selectedImages.size})`}
+                ? `Delete (${visibleSelectedCount})`
+                : `Delete Selected (${visibleSelectedCount})`}
           </Button>
         </>
       );

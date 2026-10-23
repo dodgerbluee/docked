@@ -117,11 +117,16 @@ export const useRunnerApps = () => {
 
       // Rejected history reads used to vanish, so the combined run list and
       // every operation stat computed from it read as complete when they were
-      // missing whole runners.
-      const failedHistoryReads = historyResults.filter((r) => r.status === "rejected").length;
+      // missing whole runners. Naming them is what makes the gap actionable -
+      // a bare count leaves the user guessing which host to go look at.
+      const failedHistoryRunners = historyResults
+        .map((r, i) => (r.status === "rejected" ? enabledRunners[i] : null))
+        .filter(Boolean);
       setHistoryError(
-        failedHistoryReads > 0
-          ? `${failedHistoryReads} of ${enabledRunners.length} runner history reads failed; the run list and the operation stats are incomplete.`
+        failedHistoryRunners.length > 0
+          ? `History could not be read from ${failedHistoryRunners.length} of ${enabledRunners.length} runners (${failedHistoryRunners
+              .map((r) => r.name)
+              .join(", ")}); the run list and the operation stats are incomplete.`
           : null
       );
 

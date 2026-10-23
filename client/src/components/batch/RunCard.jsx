@@ -69,7 +69,7 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
                 if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
                   e.preventDefault();
-                  handleErrorIconClick();
+                  handleErrorIconClick(e);
                 }
               }}
             >

@@ -106,11 +106,36 @@ describe("upgradeRunnerContainer", () => {
       opResult({
         data: {
           upgradeHistory: {
-            items: [{ dockerContainerId: source.id, status: "SUCCESS" }],
+            items: [
+              { dockerContainerId: source.id, status: "SUCCESS", source: { id: "16" } },
+            ],
           },
         },
       });
     const res = await upgradeRunnerContainer(source, { timeoutMs: 9000 });
     expect(res.success).toBe(true);
+  }, 10000);
+
+  // The fallback poll must be scoped to the container's host: a same-named
+  // container on another runner finishing its upgrade used to settle this one.
+  it("does not settle from a history row recorded against a different runner", async () => {
+    okMutation();
+    handlers.subscription = () => ({ subscribe: () => ({ unsubscribe: () => {} }) });
+    let seenFilter = null;
+    handlers.query = (doc, vars) => {
+      seenFilter = vars.filter;
+      return opResult({
+        data: {
+          upgradeHistory: {
+            items: [
+              { dockerContainerId: source.id, status: "SUCCESS", source: { id: "17" } },
+            ],
+          },
+        },
+      });
+    };
+    const err = await upgradeRunnerContainer(source, { timeoutMs: 4000 }).catch((e) => e);
+    expect(err.message).toMatch(/did not report completion in time/);
+    expect(seenFilter.runnerId).toBe("16");
   }, 10000);
 });

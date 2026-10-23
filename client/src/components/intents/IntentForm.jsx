@@ -10,6 +10,7 @@ import { DISALLOWED_CONTAINERS_QUERY } from "../../graphql/queries";
 import cronstrue from "cronstrue";
 import { Plus, X, Box, LaptopMinimalCheck, Layers, Globe, Zap, Clock, Server } from "lucide-react";
 import Button from "../ui/Button";
+import Alert from "../ui/Alert";
 import Input from "../ui/Input";
 import {
   SCHEDULE_TYPES,
@@ -204,15 +205,52 @@ function getMatchValues(initialData, matchType, idToName) {
 
 /**
  * The form edits one match dimension and one exclude dimension at a time, so
- * an intent that stores values in more than one of either loses the rest the
- * next time it is saved from here. Work out which ones get dropped so the form
- * can warn instead of doing it quietly.
+ * an intent that stores values in more than one of either (a policy built
+ * through the API, or one carried over from the Node backend) would lose the
+ * rest the next time it is saved from here. Which GraphQL field backs each
+ * dimension, so the ones this form never loaded can be carried through
+ * untouched instead of being sent as [] and cleared.
  */
-function dimensionsBeyondTheFirst(initialData, prefix, keys) {
+const MATCH_DIMENSION_FIELDS = {
+  [MATCH_TYPES.CONTAINERS]: "matchContainers",
+  [MATCH_TYPES.IMAGES]: "matchImages",
+  [MATCH_TYPES.STACKS]: "matchStacks",
+  [MATCH_TYPES.REGISTRIES]: "matchRegistries",
+  [MATCH_TYPES.SOURCES]: "matchSources",
+};
+const EXCLUDE_DIMENSION_FIELDS = {
+  [MATCH_TYPES.CONTAINERS]: "excludeContainers",
+  [MATCH_TYPES.IMAGES]: "excludeImages",
+  [MATCH_TYPES.STACKS]: "excludeStacks",
+  [MATCH_TYPES.REGISTRIES]: "excludeRegistries",
+};
+
+/**
+ * Which exclude type an existing intent uses, mirroring the inline detection in
+ * the form's initial state. Needed to tell "the user reconfigured this policy"
+ * apart from "the form simply cannot show this dimension".
+ */
+function detectExcludeType(initialData) {
+  if (initialData?.excludeImages?.length > 0) return MATCH_TYPES.IMAGES;
+  if (initialData?.excludeStacks?.length > 0) return MATCH_TYPES.STACKS;
+  if (initialData?.excludeRegistries?.length > 0) return MATCH_TYPES.REGISTRIES;
+  return MATCH_TYPES.CONTAINERS;
+}
+
+/**
+ * Dimensions that hold stored values but are not the one the form is editing.
+ * They are preserved unless the user switched the match/exclude type, which is
+ * a deliberate reconfiguration and really does clear them.
+ */
+function unpresentedDimensions(initialData, fields, activeType, switched) {
   if (!initialData) return [];
-  const active = keys.filter((key) => (initialData[`${prefix}${key}`]?.length ?? 0) > 0);
-  // The first active key is the one the form loads and keeps.
-  return active.slice(1);
+  const stored = Object.entries(fields).filter(
+    ([, field]) => (initialData[field]?.length ?? 0) > 0
+  );
+  // Switching the type clears every dimension it previously held, including
+  // the one that was loaded, so the full set is at stake in that case.
+  const atRisk = switched ? stored : stored.filter(([type]) => type !== activeType);
+  return atRisk.map(([, field]) => field);
 }
 
 /**
@@ -574,37 +612,65 @@ const IntentForm = React.memo(function IntentForm({
 
   const [formError, setFormError] = useState("");
 
-  // Dimensions this form cannot represent (see dimensionsBeyondTheFirst).
+  // Switching the match/exclude type is the only thing that clears a dimension
+  // this form cannot show. Renaming or re-scheduling an intent must not quietly
+  // drop its runner restrictions or exclusions and broaden what it upgrades.
   const droppedDimensions = useMemo(() => {
     if (!isEditing) return [];
-    const match = dimensionsBeyondTheFirst(initialData, "match", [
-      "Containers",
-      "Images",
-      "Stacks",
-      "Registries",
-      "Sources",
-    ]);
-    const exclude = dimensionsBeyondTheFirst(initialData, "exclude", [
-      "Containers",
-      "Images",
-      "Stacks",
-      "Registries",
-    ]);
+    const label = (field) => field.replace(/^(match|exclude)/, (m) => `${m} `).toLowerCase();
     return [
-      ...match.map((d) => `match ${d.toLowerCase()}`),
-      ...exclude.map((d) => `exclude ${d.toLowerCase()}`),
+      ...unpresentedDimensions(
+        initialData,
+        MATCH_DIMENSION_FIELDS,
+        formData.matchType,
+        formData.matchType !== detectMatchType(initialData)
+      ).map(label),
+      ...unpresentedDimensions(
+        initialData,
+        EXCLUDE_DIMENSION_FIELDS,
+        formData.excludeType,
+        formData.excludeType !== detectExcludeType(initialData)
+      ).map(label),
     ];
-  }, [initialData, isEditing]);
+  }, [initialData, isEditing, formData.matchType, formData.excludeType]);
+
+  // Stored values for dimensions this form never loaded, replayed verbatim on
+  // submit so editing the name or schedule leaves the rest of the policy intact.
+  const carriedDimensions = useMemo(() => {
+    if (!isEditing) return {};
+    const carried = {};
+    const matchSwitched = formData.matchType !== detectMatchType(initialData);
+    const excludeSwitched = formData.excludeType !== detectExcludeType(initialData);
+    if (!matchSwitched) {
+      for (const [type, field] of Object.entries(MATCH_DIMENSION_FIELDS)) {
+        if (type !== formData.matchType && initialData[field]?.length) carried[field] = initialData[field];
+      }
+    }
+    if (!excludeSwitched) {
+      for (const [type, field] of Object.entries(EXCLUDE_DIMENSION_FIELDS)) {
+        if (type !== formData.excludeType && initialData[field]?.length) carried[field] = initialData[field];
+      }
+    }
+    return carried;
+  }, [initialData, isEditing, formData.matchType, formData.excludeType]);
   const [blockedContainerNames, setBlockedContainerNames] = useState([]);
+  // The blocklist is merged into every saved intent's exclusions, so a failed
+  // read would write a policy that silently stops excluding blocked containers.
+  // Name the failure, offer a retry, and refuse to save until it succeeds.
+  const [blocklistError, setBlocklistError] = useState("");
 
   // Fetch the global blocklist and pre-populate exclusion criteria with blocked container names.
   // This makes it visible to the user which containers are always excluded from upgrading.
-  useEffect(() => {
+  const loadBlocklist = useCallback(() => {
+    setBlocklistError("");
     graphqlClient
       .query(DISALLOWED_CONTAINERS_QUERY)
       .toPromise()
       .then(({ data, error }) => {
-        if (error) return;
+        if (error) {
+          setBlocklistError(error.message || "Could not load the upgrade blocklist");
+          return;
+        }
         const blocked = data?.disallowedContainers?.containers;
         if (!blocked || blocked.length === 0) return;
         setBlockedContainerNames(blocked);
@@ -615,8 +681,14 @@ const IntentForm = React.memo(function IntentForm({
           return { ...prev, excludeValues: merged };
         });
       })
-      .catch(() => {});
+      .catch((err) =>
+        setBlocklistError(err?.message || "Could not load the upgrade blocklist")
+      );
   }, []);
+
+  useEffect(() => {
+    loadBlocklist();
+  }, [loadBlocklist]);
 
   // Suggestions for the exclusion dropdown — filtered to only containers matched
   // by the current match rules (so users only see relevant options to exclude)
@@ -672,6 +744,14 @@ const IntentForm = React.memo(function IntentForm({
       e.preventDefault();
       setFormError("");
 
+      if (blocklistError) {
+        setFormError(
+          "The upgrade blocklist could not be loaded, so saving would drop the containers that are " +
+            "always excluded. Retry the load first."
+        );
+        return;
+      }
+
       if (!formData.name.trim()) {
         setFormError("Name is required");
         return;
@@ -700,23 +780,51 @@ const IntentForm = React.memo(function IntentForm({
         // The inactive dimensions are sent as [] on purpose: the server maps
         // an explicit empty array to NULL ("dimension off"), which is what
         // switches a previously active match type off. Omitting the field
-        // instead would leave the old dimension in place.
-        matchContainers: formData.matchType === MATCH_TYPES.CONTAINERS ? matchValues : [],
-        matchImages: formData.matchType === MATCH_TYPES.IMAGES ? matchValues : [],
-        matchStacks: formData.matchType === MATCH_TYPES.STACKS ? matchValues : [],
-        matchRegistries: formData.matchType === MATCH_TYPES.REGISTRIES ? matchValues : [],
-        matchSources: formData.matchType === MATCH_TYPES.SOURCES ? matchValues : [],
-        // Always include blocked container names in excludeContainers (merged with user-set values)
+        // instead would leave the old dimension in place. Dimensions this form
+        // never loaded are replayed verbatim, so editing the name or schedule
+        // of a multi-criterion policy cannot strip a restriction the user
+        // never touched.
+        matchContainers:
+          formData.matchType === MATCH_TYPES.CONTAINERS
+            ? matchValues
+            : (carriedDimensions.matchContainers ?? []),
+        matchImages:
+          formData.matchType === MATCH_TYPES.IMAGES
+            ? matchValues
+            : (carriedDimensions.matchImages ?? []),
+        matchStacks:
+          formData.matchType === MATCH_TYPES.STACKS
+            ? matchValues
+            : (carriedDimensions.matchStacks ?? []),
+        matchRegistries:
+          formData.matchType === MATCH_TYPES.REGISTRIES
+            ? matchValues
+            : (carriedDimensions.matchRegistries ?? []),
+        matchSources:
+          formData.matchType === MATCH_TYPES.SOURCES
+            ? matchValues
+            : (carriedDimensions.matchSources ?? []),
+        // Always include blocked container names in excludeContainers (merged
+        // with user-set values and anything the form could not show).
         excludeContainers: [
           ...new Set([
             ...(formData.excludeType === MATCH_TYPES.CONTAINERS ? formData.excludeValues : []),
+            ...(carriedDimensions.excludeContainers ?? []),
             ...blockedContainerNames,
           ]),
         ],
-        excludeImages: formData.excludeType === MATCH_TYPES.IMAGES ? formData.excludeValues : [],
-        excludeStacks: formData.excludeType === MATCH_TYPES.STACKS ? formData.excludeValues : [],
+        excludeImages:
+          formData.excludeType === MATCH_TYPES.IMAGES
+            ? formData.excludeValues
+            : (carriedDimensions.excludeImages ?? []),
+        excludeStacks:
+          formData.excludeType === MATCH_TYPES.STACKS
+            ? formData.excludeValues
+            : (carriedDimensions.excludeStacks ?? []),
         excludeRegistries:
-          formData.excludeType === MATCH_TYPES.REGISTRIES ? formData.excludeValues : [],
+          formData.excludeType === MATCH_TYPES.REGISTRIES
+            ? formData.excludeValues
+            : (carriedDimensions.excludeRegistries ?? []),
         scheduleType: formData.scheduleType,
         scheduleCron: formData.scheduleCron,
         dryRun: formData.dryRun,
@@ -727,17 +835,27 @@ const IntentForm = React.memo(function IntentForm({
         setFormError(result.error || "An error occurred");
       }
     },
-    [formData, onSubmit, nameToId, blockedContainerNames]
+    [formData, onSubmit, nameToId, blockedContainerNames, carriedDimensions, blocklistError]
   );
 
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
       {formError && <div className={styles.formError}>{formError}</div>}
       {droppedDimensions.length > 0 && (
-        <div className={styles.formWarning}>
-          This intent also has {droppedDimensions.join(", ")}. This form edits one criterion at a
-          time, so saving will remove the others.
+        <div className={styles.formWarning} role="alert">
+          Switching the criterion will remove {droppedDimensions.join(
+            ", "
+          )} from this intent. Those dimensions cannot be edited here, so saving now drops them and
+          widens what the policy applies to.
         </div>
+      )}
+      {blocklistError && (
+        <Alert variant="error" role="alert">
+          {blocklistError}{" "}
+          <Button type="button" variant="ghost" size="sm" onClick={loadBlocklist}>
+            Retry
+          </Button>
+        </Alert>
       )}
 
       {/* Name */}

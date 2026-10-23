@@ -17,7 +17,12 @@ vi.mock("../client", () => ({
 const opResult = (payload) => ({ toPromise: () => Promise.resolve(payload) });
 
 const runRow = (status) => ({
-  data: { batchRuns: { items: [{ id: "7", status, jobType: "DOCKER_HUB_PULL" }] } },
+  data: { batchRun: { id: "7", status, jobType: "DOCKER_HUB_PULL" } },
+});
+
+// pullContainers registers the run and answers with its id as "batch-<runId>".
+const pullTrigger = () => ({
+  data: { pullContainers: { id: "batch-7", type: "PULL_CONTAINERS", status: "RUNNING" } },
 });
 
 // Drain pending microtasks (fake timers leave Promise chains intact).
@@ -30,7 +35,7 @@ let queryCalls;
 beforeEach(() => {
   vi.useFakeTimers();
   queryCalls = 0;
-  handlers.mutation = () => opResult({ data: { pullContainers: { success: true } } });
+  handlers.mutation = () => opResult(pullTrigger());
 });
 
 afterEach(() => {
@@ -70,7 +75,7 @@ describe("runContainerSync session guard", () => {
     const p = runContainerSync();
     await flush();
     clearAllCaches();
-    resolveMutation({ data: { pullContainers: { success: true } } });
+    resolveMutation(pullTrigger());
 
     const err = await p.catch((e) => e);
     expect(err.sessionEnded).toBe(true);

@@ -1,5 +1,5 @@
 import { graphqlClient } from "./client";
-import { PULL_CONTAINERS_MUTATION, BATCH_RUNS_QUERY } from "./queries";
+import { PULL_CONTAINERS_MUTATION, BATCH_RUN_QUERY } from "./queries";
 import { mapGraphRunToRow } from "../hooks/batchRunsCache";
 import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
@@ -11,7 +11,8 @@ const MAX_SYNC_POLL_ERRORS = 5;
 /**
  * Trigger the container sync in the Go API and wait for its batch run to
  * finish. The pullContainers mutation registers a 'running' docker-hub-pull
- * run before it responds, so the poll below always observes the new run.
+ * run before it responds and returns its id as "batch-<runId>", so the poll
+ * below follows exactly that run.
  * Resolves with the terminal run row; rejects when the run fails or the wait
  * times out.
  *
@@ -34,6 +35,16 @@ export async function runContainerSync() {
 
   const startTime = Date.now();
   let batchRun = null;
+  // Poll the run this mutation just registered, not "the newest docker-hub-pull
+  // run". Watching the newest one let an overlapping scheduled or manual sync
+  // decide this call's outcome - a different run's failure, success or timeout
+  // was reported as if it were ours.
+  // The mutation answers with "batch-<runId>"; query batchRun(id:) takes the
+  // numeric run id, so the correlation token is unwrapped here rather than
+  // guessed at by looking for the newest run of the job type.
+  const rawRunID = trigger.data.pullContainers.id;
+  const runID = rawRunID == null ? "" : String(rawRunID).replace(/^batch-/, "");
+  if (!runID) throw new Error("Container sync did not report a run to follow");
   // urql resolves rather than rejects, so a failed read looks like an empty
   // answer. Swallowing those turned an outage into a five-minute wait that then
   // reported a meaningless timeout, so keep the last real error and give up
@@ -43,14 +54,12 @@ export async function runContainerSync() {
   while (Date.now() - startTime < SYNC_MAX_WAIT_MS) {
     if (isSessionStale(gen)) throw sessionEnded();
     try {
-      const runsResult = await graphqlClient
-        .query(BATCH_RUNS_QUERY, { jobType: "DOCKER_HUB_PULL", first: 1 })
-        .toPromise();
+      const runResult = await graphqlClient.query(BATCH_RUN_QUERY, { id: runID }).toPromise();
       if (isSessionStale(gen)) throw sessionEnded();
-      if (runsResult.error) throw new Error(runsResult.error.message);
+      if (runResult.error) throw new Error(runResult.error.message);
       consecutiveReadErrors = 0;
       lastReadError = "";
-      batchRun = mapGraphRunToRow(runsResult.data?.batchRuns?.items?.[0]);
+      batchRun = mapGraphRunToRow(runResult.data?.batchRun);
       if (batchRun && (batchRun.status === "completed" || batchRun.status === "failed")) {
         break;
       }

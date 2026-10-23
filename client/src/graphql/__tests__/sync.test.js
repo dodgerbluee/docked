@@ -15,13 +15,19 @@ vi.mock("../client", () => ({
 
 const opResult = (payload) => ({ toPromise: () => Promise.resolve(payload) });
 
+// pullContainers registers the run and answers with its id as "batch-<runId>";
+// the poll then follows exactly that run through batchRun(id:).
+const pullTrigger = (id = "batch-7") => ({
+  data: { pullContainers: { id, type: "PULL_CONTAINERS", status: "RUNNING" } },
+});
+
 const runRow = (status) => ({
-  data: { batchRuns: { items: [{ id: "7", status, jobType: "DOCKER_HUB_PULL" }] } },
+  data: { batchRun: { id: "7", status, jobType: "DOCKER_HUB_PULL" } },
 });
 
 beforeEach(() => {
   vi.useFakeTimers();
-  handlers.mutation = () => opResult({ data: { pullContainers: { success: true } } });
+  handlers.mutation = () => opResult(pullTrigger());
 });
 
 afterEach(() => {
@@ -48,5 +54,26 @@ describe("runContainerSync", () => {
     );
     await vi.advanceTimersByTimeAsync(301000);
     await assertion;
+  });
+
+  // Following "the newest docker-hub-pull run" let an overlapping scheduled
+  // sync decide this call's outcome. The poll must carry the id the mutation
+  // returned, and must not fall back to a list query.
+  it("polls the run the mutation returned, not the newest run of the job type", async () => {
+    const seen = [];
+    handlers.query = (doc, vars) => {
+      seen.push(vars);
+      return opResult(runRow("COMPLETED"));
+    };
+    await runContainerSync();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toEqual({ id: "7" });
+  });
+
+  it("rejects when the mutation does not report a run to follow", async () => {
+    handlers.mutation = () =>
+      opResult({ data: { pullContainers: { id: null, status: "RUNNING" } } });
+    handlers.query = () => opResult(runRow("COMPLETED"));
+    await expect(runContainerSync()).rejects.toThrow("did not report a run to follow");
   });
 });

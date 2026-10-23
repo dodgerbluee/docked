@@ -146,7 +146,14 @@ describe("getUpgradeOutcome", () => {
   };
 
   it("returns the terminal SUCCESS row for this container's attempt", async () => {
-    history([{ dockerContainerId: source.id, status: "SUCCESS", errorMessage: null }]);
+    history([
+      {
+        dockerContainerId: source.id,
+        status: "SUCCESS",
+        errorMessage: null,
+        source: { id: "16" },
+      },
+    ]);
     await expect(getUpgradeOutcome(source, startedAt)).resolves.toEqual({
       status: "SUCCESS",
       errorMessage: null,
@@ -154,7 +161,14 @@ describe("getUpgradeOutcome", () => {
   });
 
   it("returns the terminal FAILED row with its message", async () => {
-    history([{ dockerContainerId: source.id, status: "FAILED", errorMessage: "pull denied" }]);
+    history([
+      {
+        dockerContainerId: source.id,
+        status: "FAILED",
+        errorMessage: "pull denied",
+        source: { id: "16" },
+      },
+    ]);
     await expect(getUpgradeOutcome(source, startedAt)).resolves.toEqual({
       status: "FAILED",
       errorMessage: "pull denied",
@@ -165,6 +179,32 @@ describe("getUpgradeOutcome", () => {
     // A row for a DIFFERENT container (same name, other runner) is not proof.
     history([{ dockerContainerId: "other99999", status: "SUCCESS", errorMessage: null }]);
     await expect(getUpgradeOutcome(source, startedAt)).resolves.toBeNull();
+  });
+
+  // Container names are not unique across runners. A row carrying this
+  // container's pre-recreate docker id but recorded against another host must
+  // not stand in for an attempt that never happened here.
+  it("ignores a same-named row recorded against a different runner", async () => {
+    history([
+      {
+        dockerContainerId: source.id,
+        status: "SUCCESS",
+        errorMessage: null,
+        source: { id: "17" },
+      },
+    ]);
+    await expect(getUpgradeOutcome(source, startedAt)).resolves.toBeNull();
+  });
+
+  it("scopes the history read to the container's runner", async () => {
+    let seen = null;
+    handlers.query = (doc, vars) => {
+      seen = vars;
+      return opResult({ data: { upgradeHistory: { items: [] } } });
+    };
+    await getUpgradeOutcome(source, startedAt);
+    expect(seen.filter.runnerId).toBe("16");
+    expect(seen.filter.containerName).toBe("famOS");
   });
 
   it("throws on a query error so the caller keeps polling", async () => {

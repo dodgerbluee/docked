@@ -119,16 +119,6 @@ export const UPDATE_PASSWORD_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const SUMMARY_STATS_QUERY = /* GraphQL */ `
-  query SummaryStats {
-    summaryStats {
-      totalContainers
-      totalRunners
-      totalTrackedApps
-    }
-  }
-`;
-
 export const CONTAINERS_QUERY = /* GraphQL */ `
   query Containers {
     containerGroup {
@@ -362,6 +352,25 @@ export const BATCH_RUNS_QUERY = /* GraphQL */ `
         startCursor
         endCursor
       }
+    }
+  }
+`;
+
+export const BATCH_RUN_QUERY = /* GraphQL */ `
+  query BatchRun($id: ID!) {
+    batchRun(id: $id) {
+      id
+      jobType
+      status
+      queuedAt
+      startedAt
+      completedAt
+      durationMs
+      containersChecked
+      containersUpdated
+      errorMessage
+      logs
+      isManual
     }
   }
 `;
@@ -715,28 +724,15 @@ export const DELETE_IMAGES_MUTATION = /* GraphQL */ `
       deleted
       results {
         id
+        runnerId
         success
         error
       }
       errors {
         id
+        runnerId
         success
         error
-      }
-    }
-  }
-`;
-
-export const LOGIN_MUTATION = /* GraphQL */ `
-  mutation Login($input: LoginInput!) {
-    login(input: $input) {
-      token
-      refreshToken
-      user {
-        id
-        username
-        role
-        passwordChanged
       }
     }
   }
@@ -752,20 +748,6 @@ export const REGISTER_MUTATION = /* GraphQL */ `
         username
         role
         passwordChanged
-      }
-    }
-  }
-`;
-
-export const REFRESH_TOKEN_MUTATION = /* GraphQL */ `
-  mutation RefreshToken($input: RefreshTokenInput!) {
-    refreshToken(input: $input) {
-      token
-      refreshToken
-      user {
-        id
-        username
-        role
       }
     }
   }

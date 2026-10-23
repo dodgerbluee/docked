@@ -38,6 +38,7 @@ function HomePage({
   stacks,
   unusedImages,
   unusedImagesCount,
+  unusedImagesError,
   trackedApps,
   sourceInstances,
   containersBySource,
@@ -169,6 +170,7 @@ function HomePage({
           sourceInstances={sourceInstances}
           unusedImages={unusedImages}
           unusedImagesCount={unusedImagesCount}
+          unusedImagesError={unusedImagesError}
           trackedApps={trackedApps}
           dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
           containersBySource={containersBySource}
@@ -246,6 +248,7 @@ HomePage.propTypes = {
   stacks: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
+  unusedImagesError: PropTypes.string,
   trackedApps: PropTypes.array.isRequired,
   sourceInstances: PropTypes.array.isRequired,
   containersBySource: PropTypes.object.isRequired,

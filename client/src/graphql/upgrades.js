@@ -141,7 +141,7 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
         const r = await graphqlClient
           .query(UPGRADE_HISTORY_QUERY, {
             first: 10,
-            filter: { containerName: container.name, from: startedAt.toISOString() },
+            filter: historyFilter(container, startedAt),
           })
           .toPromise();
         if (isSessionStale(gen)) {
@@ -155,9 +155,7 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
           return;
         }
         lastPollError = "";
-        const rec = r.data?.upgradeHistory?.items?.find(
-          (item) => item.dockerContainerId === container.id
-        );
+        const rec = outcomeRecord(r.data?.upgradeHistory?.items, container);
         if (!rec) return;
         if (rec.status === "SUCCESS") succeed();
         else if (rec.status === "FAILED") fail(rec.errorMessage);
@@ -168,6 +166,36 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
       }
     }, POLL_INTERVAL_MS);
   });
+}
+
+/**
+ * Scope a history read to one container's host. Two runners can host a
+ * container with the same name, and without runnerId in the filter the newest
+ * row for that NAME can come from the other one.
+ */
+function historyFilter(container, startedAt) {
+  const hostId = container?.runnerId ?? container?.endpointId;
+  const filter = { containerName: container.name, from: startedAt.toISOString() };
+  if (hostId != null && hostId !== "") filter.runnerId = String(hostId);
+  return filter;
+}
+
+/**
+ * Pick the history row that belongs to THIS container. Container names are not
+ * unique across runners, so the read is scoped by runner as well as name, and
+ * the row's own host is checked before it is trusted: accepting the first
+ * same-named row let another runner's successful attempt report success for an
+ * upgrade that failed, or never started, on this one.
+ */
+function outcomeRecord(items, container) {
+  const hostId = container?.runnerId ?? container?.endpointId;
+  return (
+    items?.find((item) => {
+      if (item.dockerContainerId !== container?.id) return false;
+      if (hostId == null || hostId === "") return true;
+      return String(item.source?.id ?? "") === String(hostId);
+    }) || null
+  );
 }
 
 /**
@@ -185,13 +213,11 @@ export async function getUpgradeOutcome(container, startedAt) {
   const r = await graphqlClient
     .query(UPGRADE_HISTORY_QUERY, {
       first: 10,
-      filter: { containerName: container.name, from: startedAt.toISOString() },
+      filter: historyFilter(container, startedAt),
     })
     .toPromise();
   if (r.error) throw new Error(r.error.message);
-  const rec = r.data?.upgradeHistory?.items?.find(
-    (item) => item.dockerContainerId === container.id
-  );
+  const rec = outcomeRecord(r.data?.upgradeHistory?.items, container);
   if (!rec) return null;
   return { status: rec.status, errorMessage: rec.errorMessage ?? null };
 }

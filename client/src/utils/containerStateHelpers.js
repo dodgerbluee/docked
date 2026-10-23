@@ -4,6 +4,7 @@
  */
 
 import { computeHasUpdate } from "./containerUpdateHelpers";
+import { getContainerKey } from "./containerHelpers";
 
 /**
  * How long a locally-recorded "this container was just upgraded" verdict is
@@ -19,7 +20,7 @@ export const UPDATED_PIN_TTL_MS = 120000;
  * This ensures that containers that were just upgraded don't immediately show as having updates again
  *
  * @param {Array} apiContainers - Containers from API response
- * @param {Object} successfullyUpdatedContainersRef - Ref whose `current` is a Map of container id -> pin expiry (ms epoch)
+ * @param {Object} successfullyUpdatedContainersRef - Ref whose `current` is a Map of runner-qualified container key -> pin expiry (ms epoch)
  * @returns {Array} Updated containers with preserved hasUpdate state
  *
  * @example
@@ -35,16 +36,20 @@ export const updateContainersWithPreservedState = (
     const computedHasUpdate = computeHasUpdate(apiContainer);
 
     const pins = successfullyUpdatedContainersRef?.current;
-    const pinnedUntil = typeof pins?.get === "function" ? pins.get(apiContainer.id) : undefined;
+    // Runner-qualified: a bare Docker id is only unique within one source, so
+    // upgrading "radarr" on one runner would otherwise pin away the available
+    // update of a same-named container on another.
+    const key = getContainerKey(apiContainer);
+    const pinnedUntil = typeof pins?.get === "function" ? pins.get(key) : undefined;
 
     if (pinnedUntil !== undefined) {
       if (pinnedUntil <= now) {
         // The grace window has passed. From here the server's verdict wins,
         // otherwise a real update under the same tag would stay hidden.
-        pins.delete(apiContainer.id);
+        pins.delete(key);
       } else {
         // If no update available, stop tracking it.
-        if (!computedHasUpdate) pins.delete(apiContainer.id);
+        if (!computedHasUpdate) pins.delete(key);
         return { ...apiContainer, hasUpdate: false };
       }
     }
@@ -58,9 +63,10 @@ export const updateContainersWithPreservedState = (
  * Records that a container upgrade succeeded, so the transient hasUpdate:true
  * from a not-yet-refreshed runner does not flash back in the UI.
  */
-export const pinContainerAsUpdated = (successfullyUpdatedContainersRef, containerId) => {
+export const pinContainerAsUpdated = (successfullyUpdatedContainersRef, container) => {
   const pins = successfullyUpdatedContainersRef?.current;
-  if (typeof pins?.set === "function") pins.set(containerId, Date.now() + UPDATED_PIN_TTL_MS);
+  if (typeof pins?.set === "function")
+    pins.set(getContainerKey(container), Date.now() + UPDATED_PIN_TTL_MS);
 };
 
 /**

@@ -446,6 +446,11 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
           .toPromise();
         // urql reports failures through result.error, not a rejection.
         if (result.error) throw new Error(result.error.message || "Failed to delete runner");
+        // deleteRunner returns SuccessResult, so a rejected delete arrives as
+        // success:false with no GraphQL error at all. Ignoring that closed the
+        // dialog and dropped the row as though the runner had been removed.
+        const res = result.data?.deleteRunner;
+        if (!res?.success) throw new Error(res?.message || "Failed to delete runner");
       }
       onDeleted();
     } catch (err) {

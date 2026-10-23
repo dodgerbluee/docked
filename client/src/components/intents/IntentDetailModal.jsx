@@ -336,9 +336,25 @@ ConfigTab.propTypes = {
    Matches Tab
    ========================================== */
 
-function MatchesTab({ intent, previewData, loading }) {
+function MatchesTab({ intent, previewData, loading, error, onRetry }) {
   if (loading) {
     return <LoadingSpinner size="sm" message="Loading matches..." />;
+  }
+
+  // A failed preview read leaves previewData null, and "no match data" is the
+  // wrong answer for it: the user cannot tell an unreadable safety preview from
+  // an intent that genuinely matches nothing.
+  if (error) {
+    return (
+      <Alert variant="error" role="alert">
+        {error}
+        {onRetry && (
+          <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+        )}
+      </Alert>
+    );
   }
 
   if (!previewData) {
@@ -419,15 +435,30 @@ MatchesTab.propTypes = {
   intent: PropTypes.object,
   previewData: PropTypes.object,
   loading: PropTypes.bool,
+  error: PropTypes.string,
+  onRetry: PropTypes.func,
 };
 
 /* ==========================================
    Preview Tab
    ========================================== */
 
-function PreviewTab({ intent, previewData, loading }) {
+function PreviewTab({ intent, previewData, loading, error, onRetry }) {
   if (loading) {
     return <LoadingSpinner size="sm" message="Loading preview..." />;
+  }
+
+  if (error) {
+    return (
+      <Alert variant="error" role="alert">
+        {error}
+        {onRetry && (
+          <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+        )}
+      </Alert>
+    );
   }
 
   if (!previewData) {
@@ -518,6 +549,8 @@ PreviewTab.propTypes = {
   intent: PropTypes.object,
   previewData: PropTypes.object,
   loading: PropTypes.bool,
+  error: PropTypes.string,
+  onRetry: PropTypes.func,
 };
 
 /* ==========================================
@@ -844,6 +877,7 @@ function IntentDetailModal({
   const [previewData, setPreviewData] = useState(null);
   const [executions, setExecutions] = useState([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const [loadingExecutions, setLoadingExecutions] = useState(false);
   const [executionsError, setExecutionsError] = useState("");
 
@@ -876,12 +910,19 @@ function IntentDetailModal({
     const intentId = intent.id;
     const epoch = openEpochRef.current;
     setLoadingPreview(true);
+    setPreviewError("");
     try {
       const data = await fetchIntentPreview(intentId);
       if (!isRequestCurrent(intentId, epoch)) return;
       setPreviewData(data);
     } catch (error) {
       console.error("Failed to load preview:", error);
+      // The Matches and Preview tabs render their no-data empty state when
+      // previewData is null, so an unreadable preview looked exactly like an
+      // intent that matches nothing.
+      if (isRequestCurrent(intentId, epoch)) {
+        setPreviewError(error.message || "Failed to load the match preview");
+      }
     } finally {
       if (isRequestCurrent(intentId, epoch)) {
         setLoadingPreview(false);
@@ -936,9 +977,25 @@ function IntentDetailModal({
       case TAB_CONFIG:
         return <ConfigTab intent={intent} runners={runners} />;
       case TAB_MATCHES:
-        return <MatchesTab intent={intent} previewData={previewData} loading={loadingPreview} />;
+        return (
+          <MatchesTab
+            intent={intent}
+            previewData={previewData}
+            loading={loadingPreview}
+            error={previewError}
+            onRetry={loadPreview}
+          />
+        );
       case TAB_PREVIEW:
-        return <PreviewTab intent={intent} previewData={previewData} loading={loadingPreview} />;
+        return (
+          <PreviewTab
+            intent={intent}
+            previewData={previewData}
+            loading={loadingPreview}
+            error={previewError}
+            onRetry={loadPreview}
+          />
+        );
       case TAB_HISTORY:
         return (
           <HistoryTab

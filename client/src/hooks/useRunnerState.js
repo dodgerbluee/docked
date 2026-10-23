@@ -37,8 +37,14 @@ export function useRunnerState() {
   const [detailRunner, setDetailRunner] = useState(null); // runner for detail modal
 
   const fetchRunners = useCallback(async () => {
+    // Captured before the request: this hook keeps a 60s interval alive, so a
+    // response can land inside a replacement session after a logout. Writing
+    // the old session's runner list or error into it would show one account's
+    // fleet to another.
+    const gen = getSessionGeneration();
     try {
       const result = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+      if (isSessionStale(gen)) return [];
       if (result.error) throw new Error(result.error.message);
       if (result.data?.runners) {
         const runners = result.data.runners.map(mapGraphRunner);
@@ -49,25 +55,28 @@ export function useRunnerState() {
       return [];
     } catch (err) {
       console.error("Failed to fetch runners:", err);
-      setRunnersError(err.message || "Failed to load runners");
+      if (!isSessionStale(gen)) setRunnersError(err.message || "Failed to load runners");
       return [];
     } finally {
-      setLoading(false);
+      if (!isSessionStale(gen)) setLoading(false);
     }
   }, []);
 
   // Ping a single runner's health. The server persists the reported version to
   // the DB, so a later fetchRunners() reflects any out-of-band update.
   const pingRunnerHealth = useCallback((id) => {
+    const gen = getSessionGeneration();
     setHealthStatus((prev) => ({ ...prev, [id]: { checking: true } }));
     return checkRunnerHealth(id)
       .then((data) => {
+        if (!mountedRef.current || isSessionStale(gen)) return;
         setHealthStatus((prev) => ({
           ...prev,
           [id]: { online: data.online, checking: false, health: data.health },
         }));
       })
       .catch(() => {
+        if (!mountedRef.current || isSessionStale(gen)) return;
         setHealthStatus((prev) => ({ ...prev, [id]: { online: false, checking: false } }));
       });
   }, []);
@@ -79,9 +88,17 @@ export function useRunnerState() {
   useEffect(() => {
     if (hasAutoPinged.current) return;
     hasAutoPinged.current = true;
+    const gen = getSessionGeneration();
     fetchRunners().then((list) => {
       if (!list?.length) return;
-      Promise.allSettled(list.map((r) => pingRunnerHealth(r.id))).then(() => fetchRunners());
+      // The pings below fan out across the whole fleet, so they outlive a
+      // logout started while they were in flight. Nothing after that point may
+      // touch the replacement session.
+      if (!mountedRef.current || isSessionStale(gen)) return;
+      Promise.allSettled(list.map((r) => pingRunnerHealth(r.id))).then(() => {
+        if (!mountedRef.current || isSessionStale(gen)) return;
+        fetchRunners();
+      });
     });
   }, [fetchRunners, pingRunnerHealth]);
 
@@ -89,8 +106,10 @@ export function useRunnerState() {
   // docked drop their "update available" badge automatically (no reload needed).
   useEffect(() => {
     const refresh = () => {
+      const gen = getSessionGeneration();
       fetchRunners().then((list) => {
         if (!list?.length) return;
+        if (!mountedRef.current || isSessionStale(gen)) return;
         list.forEach((r) => pingRunnerHealth(r.id));
       });
     };
@@ -222,14 +241,17 @@ export function useRunnerState() {
   }, []);
 
   const handlePing = useCallback(async (runner) => {
+    const gen = getSessionGeneration();
     setHealthStatus((prev) => ({ ...prev, [runner.id]: { checking: true } }));
     try {
       const data = await checkRunnerHealth(runner.id);
+      if (!mountedRef.current || isSessionStale(gen)) return;
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: data.online, checking: false, health: data.health },
       }));
     } catch {
+      if (!mountedRef.current || isSessionStale(gen)) return;
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: false, checking: false },

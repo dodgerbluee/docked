@@ -43,6 +43,7 @@ const HomePageContent = ({
   sourceInstances,
   unusedImages,
   unusedImagesCount,
+  unusedImagesError,
   trackedApps,
   dismissedTrackedAppNotifications,
   containersBySource,
@@ -359,6 +360,7 @@ const HomePageContent = ({
                   containers={containers}
                   unusedImages={unusedImages}
                   unusedImagesCount={unusedImagesCount}
+                  unusedImagesError={unusedImagesError}
                   containersBySource={containersBySource}
                   loadingInstances={loadingInstances}
                   dockerHubDataPulled={dockerHubDataPulled}
@@ -432,6 +434,7 @@ HomePageContent.propTypes = {
   sourceInstances: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
+  unusedImagesError: PropTypes.string,
   trackedApps: PropTypes.array.isRequired,
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
   containersBySource: PropTypes.object.isRequired,

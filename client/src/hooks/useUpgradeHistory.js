@@ -23,6 +23,10 @@ const SERVER_MAX_PAGE = 500;
 export function clearUpgradeHistoryCache() {
   cachedHistory = null;
   cachedHistoryCap = 0;
+  // The totals and their timestamp are per-user facts too. Leaving them behind
+  // showed the previous user's numbers to the next one, and if that user's own
+  // stats read failed they kept them indefinitely.
+  cachedStats = null;
 }
 registerCacheClear(clearUpgradeHistoryCache);
 

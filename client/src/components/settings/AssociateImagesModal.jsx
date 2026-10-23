@@ -136,6 +136,14 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     }
   }, [token, isRequestCurrent]);
 
+  // Retry has to reload BOTH reads. Retrying only the container list cleared
+  // the banner while the association load was still the thing that had failed,
+  // so Save stayed blocked with nothing on screen to explain why.
+  const retryLoad = useCallback(async () => {
+    await fetchContainers();
+    await fetchAssociatedImages();
+  }, [fetchContainers, fetchAssociatedImages]);
+
   useEffect(() => {
     // New target (or re-open): retire anything still in flight for the old one.
     activeTokenKeyRef.current = tokenKey;
@@ -258,7 +266,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
         ) : error && !loading ? (
           <div className={styles.errorContainer}>
             <p className={styles.errorText}>{error}</p>
-            <Button onClick={fetchContainers} variant="outline" size="sm">
+            <Button onClick={retryLoad} variant="outline" size="sm">
               Retry
             </Button>
           </div>

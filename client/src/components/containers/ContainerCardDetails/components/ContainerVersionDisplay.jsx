@@ -42,7 +42,7 @@ const ContainerVersionDisplay = ({
                 if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
                   e.preventDefault();
-                  onVersionClick();
+                  onVersionClick(e);
                 }
               }}
             >
@@ -87,7 +87,7 @@ const ContainerVersionDisplay = ({
             if (e.target !== e.currentTarget) return;
             if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
               e.preventDefault();
-              onVersionClick();
+              onVersionClick(e);
             }
           }}
         >

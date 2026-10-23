@@ -764,6 +764,20 @@ export default function AppsPage({
       return <AppsPageSkeleton />;
     }
 
+    // Which runners this page could not read, named. Every "nothing here"
+    // state below has to say so, otherwise an unreachable fleet is rendered
+    // identically to a genuinely empty one.
+    const failedRunners = enabledRunners.filter((r) => appErrors[r.id]);
+    const failedRunnerNotice =
+      failedRunners.length === 0 ? null : (
+        <Alert variant="error" role="alert">
+          Could not read apps from {failedRunners.map((r) => r.name).join(", ")}:{" "}
+          {failedRunners.map((r) => appErrors[r.id]).join("; ")}
+        </Alert>
+      );
+    // True when there is no successful read left to speak for an empty list.
+    const everyReadFailed = failedRunners.length > 0 && failedRunners.length === enabledRunners.length;
+
     if (enabledRunners.length === 0) {
       // The banner above already explains this case: an empty list that came
       // from a failed read is not the same fact as "no runners configured".
@@ -779,19 +793,26 @@ export default function AppsPage({
       );
     }
 
-    if (totalApps === 0) {
-      return (
-        <div className={styles.emptyStateMessage}>
-          <p className={styles.emptyStateText}>
-            No apps found. Add apps to your dockhand config file on each runner.
-          </p>
-        </div>
-      );
-    }
-
-    // History view — full-width, bypasses sidebar grid layout
+    // History view — full-width, bypasses sidebar grid layout. Checked before
+    // the "no apps" empty state: a failed app read leaves zero apps behind, and
+    // History is exactly where the user goes to find out what happened.
     if (view === APPS_VIEWS.HISTORY) {
       return <AppsHistoryTab runners={enabledRunners} />;
+    }
+
+    if (totalApps === 0) {
+      return (
+        <>
+          {failedRunnerNotice}
+          {!everyReadFailed && (
+            <div className={styles.emptyStateMessage}>
+              <p className={styles.emptyStateText}>
+                No apps found. Add apps to your dockhand config file on each runner.
+              </p>
+            </div>
+          )}
+        </>
+      );
     }
 
     // Updates filter
@@ -804,9 +825,14 @@ export default function AppsPage({
 
       if (updateItems.length === 0) {
         return (
-          <div className={styles.emptyStateMessage}>
-            <p className={styles.emptyStateText}>No apps with pending updates.</p>
-          </div>
+          <>
+            {failedRunnerNotice}
+            {!everyReadFailed && (
+              <div className={styles.emptyStateMessage}>
+                <p className={styles.emptyStateText}>No apps with pending updates.</p>
+              </div>
+            )}
+          </>
         );
       }
 
@@ -815,11 +841,14 @@ export default function AppsPage({
 
     if (allApps.length === 0 && search) {
       return (
-        <div className={styles.emptyStateMessage}>
-          <p className={styles.emptyStateText}>
-            No apps match <strong>&ldquo;{search}&rdquo;</strong>.
-          </p>
-        </div>
+        <>
+          {failedRunnerNotice}
+          <div className={styles.emptyStateMessage}>
+            <p className={styles.emptyStateText}>
+              No apps match <strong>&ldquo;{search}&rdquo;</strong>.
+            </p>
+          </div>
+        </>
       );
     }
 
@@ -832,6 +861,7 @@ export default function AppsPage({
     );
     return (
       <div className={styles.appsContainer}>
+        {failedRunnerNotice}
         {updateableRunners.length > 0 && (
           <div className={styles.updateCards}>
             {updateableRunners.map((r) => (

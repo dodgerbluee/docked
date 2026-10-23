@@ -25,17 +25,25 @@ export function useAdminGeneralSettings() {
   // Both reads fall back to a default on failure, and the save handler writes
   // whatever is on screen. A failed read therefore silently resets the admin's
   // real log level and debug-endpoints flag to the defaults.
-  const [loadError, setLoadError] = useState("");
+  //
+  // One error slot per read, and the visible error is derived from them. A
+  // single shared slot could be set by the failing read but never cleared by
+  // the succeeding one, which left Save disabled forever after connectivity
+  // recovered.
+  const [logLevelError, setLogLevelError] = useState("");
+  const [debugEndpointsError, setDebugEndpointsError] = useState("");
+  const loadError = logLevelError || debugEndpointsError;
 
   const fetchLogLevel = useCallback(async () => {
     const generation = getSessionGeneration();
+    setLogLevelError("");
     try {
       const result = await graphqlClient.query(BATCH_LOG_LEVEL_QUERY).toPromise();
       // A response that lands after logout belongs to a dead session and must
       // not seed the replacement session's state.
       if (isSessionStale(generation)) return;
       if (result.error) {
-        setLoadError(result.error.message || "Failed to load admin settings");
+        setLogLevelError(result.error.message || "Failed to load admin settings");
         return;
       }
       if (result.data?.batchLogLevel) {
@@ -52,12 +60,13 @@ export function useAdminGeneralSettings() {
     } catch (err) {
       console.error("Error fetching log level:", err);
       if (isSessionStale(generation)) return;
-      setLoadError(err.message || "Failed to load admin settings");
+      setLogLevelError(err.message || "Failed to load admin settings");
     }
   }, []);
 
   const fetchDebugEndpointsEnabled = useCallback(async () => {
     const generation = getSessionGeneration();
+    setDebugEndpointsError("");
     try {
       const { data, error } = await graphqlClient.query(DEBUG_ENDPOINTS_ENABLED_QUERY).toPromise();
       if (isSessionStale(generation)) return;
@@ -68,14 +77,13 @@ export function useAdminGeneralSettings() {
     } catch (err) {
       console.error("Error fetching debug endpoints enabled:", err);
       if (isSessionStale(generation)) return;
-      setLoadError(err.message || "Failed to load admin settings");
+      setDebugEndpointsError(err.message || "Failed to load admin settings");
     }
   }, []);
 
   // Initialize settings on mount
   useEffect(() => {
     const initializeSettings = async () => {
-      setLoadError("");
       await Promise.all([fetchLogLevel(), fetchDebugEndpointsEnabled()]);
       setIsInitialized(true);
     };

@@ -47,9 +47,14 @@ export const useContainerDeletion = ({
         const data = await deleteImages([toDeletePayload(image)]);
         if (isSessionStale(gen)) return;
 
-        if (data.success) {
+        if (data.success && !(data.errors || []).length) {
           updateLastImageDeleteTime();
-          setUnusedImages((prev) => prev.filter((img) => img.id !== image.id));
+          // Image ids repeat across runners, so the row is matched by host as
+          // well as id; matching by id alone removed a different runner's
+          // identical image from the list.
+          setUnusedImages((prev) =>
+            prev.filter((img) => !(img.id === image.id && img.runnerId === image.runnerId))
+          );
           setUnusedImagesCount((prev) => Math.max(0, prev - 1));
           setSelectedImages((prev) => {
             const next = new Set(prev);
@@ -57,7 +62,9 @@ export const useContainerDeletion = ({
             return next;
           });
         } else {
-          throw new Error(data.error || "image delete failed");
+          // success=true is the transport verdict, not the per-image one: the
+          // mutation reports it even when the delete itself failed.
+          throw new Error(data.errors?.[0]?.error || data.error || "image delete failed");
         }
       } catch (err) {
         if (isSessionStale(gen)) return;
@@ -107,12 +114,36 @@ export const useContainerDeletion = ({
         if (isSessionStale(gen)) return;
 
         if (data.success) {
-          const deletedIds = new Set(imagesToDelete.map((img) => img.id));
-          setUnusedImages((prev) => prev.filter((img) => !deletedIds.has(img.id)));
-          setUnusedImagesCount((prev) =>
-            Math.max(0, prev - (data.deleted || imagesToDelete.length))
-          );
-          setSelectedImages(new Set());
+          // Partial success is real: the mutation answers success=true with an
+          // errors[] entry per image it could not remove. Dropping every
+          // selected row anyway left the list disagreeing with the registry,
+          // and matching by id alone also removed other runners' identical ids.
+          const failed = data.errors || [];
+          const deleteKey = (id, runnerId) => `${String(id)}|${String(runnerId ?? "")}`;
+          const failedKeys = new Set();
+          const failedBareIds = new Set();
+          failed.forEach((e) => {
+            if (e.runnerId == null || e.runnerId === "") failedBareIds.add(String(e.id));
+            else failedKeys.add(deleteKey(e.id, e.runnerId));
+          });
+          const isFailure = (img) =>
+            failedKeys.has(deleteKey(img.id, img.runnerId)) || failedBareIds.has(String(img.id));
+          const deleted = imagesToDelete.filter((img) => !isFailure(img));
+          const deletedKeys = new Set(deleted.map((img) => deleteKey(img.id, img.runnerId)));
+
+          setUnusedImages((prev) => prev.filter((img) => !deletedKeys.has(deleteKey(img.id, img.runnerId))));
+          setUnusedImagesCount((prev) => Math.max(0, prev - deletedKeys.size));
+          setSelectedImages((prev) => {
+            const next = new Set(prev);
+            deleted.forEach((img) => next.delete(img.id));
+            return next;
+          });
+          if (failed.length > 0) {
+            console.error("Images that could not be deleted:", failed);
+            alert(
+              `Deleted ${deleted.length} image(s); ${failed.length} could not be deleted: ${failed[0]?.error || "unknown error"}`
+            );
+          }
         } else {
           throw new Error(data.error || "image delete failed");
         }

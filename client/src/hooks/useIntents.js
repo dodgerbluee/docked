@@ -283,11 +283,26 @@ export function useIntents(isAuthenticated, authToken) {
       try {
         const result = await graphqlClient.mutation(TRIGGER_INTENT_MUTATION, { id }).toPromise();
         if (result.error) throw new Error(result.error.message);
-        if (result.data?.triggerIntent) {
+        const execution = result.data?.triggerIntent;
+        if (execution) {
           await fetchIntents(false);
-          setSuccess("Intent executed successfully");
+          // The mutation only queues the run - the row it answers with is
+          // normally PENDING or RUNNING, and a FAILED row used to carry the
+          // same "executed successfully" toast. Announce what actually happened.
+          if (execution.status === "FAILED") {
+            const errorMsg = execution.errorMessage || "Intent execution failed";
+            setError(errorMsg);
+            return { success: false, error: errorMsg, execution };
+          }
+          const message =
+            execution.status === "COMPLETED"
+              ? "Intent executed successfully"
+              : execution.status === "PARTIAL"
+                ? "Intent finished, but some containers failed"
+                : "Intent execution started";
+          setSuccess(message);
           setTimeout(() => setSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);
-          return { success: true, execution: result.data.triggerIntent };
+          return { success: true, execution };
         }
         return { success: false, error: "Failed to execute intent" };
       } catch (err) {

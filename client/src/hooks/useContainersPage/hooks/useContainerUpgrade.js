@@ -134,14 +134,14 @@ export const useContainerUpgrade = ({
           sessionEnded: true,
         });
       }
-      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
+      setUpgrading((prev) => ({ ...prev, [getContainerKey(container)]: true }));
       try {
         // All containers are runner-backed; upgrades go through the Go GraphQL
         // API (mutation + wait for terminal outcome).
         await upgradeRunnerContainer(container);
         if (!sessionActive()) return;
 
-        pinContainerAsUpdated(successfullyUpdatedContainersRef, container.id);
+        pinContainerAsUpdated(successfullyUpdatedContainersRef, container);
         if (onContainersUpdate) {
           onContainersUpdate((prevContainers) =>
             prevContainers.map((c) => {
@@ -163,7 +163,8 @@ export const useContainerUpgrade = ({
         }
         if (fetchContainers) fetchContainers();
       } finally {
-        if (sessionActive()) setUpgrading((prev) => ({ ...prev, [container.id]: false }));
+        if (sessionActive())
+          setUpgrading((prev) => ({ ...prev, [getContainerKey(container)]: false }));
       }
     },
     [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, sessionActive]
