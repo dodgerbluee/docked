@@ -3,7 +3,9 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -610,6 +612,70 @@ func TestCreateUserWithConfigImports(t *testing.T) {
 	}
 }
 
+// Regression: when the revocation write fails, logout must not answer 200.
+// The caller would drop the cookie and believe the session is dead while the
+// token it was shown still authenticates for the rest of its lifetime.
+func TestLogoutRevocationFailureReturnsError(t *testing.T) {
+	auth.SetSecret(authTestSecret)
+
+	t.Run("access token", func(t *testing.T) {
+		database := newAuthTestDB(t)
+		h := newAuthTestRouter(database)
+		seedUser(t, database, "alice", "password123", 1)
+
+		code, body := doJSON(t, h, http.MethodPost, "/api/auth/login",
+			map[string]any{"username": "alice", "password": "password123"}, "")
+		if code != http.StatusOK {
+			t.Fatalf("login: code=%d", code)
+		}
+		token, _ := body["token"].(string)
+
+		// Every revocation write fails, while reads still work so the
+		// auth middleware can reach the handler.
+		if _, err := database.Exec(`CREATE TRIGGER fail_revoke BEFORE INSERT ON revoked_tokens
+			BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END`); err != nil {
+			t.Fatalf("create trigger: %v", err)
+		}
+
+		code, body = doJSON(t, h, http.MethodPost, "/api/auth/logout", map[string]any{}, token)
+		if code != http.StatusInternalServerError {
+			t.Fatalf("logout with failing revocation: code=%d body=%v, want 500", code, body)
+		}
+	})
+
+	t.Run("refresh token", func(t *testing.T) {
+		database := newAuthTestDB(t)
+		h := newAuthTestRouter(database)
+		seedUser(t, database, "alice", "password123", 1)
+
+		code, body := doJSON(t, h, http.MethodPost, "/api/auth/login",
+			map[string]any{"username": "alice", "password": "password123"}, "")
+		if code != http.StatusOK {
+			t.Fatalf("login: code=%d", code)
+		}
+		token, _ := body["token"].(string)
+		refresh, _ := body["refreshToken"].(string)
+
+		// Fail only the refresh token's insert so the access-token
+		// revocation succeeds first and the refresh branch is the one
+		// that reports the failure. token_hash is the lowercase hex
+		// SHA-256 of the presented token (see internal/db/revokedTokens.go).
+		sum := sha256.Sum256([]byte(refresh))
+		stmt := `CREATE TRIGGER fail_revoke BEFORE INSERT ON revoked_tokens
+			WHEN NEW.token_hash = '` + hex.EncodeToString(sum[:]) + `'
+			BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END`
+		if _, err := database.Exec(stmt); err != nil {
+			t.Fatalf("create trigger: %v", err)
+		}
+
+		code, body = doJSON(t, h, http.MethodPost, "/api/auth/logout",
+			map[string]any{"refreshToken": refresh}, token)
+		if code != http.StatusInternalServerError {
+			t.Fatalf("logout with failing refresh revocation: code=%d body=%v, want 500", code, body)
+		}
+	})
+}
+
 func TestExportUserConfig(t *testing.T) {
 	auth.SetSecret(authTestSecret)
 	database := newAuthTestDB(t)
@@ -629,8 +695,11 @@ func TestExportUserConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := db.UpdateTrackedAppFields(ctx, database, appID, userID,
-		map[string]any{"current_version": "1.0", "has_update": 1}); err != nil {
+	if _, err := db.UpdateTrackedAppFields(ctx, database, appID, userID,
+		map[string]any{"current_version": "1.0", "has_update": 1},
+		// The row was created above with NULL observed columns, so the
+		// zero-value snapshot is the baseline it still matches.
+		db.TrackedAppSnapshot{}); err != nil {
 		t.Fatalf("update app: %v", err)
 	}
 	if err := db.UpdateBatchConfig(ctx, database, userID, "app-version-scan", true, 45); err != nil {
@@ -699,6 +768,179 @@ func TestExportUserConfig(t *testing.T) {
 	}
 }
 
+// Regression: latest_version_publish_date was missing from both export shapes
+// and from the import column allowlist, so an export/import round-trip
+// silently dropped the "latest version published on" metadata.
+// Regression: the legacy username-keyed avatar directory was joined into the
+// filesystem path without validation. Because usernames are attacker-chosen,
+// registering the numeric id of another user copied that user's avatar tree
+// into the caller's own id-keyed directory, where /avatars and
+// /avatars/recent serve it back. Path-like names escaped the avatars root.
+func TestAvatarMigrationIgnoresHostileUsername(t *testing.T) {
+	auth.SetSecret(authTestSecret)
+
+	t.Run("numeric username collides with another user", func(t *testing.T) {
+		dataDir := t.TempDir()
+		t.Setenv("DATA_DIR", dataDir)
+
+		database := newAuthTestDB(t)
+		h := newAuthTestRouter(database)
+		victimID := seedUser(t, database, "victim", "password123", 0)
+		thiefID := seedUser(t, database, strconv.FormatInt(victimID, 10), "password123", 0)
+
+		thiefToken, _, err := auth.GenerateTokens(thiefID, strconv.FormatInt(victimID, 10), "Member", 0)
+		if err != nil {
+			t.Fatalf("generate: %v", err)
+		}
+
+		victimDir := filepath.Join(dataDir, "avatars", strconv.FormatInt(victimID, 10))
+		if err := os.MkdirAll(filepath.Join(victimDir, "recent"), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(victimDir, "avatar.jpg"), []byte("victim-avatar"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(victimDir, "recent", "private-1.jpg"), []byte("victim-recent"), 0o644); err != nil {
+			t.Fatalf("write recent: %v", err)
+		}
+
+		code, body := doJSON(t, h, http.MethodGet, "/api/avatars", nil, thiefToken)
+		if code != http.StatusNotFound || body["error"] != "Avatar not found" {
+			t.Errorf("served another user's avatar: code=%d body=%v", code, body)
+		}
+		code, body = doJSON(t, h, http.MethodGet, "/api/avatars/recent", nil, thiefToken)
+		if code != http.StatusOK {
+			t.Fatalf("recent list: code=%d", code)
+		}
+		if avatars, _ := body["avatars"].([]any); len(avatars) != 0 {
+			t.Errorf("leaked another user's recent avatars: %v", avatars)
+		}
+		if _, err := os.Stat(filepath.Join(dataDir, "avatars", strconv.FormatInt(thiefID, 10))); err == nil {
+			t.Errorf("migration created the caller's id directory from a numeric username")
+		}
+	})
+
+	t.Run("path-like username escapes the avatars root", func(t *testing.T) {
+		dataDir := t.TempDir()
+		t.Setenv("DATA_DIR", dataDir)
+
+		// A file that lives outside avatars/ and must never be served.
+		if err := os.WriteFile(filepath.Join(dataDir, "avatar.jpg"), []byte("outside-root"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		database := newAuthTestDB(t)
+		h := newAuthTestRouter(database)
+		userID := seedUser(t, database, "..", "password123", 0)
+		token, _, err := auth.GenerateTokens(userID, "..", "Member", 0)
+		if err != nil {
+			t.Fatalf("generate: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/avatars", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("served a file outside the avatars root: code=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestIsSafeLegacyAvatarName(t *testing.T) {
+	tests := map[string]bool{
+		"alice":      true,
+		"old-name":   true,
+		"old_name.1": true,
+		"042":        true, // not a canonical id, so it cannot collide
+		"-1":         true, // ids are positive
+		"":           false,
+		".":          false,
+		"..":         false,
+		"42":         false, // collides with user 42's live avatar directory
+		"a/b":        false,
+		"avatars":    false, // the root's own name
+		"/etc":       false,
+	}
+	for name, want := range tests {
+		if got := isSafeLegacyAvatarName(name); got != want {
+			t.Errorf("isSafeLegacyAvatarName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestExportAndImportCarriesLatestPublishDate(t *testing.T) {
+	auth.SetSecret(authTestSecret)
+	database := newAuthTestDB(t)
+	h := newAuthTestRouter(database)
+	userID := seedUser(t, database, "alice", "password123", 1)
+
+	ctx := context.Background()
+	appID, err := db.CreateTrackedApp(ctx, database, userID, "app", strPtr("img"), nil, "docker", nil, nil)
+	if err != nil {
+		t.Fatalf("create app: %v", err)
+	}
+	const published = "2026-01-02T03:04:05Z"
+	if _, err := database.ExecContext(ctx,
+		`UPDATE tracked_apps SET latest_version = ?, latest_version_publish_date = ? WHERE id = ? AND user_id = ?`,
+		"2.0", published, appID, userID); err != nil {
+		t.Fatalf("update app: %v", err)
+	}
+
+	token, _, err := auth.GenerateTokens(userID, "alice", "Administrator", 0)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	code, body := doJSON(t, h, http.MethodGet, "/api/user/export-config", nil, token)
+	if code != http.StatusOK {
+		t.Fatalf("export-config: code=%d body=%v", code, body)
+	}
+	data, _ := body["data"].(map[string]any)
+	apps, _ := data["trackedApps"].([]any)
+	app, _ := apps[0].(map[string]any)
+	if app["latest_version_publish_date"] != published {
+		t.Errorf("config export lost latest_version_publish_date: %v", app)
+	}
+
+	code, body = doJSON(t, h, http.MethodGet, "/api/auth/export-users", nil, token)
+	if code != http.StatusOK {
+		t.Fatalf("export-users: code=%d body=%v", code, body)
+	}
+	data, _ = body["data"].(map[string]any)
+	users, _ := data["users"].([]any)
+	entry, _ := users[0].(map[string]any)
+	apps, _ = entry["trackedApps"].([]any)
+	app, _ = apps[0].(map[string]any)
+	if app["latest_version_publish_date"] != published {
+		t.Errorf("users export lost latest_version_publish_date: %v", app)
+	}
+
+	// Import must restore the field, not drop it on the floor.
+	payload := map[string]any{
+		"userData": map[string]any{"username": "importer", "password": "password123"},
+		"configData": map[string]any{
+			"trackedApps": []any{map[string]any{
+				"name": "app", "image_name": "img", "source_type": "docker",
+				"latest_version":              "2.0",
+				"latest_version_publish_date": published,
+			}},
+		},
+	}
+	code, body = doJSON(t, h, http.MethodPost, "/api/auth/create-user-with-config", payload, token)
+	if code != http.StatusOK {
+		t.Fatalf("import: code=%d body=%v", code, body)
+	}
+	var got string
+	if err := database.QueryRowContext(ctx,
+		`SELECT latest_version_publish_date FROM tracked_apps WHERE name = 'app'`).Scan(&got); err != nil {
+		t.Fatalf("read imported app: %v", err)
+	}
+	if got != published {
+		t.Errorf("import lost latest_version_publish_date: got %q, want %q", got, published)
+	}
+}
+
 func TestExportUsers(t *testing.T) {
 	auth.SetSecret(authTestSecret)
 	database := newAuthTestDB(t)
@@ -716,7 +958,8 @@ func TestExportUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := db.UpdateTrackedAppFields(ctx, database, appID, memberID, map[string]any{"has_update": 1}); err != nil {
+	if _, err := db.UpdateTrackedAppFields(ctx, database, appID, memberID,
+		map[string]any{"has_update": 1}, db.TrackedAppSnapshot{}); err != nil {
 		t.Fatalf("update app: %v", err)
 	}
 	if _, err := database.Exec(

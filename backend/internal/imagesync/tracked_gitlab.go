@@ -390,8 +390,16 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 		}
 	}
 
-	if err := db.UpdateTrackedAppFields(ctx, s.DB, app.ID, app.UserID, updateData); err != nil {
+	applied, err := db.UpdateTrackedAppFields(ctx, s.DB, app.ID, app.UserID, updateData, app.ObservedSnapshot())
+	if err != nil {
 		return nil, fmt.Errorf("update tracked app: %w", err)
+	}
+	if !applied {
+		// The row moved underneath this check — the user acknowledged an
+		// upgrade, or a parallel scan wrote first. Skip instead of clobbering
+		// that newer baseline; the next check recomputes from it.
+		slog.Info("tracked-app check skipped: baseline changed during the check",
+			"appId", app.ID, "sourceType", app.SourceType)
 	}
 
 	displayCurrentVersion := jsString(currentVersionToStore)

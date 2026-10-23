@@ -347,12 +347,12 @@ func TestUpdateTrackedAppFields(t *testing.T) {
 	})
 
 	// absent key = untouched, nil value = NULL.
-	if err := db.UpdateTrackedAppFields(ctx, database, app.ID, 1, map[string]any{
+	if applied, err := db.UpdateTrackedAppFields(ctx, database, app.ID, 1, map[string]any{
 		"has_update":     1,
 		"latest_digest":  nil,
 		"latest_version": "new",
-	}); err != nil {
-		t.Fatalf("update: %v", err)
+	}, app.ObservedSnapshot()); err != nil || !applied {
+		t.Fatalf("update: applied=%v err=%v", applied, err)
 	}
 
 	got, err := db.GetTrackedAppByID(ctx, database, app.ID, 1)
@@ -368,12 +368,65 @@ func TestUpdateTrackedAppFields(t *testing.T) {
 	}
 
 	// Wrong user must not match.
-	if err := db.UpdateTrackedAppFields(ctx, database, app.ID, 999, map[string]any{"has_update": 0}); err != nil {
-		t.Fatalf("update wrong user: %v", err)
+	if applied, err := db.UpdateTrackedAppFields(ctx, database, app.ID, 999,
+		map[string]any{"has_update": 0}, app.ObservedSnapshot()); err != nil || applied {
+		t.Fatalf("update wrong user: applied=%v err=%v", applied, err)
 	}
 	got, _ = db.GetTrackedAppByID(ctx, database, app.ID, 1)
 	if got.HasUpdate != 1 {
 		t.Error("wrong-user update must not apply")
+	}
+}
+
+// A scan that started before a user's explicit acknowledgement must not
+// re-apply its stale verdict afterwards: the write is guarded by the observed
+// columns the scan read, and applied=false when they have moved.
+func TestUpdateTrackedAppFieldsSkipsStaleSnapshot(t *testing.T) {
+	database := newTrackedTestDB(t)
+	ctx := context.Background()
+
+	app := insertTrackedApp(t, database, map[string]any{
+		"name": "race", "image_name": "img",
+		"current_version": "1.0", "latest_version": "2.0",
+		"current_digest": "sha256:old", "latest_digest": "sha256:new",
+		"has_update": 1,
+	})
+	stale := app.ObservedSnapshot()
+
+	// The user acknowledges 2.0 while the scan is in flight.
+	if _, err := database.ExecContext(ctx,
+		`UPDATE tracked_apps SET current_version='2.0', current_digest='sha256:new',
+		 latest_version='2.0', latest_digest='sha256:new', has_update=0 WHERE id=?`, app.ID); err != nil {
+		t.Fatalf("acknowledge: %v", err)
+	}
+
+	// The stale scan now tries to persist its verdict.
+	applied, err := db.UpdateTrackedAppFields(ctx, database, app.ID, 1, map[string]any{
+		"has_update": 1, "latest_version": "3.0", "latest_digest": "sha256:third",
+	}, stale)
+	if err != nil {
+		t.Fatalf("stale update: %v", err)
+	}
+	if applied {
+		t.Error("stale snapshot must not apply")
+	}
+
+	got, err := db.GetTrackedAppByID(ctx, database, app.ID, 1)
+	if err != nil || got == nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.HasUpdate != 0 || got.CurrentVersion.String != "2.0" ||
+		got.CurrentDigest.String != "sha256:new" || got.LatestDigest.String != "sha256:new" {
+		t.Errorf("acknowledgement clobbered: has_update=%d current=%q/%q latest_digest=%q",
+			got.HasUpdate, got.CurrentVersion.String, got.CurrentDigest.String, got.LatestDigest.String)
+	}
+
+	// Non-vacuity control: the same write against a fresh snapshot applies.
+	fresh := got.ObservedSnapshot()
+	applied, err = db.UpdateTrackedAppFields(ctx, database, app.ID, 1,
+		map[string]any{"latest_version": "3.0"}, fresh)
+	if err != nil || !applied {
+		t.Errorf("fresh snapshot must apply: applied=%v err=%v", applied, err)
 	}
 }
 

@@ -305,6 +305,65 @@ func TestHeartbeatRunner(t *testing.T) {
 	}
 }
 
+// Regression: re-enrollment skipped every ownership proof when the stored API
+// key was empty. /api/runners/re-enroll is an unauthenticated agent endpoint,
+// so anyone who could guess the runner name could set a new key and URL and
+// take over the runner (and the docker host behind it).
+func TestReEnrollRunnerWithoutStoredKeyRequiresEnrollmentToken(t *testing.T) {
+	database := newRunnerTestDB(t)
+	h := newRunnerTestRouter(database)
+
+	if _, err := db.CreateRunner(context.Background(), database, 1, "orphan", "http://10.0.0.9:7777", ""); err != nil {
+		t.Fatalf("create runner: %v", err)
+	}
+
+	// No key on file and no enrollment token: nothing proves ownership.
+	status, body := postJSON(t, h, "/api/runners/re-enroll", map[string]any{
+		"name": "orphan", "url": "http://evil.example:7777", "apiKey": "attacker-key",
+	}, "")
+	if status != http.StatusUnauthorized {
+		t.Fatalf("empty-key re-enroll without token: got %d %v", status, body)
+	}
+	rn, err := db.GetRunnerByName(context.Background(), database, "orphan")
+	if err != nil || rn == nil {
+		t.Fatalf("runner lookup: %v", err)
+	}
+	if rn.APIKey != "" || rn.URL != "http://10.0.0.9:7777" {
+		t.Fatalf("runner was taken over: key=%q url=%q", rn.APIKey, rn.URL)
+	}
+
+	// A valid token belonging to a different user must not authorize it either.
+	otherToken, _, err := db.CreateEnrollmentToken(context.Background(), database, 2)
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	status, body = postJSON(t, h, "/api/runners/re-enroll", map[string]any{
+		"name": "orphan", "url": "http://evil.example:7777", "apiKey": "attacker-key", "token": otherToken,
+	}, "")
+	if status != http.StatusUnauthorized {
+		t.Fatalf("foreign enrollment token accepted: got %d %v", status, body)
+	}
+
+	// The runner's owner minting an enrollment token is the legitimate path.
+	ownerToken, _, err := db.CreateEnrollmentToken(context.Background(), database, 1)
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	status, body = postJSON(t, h, "/api/runners/re-enroll", map[string]any{
+		"name": "orphan", "url": "http://10.0.0.10:7777/", "apiKey": "new-key", "token": ownerToken,
+	}, "")
+	if status != http.StatusOK || body["success"] != true {
+		t.Fatalf("owner re-enroll: got %d %v", status, body)
+	}
+	rn, err = db.GetRunnerByName(context.Background(), database, "orphan")
+	if err != nil || rn == nil {
+		t.Fatalf("runner lookup: %v", err)
+	}
+	if rn.APIKey != "new-key" || rn.URL != "http://10.0.0.10:7777" {
+		t.Fatalf("re-enroll did not persist: key=%q url=%q", rn.APIKey, rn.URL)
+	}
+}
+
 func TestReEnrollRunner(t *testing.T) {
 	database := newRunnerTestDB(t)
 	h := newRunnerTestRouter(database)

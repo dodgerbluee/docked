@@ -34,6 +34,14 @@ var githubAPIBase = "https://api.github.com"
 // (Docker Hub tags, GitHub, GitLab). Tests swap it for an httptest client.
 var trackedHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
+// SetTrackedHTTPTransport installs a transport for the tracked-app registry
+// calls (nil restores the default). It exists so callers outside this
+// package — e.g. graph tests exercising the release cache — can intercept
+// the outbound HTTPS calls without reaching the unexported client.
+func SetTrackedHTTPTransport(rt http.RoundTripper) {
+	trackedHTTPClient.Transport = rt
+}
+
 // trackedCheckResult mirrors the object Node's checkTrackedApp returns.
 type trackedCheckResult struct {
 	ID                        int64
@@ -144,6 +152,38 @@ func (s *Service) CheckTrackedApp(ctx context.Context, app *db.TrackedAppRow) (*
 	return s.checkDockerTrackedApp(ctx, app)
 }
 
+// dockerHubRepoKey maps an image reference's repository part onto the
+// "namespace/repository" key the Docker Hub tags API serves. ok=false means
+// the reference points at some other registry, where the Hub API can never
+// resolve it: a host-qualified first segment (ghcr.io, gcr.io, quay.io,
+// registry.gitlab.com, lscr.io, a private host) or a port-qualified host
+// (localhost:5000/app). Deep paths (three or more segments) are always
+// host-qualified, since a Hub repository is only ever namespace/name.
+func dockerHubRepoKey(repo string) (string, bool) {
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return "", false
+	}
+	repo = strings.TrimPrefix(repo, "docker.io/")
+	repo = strings.TrimPrefix(repo, "registry-1.docker.io/")
+	if repo == "" {
+		return "", false
+	}
+
+	first, rest, deep := strings.Cut(repo, "/")
+	if strings.ContainsAny(first, ".:") {
+		return "", false
+	}
+	if !deep {
+		// Bare official image: nginx -> library/nginx
+		return "library/" + first, true
+	}
+	if strings.Contains(rest, "/") {
+		return "", false
+	}
+	return repo, true
+}
+
 // checkDockerTrackedApp ports the Docker-Hub tags branch of checkTrackedApp.
 //
 // Note: Node's version of this path is latently broken — it references an
@@ -156,21 +196,24 @@ func (s *Service) checkDockerTrackedApp(ctx context.Context, app *db.TrackedAppR
 		return nil, errors.New("No image name found — app may be a GitHub/GitLab repo missing source_type column")
 	}
 
-	parts := strings.Split(imageName, ":")
-	repo := parts[0]
-	currentTag := "latest"
-	if len(parts) > 1 {
-		currentTag = parts[1]
-	}
+	repo, currentTag := registry.SplitRepoTag(imageName)
 
+	// Only Docker Hub images can be resolved through the Hub tags API.
+	// Non-Hub references (ghcr.io, gcr.io, private registries) would query
+	// the Hub with a bogus namespace, so they count as "no observation"
+	// and the existing state is preserved below.
 	var info *dockerTagsInfo
-	info, err := getLatestVersionFromDockerHubTags(ctx, repo)
-	if err != nil && !errors.Is(err, ErrRateLimited) {
-		info = nil
+	if hubRepo, ok := dockerHubRepoKey(repo); ok {
+		var err error
+		info, err = getLatestVersionFromDockerHubTags(ctx, hubRepo)
+		if err != nil && !errors.Is(err, ErrRateLimited) {
+			info = nil
+		}
+		if errors.Is(err, ErrRateLimited) {
+			return nil, err
+		}
 	}
-	if errors.Is(err, ErrRateLimited) {
-		return nil, err
-	}
+	observed := info != nil
 
 	hasUpdate := false
 	var latestDigest *string
@@ -229,23 +272,45 @@ func (s *Service) checkDockerTrackedApp(ctx context.Context, app *db.TrackedAppR
 	// Backfill current version/digest (first check or "latest" placeholder).
 	currentVersionToStore := app.CurrentVersion
 	currentDigestToStore := app.CurrentDigest
+	versionBackfilled := false
 
 	if latestVersion != nil && *latestVersion != "" && *latestVersion != "latest" {
 		if !currentVersionToStore.Valid || currentVersionToStore.String == "" || currentVersionToStore.String == "latest" {
 			currentVersionToStore = sql.NullString{String: *latestVersion, Valid: true}
+			versionBackfilled = true
 		}
 	} else if (!currentVersionToStore.Valid || currentVersionToStore.String == "") && latestVersion != nil && *latestVersion != "" {
 		currentVersionToStore = sql.NullString{String: *latestVersion, Valid: true}
+		versionBackfilled = true
 	}
 
-	if (!currentDigestToStore.Valid || currentDigestToStore.String == "") && latestDigest != nil {
-		currentDigestToStore = sql.NullString{String: *latestDigest, Valid: true}
+	if !currentDigestToStore.Valid || currentDigestToStore.String == "" {
+		if versionBackfilled {
+			// We just claimed latest IS the current version, so the latest
+			// digest is the right baseline.
+			if latestDigest != nil {
+				currentDigestToStore = sql.NullString{String: *latestDigest, Valid: true}
+			}
+		} else if observed && app.CurrentVersion.Valid && app.CurrentVersion.String != "" &&
+			app.CurrentVersion.String != "latest" {
+			// current_version already existed: seed the digest baseline with
+			// the digest of THAT tag, not the newest tag's digest. Seeding
+			// the latest digest here would make the digest-first comparison
+			// (current_digest != latest_digest) mask every future update.
+			if d, ok := info.tagDigests[normalizeVersion(app.CurrentVersion.String)]; ok {
+				currentDigestToStore = sql.NullString{String: d, Valid: true}
+			}
+		}
 	}
 
-	// Persist (Node updateTrackedApp field mapping).
+	// Persist (Node updateTrackedApp field mapping). A failed lookup is NOT
+	// an observation: has_update and the cleared publish-date must not
+	// overwrite state confirmed by an earlier successful check.
 	updateData := map[string]any{
-		"has_update":   boolToInt(hasUpdate),
 		"last_checked": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+	if observed {
+		updateData["has_update"] = boolToInt(hasUpdate)
 	}
 	if latestVersion != nil {
 		if v := jsStoreableString(*latestVersion); v != "" {
@@ -279,8 +344,16 @@ func (s *Service) checkDockerTrackedApp(ctx context.Context, app *db.TrackedAppR
 		updateData["latest_version_publish_date"] = nil
 	}
 
-	if err := db.UpdateTrackedAppFields(ctx, s.DB, app.ID, app.UserID, updateData); err != nil {
+	applied, err := db.UpdateTrackedAppFields(ctx, s.DB, app.ID, app.UserID, updateData, app.ObservedSnapshot())
+	if err != nil {
 		return nil, fmt.Errorf("update tracked app: %w", err)
+	}
+	if !applied {
+		// The row moved underneath this check — the user acknowledged an
+		// upgrade, or a parallel scan wrote first. Skip instead of clobbering
+		// that newer baseline; the next check recomputes from it.
+		slog.Info("tracked-app check skipped: baseline changed during the check",
+			"appId", app.ID, "sourceType", app.SourceType)
 	}
 
 	// Display values.

@@ -12,29 +12,33 @@ import (
 
 // revokeCurrentToken invalidates the bearer token the caller presented so it
 // cannot be replayed after logout. Lives outside schema.resolvers.go so gqlgen
-// regenerations leave it alone. Best-effort: an unauthenticated or already
-// invalid token is a no-op.
-func (r *mutationResolver) revokeCurrentToken(ctx context.Context) {
+// regenerations leave it alone. An unauthenticated or already invalid token is
+// a no-op, but a revocation write that fails is returned: the caller must not
+// report a successful logout while the token it was shown still authenticates.
+func (r *mutationResolver) revokeCurrentToken(ctx context.Context) error {
 	raw := auth.RawTokenFromContext(ctx)
 	if raw == "" {
-		return
+		return nil
 	}
 	uid, exp, err := auth.ValidateTokenClaims(raw, r.Cfg.JWTSecret)
 	if err != nil {
-		return
+		return nil
 	}
 	if err := db.RevokeToken(ctx, r.DB, raw, uid, exp); err != nil {
 		slog.Warn("logout: failed to revoke token", "error", err.Error())
+		return fmt.Errorf("revoke access token: %w", err)
 	}
+	return nil
 }
 
 // revokeRefreshToken mirrors the REST logout handler: when the caller hands
 // over its refresh token, revoke it too so the session cannot be resurrected
-// for the rest of the refresh token's lifetime.
-func (r *mutationResolver) revokeRefreshToken(ctx context.Context, refreshToken string) {
+// for the rest of the refresh token's lifetime. A failed write is returned for
+// the same reason as revokeCurrentToken.
+func (r *mutationResolver) revokeRefreshToken(ctx context.Context, refreshToken string) error {
 	claims, err := auth.VerifyRefreshToken(refreshToken)
 	if err != nil {
-		return
+		return nil
 	}
 	var exp int64
 	if claims.ExpiresAt != nil {
@@ -42,7 +46,9 @@ func (r *mutationResolver) revokeRefreshToken(ctx context.Context, refreshToken 
 	}
 	if err := db.RevokeToken(ctx, r.DB, refreshToken, claims.UserID, exp); err != nil {
 		slog.Warn("logout: failed to revoke refresh token", "error", err.Error())
+		return fmt.Errorf("revoke refresh token: %w", err)
 	}
+	return nil
 }
 
 // subscriptionRevalidateInterval is how often an active subscription

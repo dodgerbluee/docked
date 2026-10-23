@@ -8,6 +8,7 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/imagesync"
 	"github.com/dockedapp/backend/internal/intents"
 	runnerclient "github.com/dockedapp/backend/internal/runner"
 )
@@ -1242,6 +1244,9 @@ func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.Cre
 
 	id, err := db.CreateTrackedApp(ctx, r.DB, uid, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
 	if err != nil {
+		if errors.Is(err, db.ErrTrackedAppExists) {
+			return nil, fmt.Errorf("an app with this image name is already being tracked")
+		}
 		return nil, err
 	}
 
@@ -1318,6 +1323,12 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 		}
 		latest := nullStrDefault(existing.LatestVersion)
 		newLatest := trimmed
+		if latest != "" {
+			// Keep the observed latest_version metadata: the db call syncs
+			// latest_version to this value and compares it against the
+			// acknowledged version to decide the digest baseline.
+			newLatest = latest
+		}
 		var publishDate *string
 		if latest != "" {
 			if normalize(trimmed) == normalize(latest) && normalize(trimmed) != "" {
@@ -1464,6 +1475,11 @@ func (r *mutationResolver) ClearTrackedAppCache(ctx context.Context) (*model.Suc
 	if r.Sync != nil && r.Sync.Registry != nil {
 		r.Sync.Registry.ClearDigestCache()
 	}
+	// The tracked-app check pipeline keeps its own package-level release
+	// cache (GitHub/GitLab latest-release lookups). Clearing only the
+	// registry digest cache left that one warm, so the next scan replayed
+	// the cached release within the TTL and the clear did nothing.
+	imagesync.ClearReleaseCache()
 	return &model.SuccessResult{Success: true}, nil
 }
 

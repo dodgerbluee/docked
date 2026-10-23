@@ -3,9 +3,16 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 )
+
+// ErrTrackedAppExists is returned by CreateTrackedApp when another app with
+// the same identity (user + image name, or user + GitHub repo) is already
+// tracked.
+var ErrTrackedAppExists = errors.New("tracked app already exists")
 
 // TrackedAppRow is a row from the tracked_apps table.
 type TrackedAppRow struct {
@@ -85,6 +92,9 @@ func CreateTrackedApp(ctx context.Context, database *sql.DB, userID int64, name 
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		userID, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return 0, fmt.Errorf("create tracked app: %w: %w", ErrTrackedAppExists, err)
+		}
 		return 0, fmt.Errorf("create tracked app: %w", err)
 	}
 	return result.LastInsertId()
@@ -137,6 +147,39 @@ func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
 		}
 	}
 
+	// When the tracked source identity (image/repo/type) actually changes,
+	// the observed state (versions, digests, dates, update flag) belongs to
+	// the OLD source and must be reset, or the next check compares a new
+	// image against the old image's baseline. The CASE conditions run
+	// against the pre-update row values; COALESCE keeps NULL and ''
+	// equivalent so no-op edits don't wipe state.
+	if imageName != nil || githubRepo != nil || sourceType != nil {
+		conds := []string{}
+		condArgs := []any{}
+		if imageName != nil {
+			conds = append(conds, "COALESCE(image_name,'') <> ?")
+			condArgs = append(condArgs, *imageName)
+		}
+		if githubRepo != nil {
+			conds = append(conds, "COALESCE(github_repo,'') <> ?")
+			condArgs = append(condArgs, *githubRepo)
+		}
+		if sourceType != nil {
+			conds = append(conds, "source_type <> ?")
+			condArgs = append(condArgs, *sourceType)
+		}
+		changed := strings.Join(conds, " OR ")
+		for _, col := range []string{
+			"current_version", "current_digest", "latest_version", "latest_digest",
+			"current_version_publish_date", "latest_version_publish_date", "last_checked",
+		} {
+			setClauses = append(setClauses, fmt.Sprintf("%s = CASE WHEN %s THEN NULL ELSE %s END", col, changed, col))
+			args = append(args, condArgs...)
+		}
+		setClauses = append(setClauses, fmt.Sprintf("has_update = CASE WHEN %s THEN 0 ELSE has_update END", changed))
+		args = append(args, condArgs...)
+	}
+
 	if len(setClauses) == 0 {
 		return nil
 	}
@@ -157,13 +200,40 @@ func DeleteTrackedApp(ctx context.Context, database *sql.DB, id, userID int64) e
 	return err
 }
 
+// TrackedAppSnapshot carries the observed-state columns the check pipeline
+// read before contacting the upstream source. UpdateTrackedAppFields only
+// applies its writes while the row still matches this snapshot, so a
+// concurrent user edit (or parallel scan) is skipped instead of clobbered.
+type TrackedAppSnapshot struct {
+	CurrentVersion sql.NullString
+	CurrentDigest  sql.NullString
+	LatestVersion  sql.NullString
+	LatestDigest   sql.NullString
+}
+
+// ObservedSnapshot captures a loaded row's observed-state columns so the
+// caller can pass them as the guard to UpdateTrackedAppFields.
+func (a *TrackedAppRow) ObservedSnapshot() TrackedAppSnapshot {
+	return TrackedAppSnapshot{
+		CurrentVersion: a.CurrentVersion,
+		CurrentDigest:  a.CurrentDigest,
+		LatestVersion:  a.LatestVersion,
+		LatestDigest:   a.LatestDigest,
+	}
+}
+
 // UpdateTrackedAppFields applies the dynamic column updates produced by the
 // tracked-apps check pipeline, mirroring Node's updateTrackedApp: map keys
 // are column names, a nil value writes SQL NULL, and absent keys are left
-// untouched. Keys come from this package's fixed allow-list, never user input.
-func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID int64, sets map[string]any) error {
+// untouched. Keys come from this package's fixed allow-list, never user
+// input. The write is guarded by the caller's snapshot of the observed
+// columns; applied=false means the row changed underneath the check and the
+// update was skipped.
+func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID int64,
+	sets map[string]any, snapshot TrackedAppSnapshot) (applied bool, err error) {
+
 	if len(sets) == 0 {
-		return nil
+		return true, nil
 	}
 
 	cols := make([]string, 0, len(sets))
@@ -173,18 +243,43 @@ func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID in
 	sort.Strings(cols)
 
 	assigns := make([]string, 0, len(cols))
-	args := make([]any, 0, len(cols)+2)
+	args := make([]any, 0, len(cols)+6)
 	for _, c := range cols {
 		assigns = append(assigns, c+" = ?")
 		args = append(args, sets[c])
 	}
 	assigns = append(assigns, "updated_at = CURRENT_TIMESTAMP")
-	args = append(args, id, userID)
+	args = append(args, id, userID,
+		snapshot.CurrentVersion, snapshot.CurrentDigest,
+		snapshot.LatestVersion, snapshot.LatestDigest)
 
-	query := fmt.Sprintf("UPDATE tracked_apps SET %s WHERE id = ? AND user_id = ?",
+	query := fmt.Sprintf(`UPDATE tracked_apps SET %s
+		 WHERE id = ? AND user_id = ?
+		   AND current_version IS NOT DISTINCT FROM ?
+		   AND current_digest IS NOT DISTINCT FROM ?
+		   AND latest_version IS NOT DISTINCT FROM ?
+		   AND latest_digest IS NOT DISTINCT FROM ?`,
 		joinStrings(assigns, ", "))
-	_, err := database.ExecContext(ctx, query, args...)
-	return err
+	res, err := database.ExecContext(ctx, query, args...)
+	if err != nil {
+		return false, fmt.Errorf("update tracked app fields: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("update tracked app fields: %w", err)
+	}
+	return n > 0, nil
+}
+
+// normalizeVersion mirrors imagesync's version normalization: strip a
+// leading v/V, trim, lower-case. Kept local so the db layer can decide
+// whether an explicit current_version matches the observed latest_version.
+func normalizeVersion(v string) string {
+	s := v
+	if len(s) > 0 && (s[0] == 'v' || s[0] == 'V') {
+		s = s[1:]
+	}
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 // SetTrackedAppCurrentVersion applies an explicit user upgrade: sets current_version,
@@ -193,19 +288,26 @@ func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID in
 func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, userID int64,
 	currentVersion, latestVersion string, publishDate *string) error {
 
-	// current_digest = latest_digest: acknowledging the observed latest
-	// version must also move the digest baseline, or the next scan's
-	// digest-first comparison (current_digest != latest_digest) immediately
-	// re-flags the app as updatable. When no latest digest was ever observed
-	// this clears the stale one, falling back to version comparison.
+	// current_digest = latest_digest only when the acknowledged version IS
+	// the observed latest version: moving the digest baseline is correct
+	// then, and the next scan's digest-first comparison won't re-flag the
+	// app. When the user sets a DIFFERENT version (e.g. a rollback, or a
+	// manual tag that isn't the observed latest), latest_digest belongs to
+	// another version, so the stale baseline must be cleared instead —
+	// otherwise the digest-first comparison flags a bogus update against a
+	// digest the app never ran. With no observed latest digest there is
+	// nothing to carry over either way, so the CASE clears.
+	digestMatches := normalizeVersion(currentVersion) != "" &&
+		normalizeVersion(currentVersion) == normalizeVersion(latestVersion)
+
 	_, err := database.ExecContext(ctx,
 		`UPDATE tracked_apps
 		 SET current_version = ?, latest_version = ?, has_update = 0,
-		     current_digest = latest_digest,
+		     current_digest = CASE WHEN ? THEN latest_digest ELSE NULL END,
 		     current_version_publish_date = ?, latest_version_publish_date = NULL,
 		     updated_at = datetime('now')
 		 WHERE id = ? AND user_id = ?`,
-		currentVersion, latestVersion, publishDate, id, userID)
+		currentVersion, latestVersion, digestMatches, publishDate, id, userID)
 	return err
 }
 

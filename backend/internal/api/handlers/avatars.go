@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -52,11 +53,37 @@ func parsePositiveIDParam(raw string) (int64, bool) {
 	return n, true
 }
 
+// isSafeLegacyAvatarName reports whether a username may be used as a legacy
+// avatar directory name. Two classes of name are rejected:
+//
+//   - canonical positive integers: the live layout is userId-keyed, so a user
+//     who registers the username "42" would otherwise have user 42's avatar
+//     directory copied into their own and served back to them.
+//   - path-like names (".", "..", anything containing a separator): they would
+//     resolve outside the avatars root.
+func isSafeLegacyAvatarName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if filepath.Base(name) != name {
+		return false
+	}
+	if _, ok := parsePositiveIDParam(name); ok {
+		return false
+	}
+	// The root's own name would make the migration read the whole avatars
+	// tree as if it were one user's legacy directory.
+	if strings.EqualFold(name, filepath.Base(avatarsDir())) {
+		return false
+	}
+	return true
+}
+
 // migrateAvatarFromUsername copies (never moves) an older username-keyed
 // avatar directory into the userId-keyed one, matching Node: if the new
 // directory already exists, nothing happens.
 func migrateAvatarFromUsername(userID int64, oldUsername string) {
-	if oldUsername == "" {
+	if !isSafeLegacyAvatarName(oldUsername) {
 		return
 	}
 	root := avatarsDir()

@@ -264,6 +264,8 @@ func Logout(database *sql.DB, secret string) http.HandlerFunc {
 			if userID, exp, err := auth.ValidateTokenClaims(token, secret); err == nil {
 				if err := db.RevokeToken(r.Context(), database, token, userID, exp); err != nil {
 					slog.Error("logout: access token revoke failed", "error", err.Error())
+					runnerFail(w, http.StatusInternalServerError, "Failed to log out")
+					return
 				}
 			}
 		}
@@ -276,6 +278,8 @@ func Logout(database *sql.DB, secret string) http.HandlerFunc {
 				}
 				if err := db.RevokeToken(r.Context(), database, rt, claims.UserID, exp); err != nil {
 					slog.Error("logout: refresh token revoke failed", "error", err.Error())
+					runnerFail(w, http.StatusInternalServerError, "Failed to log out")
+					return
 				}
 			}
 		}
@@ -651,7 +655,7 @@ func importDiscordWebhooksByIndex(ctx context.Context, database *sql.DB, webhook
 // copies when present in the imported config.
 var trackedUpdateCols = []string{
 	"current_version", "current_digest", "latest_version", "latest_digest",
-	"has_update", "current_version_publish_date", "last_checked",
+	"has_update", "current_version_publish_date", "latest_version_publish_date", "last_checked",
 }
 
 func importTrackedApps(ctx context.Context, database *sql.DB, apps []any, user *db.UserRow, results map[string]any) {
@@ -692,7 +696,19 @@ func importTrackedApps(ctx context.Context, database *sql.DB, apps []any, user *
 			sets[col] = v
 		}
 		if len(sets) > 0 {
-			if err := db.UpdateTrackedAppFields(ctx, database, id, user.ID, sets); err != nil {
+			// The row was created moments ago by this same import, so reload
+			// it as the baseline the guarded update must still match.
+			created, err := db.GetTrackedAppByID(ctx, database, id, user.ID)
+			if err != nil {
+				appendImportError(results, `Tracked image "`+name+`": `+err.Error())
+				continue
+			}
+			if created == nil {
+				appendImportError(results, `Tracked image "`+name+`": created row not found`)
+				continue
+			}
+			if _, err := db.UpdateTrackedAppFields(ctx, database, id, user.ID, sets,
+				created.ObservedSnapshot()); err != nil {
 				appendImportError(results, `Tracked image "`+name+`": `+err.Error())
 				continue
 			}

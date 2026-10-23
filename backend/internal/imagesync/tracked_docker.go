@@ -17,6 +17,10 @@ type dockerTagsInfo struct {
 	latestDigest      string // normalized to always carry the sha256: prefix
 	latestVersion     string
 	latestPublishDate string // "" means null
+	// tagDigests indexes every tag the Hub returned by normalized tag name.
+	// The check pipeline needs the digest of the tag that is actually
+	// deployed, not only of the newest one, to seed current_digest.
+	tagDigests map[string]string
 }
 
 // hubTagResult is one entry of the Docker Hub tags API response.
@@ -156,6 +160,30 @@ func getLatestVersionFromDockerHubTags(ctx context.Context, imageRepo string) (*
 		normalizedDigest = "sha256:" + normalizedDigest
 	}
 
+	// Index every tag by normalized name so a tracked app whose
+	// current_version is an older tag can be seeded with that tag's digest.
+	tagDigests := make(map[string]string, len(payload.Results))
+	for _, tagInfo := range payload.Results {
+		name := strings.TrimSpace(tagInfo.Name)
+		if name == "" || name == "latest" {
+			continue
+		}
+		d := normalizeDigestForComparison(tagInfo.Digest)
+		if d == "" && len(tagInfo.Images) > 0 {
+			d = normalizeDigestForComparison(tagInfo.Images[0].Digest)
+		}
+		if d == "" {
+			continue
+		}
+		if !strings.HasPrefix(d, "sha256:") {
+			d = "sha256:" + d
+		}
+		key := normalizeVersion(name)
+		if _, exists := tagDigests[key]; !exists {
+			tagDigests[key] = d
+		}
+	}
+
 	version := latestVersion
 	if version == "" {
 		version = latestTag
@@ -170,5 +198,6 @@ func getLatestVersionFromDockerHubTags(ctx context.Context, imageRepo string) (*
 		latestDigest:      normalizedDigest,
 		latestVersion:     version,
 		latestPublishDate: publishDate,
+		tagDigests:        tagDigests,
 	}, nil
 }
