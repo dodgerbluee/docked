@@ -27,6 +27,9 @@ func CanonicalRepoKey(repo string) string {
 }
 
 // GetRegistryData looks up the latest registry version info for a given image repo/tag.
+// The repo comparison uses canonicalRepoSQL, the SAME anchored normalization the
+// containers↔registry_image_versions join uses; an unanchored REPLACE made a
+// look-alike host ("mydocker.io/x") match an unrelated repo ("myx").
 func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageRepo, imageTag string) (*RegistryData, error) {
 	// ORDER BY keeps the precedence explicit: an exact tag row wins over the
 	// tag-agnostic (NULL tag) row. Without it SQLite returns whichever row it
@@ -34,7 +37,7 @@ func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageR
 	row := database.QueryRowContext(ctx,
 		`SELECT latest_digest, latest_version, tag, latest_publish_date, provider, last_checked
 		 FROM registry_image_versions
-		 WHERE user_id = ? AND REPLACE(image_repo, 'docker.io/', '') = ? AND (tag = ? OR tag IS NULL)
+		 WHERE user_id = ? AND `+canonicalRepoSQL("image_repo")+` = ? AND (tag = ? OR tag IS NULL)
 		 ORDER BY CASE WHEN tag = ? THEN 0 ELSE 1 END
 		 LIMIT 1`,
 		userID, CanonicalRepoKey(imageRepo), imageTag, imageTag)

@@ -72,9 +72,9 @@ func processProviderResult(result *DigestResult, provider Provider, tag string) 
 }
 
 // GetLatestDigest resolves the latest digest for imageRepo:tag with the
-// GitHub-Releases fallback chain. With useFallback semantics matching Node
-// (always on here), provider errors never propagate: they fall back or
-// resolve to nil.
+// GitHub-Releases fallback chain. Provider errors fall back or resolve to nil
+// (matching Node), except rate limits, which propagate: a throttled lookup is
+// not an observation, and callers must be able to tell it from a real miss.
 func (m *Manager) GetLatestDigest(ctx context.Context, imageRepo, tag string, opts Options) (*DigestResult, error) {
 	provider := m.GetProvider(imageRepo)
 	if provider == nil {
@@ -87,27 +87,38 @@ func (m *Manager) GetLatestDigest(ctx context.Context, imageRepo, tag string, op
 		return processProviderResult(result, provider, tag), nil
 	}
 
+	// A rate limit is not a "no such image" verdict. Swallowing it here made
+	// the caller's IsRateLimitError branch dead and let a throttled registry
+	// look like a lookup that simply found nothing.
+	if IsRateLimitError(err) {
+		return nil, err
+	}
+
 	slog.Debug("registry provider error, trying fallback", "repo", imageRepo, "tag", tag, "error", err)
-	return m.tryFallback(ctx, imageRepo, tag, opts), nil
+	return m.tryFallback(ctx, imageRepo, tag, opts)
 }
 
 // tryFallback mirrors _tryFallback: only runs with an explicit githubRepo
 // mapping, and marks the result provider=github-releases isFallback=true.
-func (m *Manager) tryFallback(ctx context.Context, imageRepo, tag string, opts Options) *DigestResult {
+// A rate limit from the fallback propagates for the same reason as above.
+func (m *Manager) tryFallback(ctx context.Context, imageRepo, tag string, opts Options) (*DigestResult, error) {
 	if opts.GithubRepo == "" {
-		return nil
+		return nil, nil
 	}
 	result, err := m.fallback.GetLatestDigest(ctx, imageRepo, tag, opts)
 	if err != nil {
+		if IsRateLimitError(err) {
+			return nil, err
+		}
 		slog.Debug("fallback provider also failed", "repo", imageRepo, "tag", tag, "error", err)
-		return nil
+		return nil, nil
 	}
 	if result == nil {
-		return nil
+		return nil, nil
 	}
 	result.Provider = m.fallback.Name()
 	result.IsFallback = true
-	return result
+	return result, nil
 }
 
 // GetTagPublishDate mirrors getTagPublishDate: ask the selected provider,

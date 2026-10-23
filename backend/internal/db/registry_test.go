@@ -134,3 +134,41 @@ func TestRegistryDataMapDockerHostCanonicalization(t *testing.T) {
 		}
 	}
 }
+
+// The live single-image lookup must canonicalize the same anchored way the
+// inventory join does. An unanchored REPLACE made the stored repo
+// "mydocker.io/x" read as "myx", so a lookup for the unrelated name "myx"
+// borrowed that row's latest digest and reported a phantom update.
+func TestGetRegistryDataRepoLookalike(t *testing.T) {
+	database := newMigratedTestDB(t)
+	ctx := context.Background()
+	seed := []struct{ repo, digest string }{
+		{"mydocker.io/x", "sha256:aaaa"},
+		{"library/nginx", "sha256:bbbb"},
+	}
+	for _, s := range seed {
+		if _, err := database.ExecContext(ctx,
+			`INSERT INTO registry_image_versions (user_id, image_repo, registry, repository, tag, latest_digest)
+			 VALUES (1, ?, 'docker.io', 'repo', 'latest', ?)`, s.repo, s.digest); err != nil {
+			t.Fatalf("seed %s: %v", s.repo, err)
+		}
+	}
+
+	got, err := GetRegistryData(ctx, database, 1, "myx", "latest")
+	if err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if got.LatestDigest.Valid {
+		t.Fatalf("lookalike repo %q matched the row for %q", "myx", "mydocker.io/x")
+	}
+
+	// The anchored cut still has to happen: scans store Hub repos without the
+	// host, live refs carry it.
+	got, err = GetRegistryData(ctx, database, 1, "docker.io/library/nginx", "latest")
+	if err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if !got.LatestDigest.Valid || got.LatestDigest.String != "sha256:bbbb" {
+		t.Fatalf("docker.io-prefixed lookup missed the stored hub row: %+v", got)
+	}
+}
