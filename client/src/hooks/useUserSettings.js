@@ -135,6 +135,12 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
         return;
       }
 
+      // Captured BEFORE the mutation is issued. If this session ends (or is
+      // replaced by a new login) while the request is in flight, reading the
+      // generation afterwards would return the *new* session's value and the
+      // staleness guard below would pass — logging the replacement user out.
+      const generation = getSessionGeneration();
+
       try {
         // Always require current password
         if (!currentPassword) {
@@ -149,6 +155,9 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
           })
           .toPromise();
 
+        // Dead session: do not write its state or schedule its logout.
+        if (isSessionStale(generation)) return;
+
         if (!result.error && result.data?.updatePassword?.success) {
           setPasswordSuccess("Password updated successfully! Please log in again.");
           setCurrentPassword("");
@@ -158,7 +167,6 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
           // token-version bump), so skip any further authenticated calls;
           // onPasswordUpdateSuccess ends the session and returns to login.
           if (onPasswordUpdateSuccess) {
-            const generation = getSessionGeneration();
             if (passwordLogoutTimerRef.current) {
               clearTimeout(passwordLogoutTimerRef.current);
             }

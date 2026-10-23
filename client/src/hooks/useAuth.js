@@ -62,6 +62,11 @@ export const useAuth = () => {
     setUserRole("Administrator");
     setInstanceAdmin(false);
     setIsAuthenticated(false);
+    // End any in-flight verification too: if a cross-tab session change lands
+    // while /verify is pending, its response is stale and returns without
+    // clearing validation, and the one-shot verify effect never reruns — the
+    // tab would render neither Login nor the app until a manual reload.
+    setIsValidating(false);
     delete axios.defaults.headers.common["Authorization"];
     setSessionKey((k) => k + 1);
     // Swap the urql+graphql-ws pair so in-flight operations of the dead session

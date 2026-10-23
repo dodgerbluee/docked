@@ -34,14 +34,13 @@ function Login({ onLogin }) {
   const [oauthProviders, setOauthProviders] = useState([]);
   const [allowLocalLogin, setAllowLocalLogin] = useState(true);
 
-  // Clear any stale auth data when component mounts
+  // NOTE: deliberately does NOT clear authToken/refreshToken/username here.
+  // Mounting Login is not proof that this browser's session is over: a
+  // cross-tab session change detaches this tab while the *other* tab owns the
+  // shared credentials, and wiping them here propagated back as a storage
+  // event that logged the healthy tab out too. Every in-tab path that really
+  // ends a session already clears storage through useAuth.handleLogout.
   useEffect(() => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("username");
-    // Clear axios defaults
-    delete axios.defaults.headers.common["Authorization"];
-
     // Fetch available OAuth providers
     const fetchProviders = async () => {
       try {
