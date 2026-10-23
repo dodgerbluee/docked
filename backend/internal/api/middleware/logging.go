@@ -22,6 +22,15 @@ func (w *requestLogger) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Unwrap exposes the wrapped writer so http.NewResponseController can reach the
+// real ResponseWriter. Without it every controller call made downstream fails
+// with "feature not supported" once this middleware is in the chain - notably
+// the runner SSE handlers, which clear the server-wide 30s WriteTimeout so a
+// long log stream is not cut off at 30 seconds.
+func (w *requestLogger) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 // Flush forwards to the underlying writer when it supports flushing,
 // keeping streaming responses (SSE-style) working through the wrapper.
 func (w *requestLogger) Flush() {
