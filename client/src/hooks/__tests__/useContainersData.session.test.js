@@ -34,7 +34,8 @@ describe("useContainersData session guard", () => {
   it("drops a containers response that lands after logout", async () => {
     const d = deferred();
     graphMock.mockReturnValue(d.promise);
-    queryMock.mockResolvedValue({ data: { unusedImages: [] } });
+    // urql facade contract: query(...) returns an operation, not a promise.
+    queryMock.mockReturnValue({ toPromise: () => Promise.resolve({ data: { unusedImages: [] } }) });
 
     const { result } = renderHook(() => useContainersData({ current: new Map() }));
 
@@ -59,7 +60,7 @@ describe("useContainersData session guard", () => {
 
   it("accepts a response from the live session", async () => {
     graphMock.mockResolvedValue({ containers: [{ id: "c2", image_name: "redis" }], stacks: [] });
-    queryMock.mockResolvedValue({ data: { unusedImages: [] } });
+    queryMock.mockReturnValue({ toPromise: () => Promise.resolve({ data: { unusedImages: [] } }) });
 
     const { result } = renderHook(() => useContainersData({ current: new Map() }));
 

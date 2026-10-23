@@ -83,9 +83,13 @@ describe("upgradeRunnerContainer session guard", () => {
     const p = upgradeRunnerContainer(source, { timeoutMs: 60000 });
     await flush();
     clearAllCaches();
+    // Handler attached BEFORE the tick: the poll rejects this promise inside
+    // advanceTimersByTimeAsync, and a rejection with no handler yet attached
+    // is reported as an unhandled rejection even though it is caught below.
+    const settled = p.catch((e) => e);
     await vi.advanceTimersByTimeAsync(3000); // poll tick observes the dead session
 
-    const err = await p.catch((e) => e);
+    const err = await settled;
     expect(err.sessionEnded).toBe(true);
     expect(calls.unsubscribes).toBe(1);
     // The poll tick short-circuits BEFORE issuing the history query.
