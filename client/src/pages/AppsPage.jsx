@@ -18,6 +18,7 @@ import SearchInput from "../components/ui/SearchInput";
 import OperationTasksModal from "../components/ui/OperationTasksModal";
 import OperationTasksDock from "../components/ui/OperationTasksDock";
 import { useOperationTasks } from "../hooks/useOperationTasks";
+import { useDialogSemantics } from "../hooks/useDialogSemantics";
 import { STATUS } from "../utils/operationLog";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
@@ -279,21 +280,20 @@ function formatAge(ts) {
 const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCancel }) {
   const { runner, app, op } = pending;
   const lastRun = op.lastRun;
+  const dialogRef = useRef(null);
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  // Mounted only while a run is pending, so this owns Escape and the Tab trap
+  // until it is answered.
+  useDialogSemantics(dialogRef, { isOpen: true, onClose: onCancel });
 
   return (
     <div
+      ref={dialogRef}
       className={styles.confirmOverlay}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-run-title"
+      tabIndex={-1}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}

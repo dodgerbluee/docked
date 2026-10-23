@@ -12,6 +12,7 @@ import React, { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { X, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { STATUS } from "../../utils/operationLog";
+import { useDialogSemantics } from "../../hooks/useDialogSemantics";
 import styles from "./OperationTasksModal.module.css";
 
 function formatAge(ts) {
@@ -49,8 +50,13 @@ export default function OperationTasksModal({
   onClose,
 }) {
   const outputRef = useRef(null);
+  const dialogRef = useRef(null);
   const selected = tasks.find((t) => t.id === activeTaskId) || tasks[0] || null;
   const finished = tasks.filter((t) => t.status === STATUS.DONE || t.status === STATUS.ERROR);
+
+  // Mounted only while open, so the dialog owns Escape and the Tab trap for as
+  // long as it exists.
+  useDialogSemantics(dialogRef, { isOpen: true, onClose });
 
   // Auto-scroll the console to the newest line of the selected task.
   useEffect(() => {
@@ -60,7 +66,14 @@ export default function OperationTasksModal({
   }, [selected?.id, selected?.lines]);
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true">
+    <div
+      ref={dialogRef}
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Operation tasks"
+      tabIndex={-1}
+    >
       <div className={styles.modal}>
         <div className={styles.header}>
           <span className={styles.title}>Operation Tasks</span>

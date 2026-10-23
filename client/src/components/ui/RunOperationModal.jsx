@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { X, CheckCircle, AlertCircle } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
 import { STATUS, processRawLog } from "../../utils/operationLog";
+import { useDialogSemantics } from "../../hooks/useDialogSemantics";
 import styles from "./RunOperationModal.module.css";
 
 export default function RunOperationModal({ isOpen, runnerId, appName, operationName, onClose }) {
@@ -19,6 +20,7 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
   const outputRef = useRef(null);
   const abortRef = useRef(null);
   const startedRef = useRef(false);
+  const dialogRef = useRef(null);
 
   const appendLog = useCallback((raw) => {
     const { shouldClear, lines: newLines } = processRawLog(raw);
@@ -162,12 +164,23 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
     }
   }, [isOpen]);
 
+  const isDone = status === STATUS.DONE || status === STATUS.ERROR;
+  // Escape must not dismiss a run the user cannot interrupt: the close button
+  // stays disabled until the stream ends, and neither key nor click may get
+  // around that.
+  useDialogSemantics(dialogRef, { isOpen, onClose, escapeEnabled: isDone });
+
   if (!isOpen) return null;
 
-  const isDone = status === STATUS.DONE || status === STATUS.ERROR;
-
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true">
+    <div
+      ref={dialogRef}
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Run ${operationName || "operation"}`}
+      tabIndex={-1}
+    >
       <div className={styles.modal}>
         <div className={styles.header}>
           <div className={styles.headerLeft}>

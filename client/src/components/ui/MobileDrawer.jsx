@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { X } from "lucide-react";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { useDialogSemantics } from "../../hooks/useDialogSemantics";
 import styles from "./MobileDrawer.module.css";
 
 /**
@@ -31,66 +32,14 @@ const MobileDrawer = React.memo(function MobileDrawer({
   className = "",
 }) {
   const drawerRef = useRef(null);
-  const previousFocusRef = useRef(null);
 
   // Lock body scroll when drawer is open
   useBodyScrollLock(isOpen);
 
-  // Escape key handler
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
-
-  // Focus management
-  useEffect(() => {
-    if (isOpen) {
-      previousFocusRef.current = document.activeElement;
-      // Focus the drawer after animation starts
-      requestAnimationFrame(() => {
-        if (drawerRef.current) {
-          const firstFocusable = drawerRef.current.querySelector(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          if (firstFocusable) {
-            firstFocusable.focus();
-          } else {
-            drawerRef.current.focus();
-          }
-        }
-      });
-    } else if (previousFocusRef.current) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
-  }, [isOpen]);
-
-  // Focus trap
-  const handleKeyDown = useCallback((e) => {
-    if (e.key !== "Tab" || !drawerRef.current) return;
-
-    const focusableElements = drawerRef.current.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-
-    if (e.shiftKey && document.activeElement === firstElement) {
-      e.preventDefault();
-      lastElement?.focus();
-    } else if (!e.shiftKey && document.activeElement === lastElement) {
-      e.preventDefault();
-      firstElement?.focus();
-    }
-  }, []);
+  // Focus in, Tab trap and Escape come from the same place the shared Modal
+  // gets them, so a dialog opened on top of the drawer owns the keyboard
+  // instead of both closing on one Escape.
+  useDialogSemantics(drawerRef, { isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -115,7 +64,6 @@ const MobileDrawer = React.memo(function MobileDrawer({
         aria-modal="true"
         aria-label={ariaLabel || title || "Navigation drawer"}
         tabIndex={-1}
-        onKeyDown={handleKeyDown}
       >
         {/* Drawer header */}
         {title && (

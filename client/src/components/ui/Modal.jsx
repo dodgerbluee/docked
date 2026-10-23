@@ -4,29 +4,8 @@ import PropTypes from "prop-types";
 import { X } from "lucide-react";
 import Button from "./Button";
 import { lockScroll, unlockScroll } from "../../utils/scrollLock";
+import { useDialogSemantics } from "../../hooks/useDialogSemantics";
 import styles from "./Modal.module.css";
-
-// Open modals, innermost last. Every instance used to attach its own Escape
-// listener to document, so one keypress closed the whole stack at once and
-// nested dialogs fought each other for focus. The stack makes Escape and the
-// Tab trap belong to the topmost dialog only.
-const modalStack = [];
-
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  '[tabindex]:not([tabindex="-1"])',
-].join(", ");
-
-function getFocusable(container) {
-  if (!container) return [];
-  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
-    (el) => !el.closest('[aria-hidden="true"]')
-  );
-}
 
 /**
  * Modal Component
@@ -48,12 +27,6 @@ const Modal = React.memo(function Modal({
   const mouseDownTargetRef = useRef(null);
   const modalRef = useRef(null);
   const titleId = useId();
-  // Callers pass inline arrow functions, so onClose changes identity on every
-  // render. The stack entry below must survive those renders, hence the ref.
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
 
   useEffect(() => {
     if (isOpen && !nonBlocking) {
@@ -62,80 +35,7 @@ const Modal = React.memo(function Modal({
     }
   }, [isOpen, nonBlocking]);
 
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    // Identity marker for this open dialog; the stack order is what decides
-    // which dialog owns Escape and the Tab trap.
-    const entry = {};
-    modalStack.push(entry);
-    // Where focus was before this dialog opened, so closing puts the user back
-    // on the control they came from instead of the top of the page.
-    const previouslyFocused = document.activeElement;
-
-    const container = modalRef.current;
-    // Prefer the first field to fill in, so a form modal is ready for typing.
-    // Otherwise focus the dialog itself: a keyboard user's next Tab then walks
-    // the dialog's own controls instead of the page behind the overlay, and a
-    // screen reader announces the dialog.
-    const field = container?.querySelector(
-      'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), [contenteditable]'
-    );
-    const initial = field || container;
-    if (initial && typeof initial.focus === "function") {
-      initial.focus();
-    }
-
-    const handleKey = (e) => {
-      // A dialog that is not the topmost one must not react: the one the user
-      // is looking at handles the key.
-      if (modalStack[modalStack.length - 1] !== entry) return;
-
-      if (e.key === "Escape") {
-        onCloseRef.current();
-        return;
-      }
-
-      // Tab trap. Non-blocking modals deliberately leave the page usable, so
-      // they must not trap anything.
-      if (e.key !== "Tab" || nonBlocking) return;
-
-      const focusable = getFocusable(modalRef.current);
-      if (focusable.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      const outside = !modalRef.current?.contains(active);
-      // Focus sits on the dialog itself (nothing inside it has been tabbed to
-      // yet): Shift+Tab would otherwise walk out of the dialog into the page.
-      const atDialogRoot = active === modalRef.current;
-
-      if (e.shiftKey && (active === first || outside || atDialogRoot)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || outside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      const index = modalStack.indexOf(entry);
-      if (index >= 0) modalStack.splice(index, 1);
-      if (
-        previouslyFocused &&
-        typeof previouslyFocused.focus === "function" &&
-        document.contains(previouslyFocused)
-      ) {
-        previouslyFocused.focus();
-      }
-    };
-  }, [isOpen, nonBlocking]);
+  useDialogSemantics(modalRef, { isOpen, onClose, nonBlocking });
 
   const handleOverlayClick = (e) => {
     // Only close if clicking directly on the overlay or backdrop (not on modal content)
