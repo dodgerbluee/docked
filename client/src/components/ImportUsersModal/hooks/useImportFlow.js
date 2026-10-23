@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { initializeUserCredentials, calculateUserSteps } from "../utils/credentialInitializers";
 import { isInstanceAdmin } from "../utils/userImportParsers";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 // Step types
 const STEP_TYPES = {
@@ -106,6 +107,12 @@ export function useImportFlow({
 
       const username = currentUser.username;
 
+      // advanceFlow chains several mutations in sequence (verify token →
+      // webhook tests → create). Each one runs on the CURRENT client, so if
+      // the session ends partway through, the remaining steps must not fire
+      // against the new session's credentials.
+      const generation = getSessionGeneration();
+
       // For instance admin verification step, verify token if entered
       if (currentStepType === STEP_TYPES.INSTANCE_ADMIN_VERIFICATION) {
         const inputToken = verificationInputTokens[username];
@@ -114,6 +121,9 @@ export function useImportFlow({
           try {
             const verified = await handleVerifyToken(username, inputToken.trim());
             setLoading(false);
+            if (isSessionStale(generation)) {
+              return false;
+            }
             if (!verified) {
               return false;
             }
@@ -135,6 +145,12 @@ export function useImportFlow({
           setLoading(true);
           try {
             const validation = await validateCredentialsStep();
+            if (isSessionStale(generation)) {
+              // Session ended during the webhook tests: stop before the
+              // create mutation below.
+              setLoading(false);
+              return false;
+            }
             if (!validation.success) {
               setError(validation.error || "Validation failed");
               setLoading(false);
@@ -164,6 +180,11 @@ export function useImportFlow({
         return true;
       } else {
         // All steps complete for this user - create user
+        if (isSessionStale(generation)) {
+          // A verify/validation mutation above ended the session: the create
+          // would run with the new session's credentials.
+          return false;
+        }
         const result = await createUserWithConfig();
 
         if (result.success) {

@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { graphqlClient } from "../graphql/client";
 import { UPGRADE_HISTORY_QUERY, UPGRADE_HISTORY_STATS_QUERY } from "../graphql/queries";
-import { registerCacheClear } from "../utils/cacheRegistry";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
@@ -69,6 +69,7 @@ export const useUpgradeHistory = (options = {}) => {
   const mountedRef = useRef(true);
 
   const fetchHistory = useCallback(async () => {
+    const gen = getSessionGeneration();
     try {
       // Only show loading if we have no cached data
       if (cachedHistory === null) {
@@ -87,29 +88,33 @@ export const useUpgradeHistory = (options = {}) => {
         })
         .toPromise();
 
+      // Discard the response if the session changed while it was in flight
+      if (isSessionStale(gen)) return;
       if (result.data?.upgradeHistory && mountedRef.current) {
         const data = (result.data.upgradeHistory.items || []).map(mapUpgradeRecord);
         cachedHistory = data;
         setHistory(data);
       }
     } catch (err) {
-      if (mountedRef.current) {
+      if (mountedRef.current && !isSessionStale(gen)) {
         setError(err.message || "Failed to fetch upgrade history");
         console.error("Error fetching upgrade history:", err);
       }
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && !isSessionStale(gen)) {
         setLoading(false);
       }
     }
   }, [options.limit, options.containerName, options.status]);
 
   const fetchStats = useCallback(async () => {
+    const gen = getSessionGeneration();
     try {
       if (cachedStats === null) {
         setStatsLoading(true);
       }
       const { data, error } = await graphqlClient.query(UPGRADE_HISTORY_STATS_QUERY).toPromise();
+      if (isSessionStale(gen)) return;
       if (error) throw error;
       if (mountedRef.current) {
         const s = data?.upgradeHistoryStats || {};
@@ -125,9 +130,11 @@ export const useUpgradeHistory = (options = {}) => {
         setStats(mapped);
       }
     } catch (err) {
-      console.error("Error fetching upgrade history stats:", err);
+      if (!isSessionStale(gen)) {
+        console.error("Error fetching upgrade history stats:", err);
+      }
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && !isSessionStale(gen)) {
         setStatsLoading(false);
       }
     }

@@ -9,6 +9,7 @@ import { checkRunnerHealth, updateRunnerBinary } from "../graphql/runnerOps";
 import { graphqlClient } from "../graphql/client";
 import { RUNNERS_QUERY, UPDATE_RUNNER_MUTATION } from "../graphql/queries";
 import { mapGraphRunner } from "../utils/runnerShape";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 // How often to refresh runner data while the Runners view is open, so runners
 // updated outside docked clear their "update available" badge automatically.
@@ -25,6 +26,8 @@ export function useRunnerState() {
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
   const [updatedRunners, setUpdatedRunners] = useState(new Set()); // ids that finished updating
   const updatePollRef = useRef({}); // runnerId -> intervalId
+  const enrollPingRef = useRef(null); // pending auto-ping timer for a new runner
+  const mountedRef = useRef(true);
   const [runOp, setRunOp] = useState(null); // { runner, appName, operationName }
   const [showOpsRunner, setShowOpsRunner] = useState(null); // runner to show ops modal for
   const [detailRunner, setDetailRunner] = useState(null); // runner for detail modal
@@ -114,50 +117,57 @@ export function useRunnerState() {
 
   const handleUpdate = useCallback(
     async (runner) => {
+      // Captured before the mutation: this poll runs for up to 2 minutes, so it
+      // must abandon itself if the session ends or the view closes mid-flight.
+      const gen = getSessionGeneration();
+      const clearUpdating = () =>
+        setUpdatingRunners((prev) => {
+          const next = new Set(prev);
+          next.delete(runner.id);
+          return next;
+        });
       setUpdatingRunners((prev) => new Set([...prev, runner.id]));
       try {
         await updateRunnerBinary(runner.id);
+        // Unmounted during that await: the unmount cleanup has already run, so
+        // an interval created now would never be cleared.
+        if (!mountedRef.current || isSessionStale(gen)) return;
         const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
+          if (!mountedRef.current || isSessionStale(gen)) {
+            clearInterval(updatePollRef.current[runner.id]);
+            delete updatePollRef.current[runner.id];
+            return;
+          }
           attempts++;
           try {
             const data = await checkRunnerHealth(runner.id);
+            if (!mountedRef.current || isSessionStale(gen)) return;
             const liveVersion = data.health?.version || "";
             if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
               delete updatePollRef.current[runner.id];
-              setUpdatingRunners((prev) => {
-                const next = new Set(prev);
-                next.delete(runner.id);
-                return next;
-              });
+              clearUpdating();
               setUpdatedRunners((prev) => new Set([...prev, runner.id]));
               fetchRunners();
               return;
             }
           } catch {
             /* runner still restarting, keep polling */
+            if (!mountedRef.current || isSessionStale(gen)) return;
           }
           if (attempts >= 24) {
             // 2 min max
             clearInterval(updatePollRef.current[runner.id]);
             delete updatePollRef.current[runner.id];
-            setUpdatingRunners((prev) => {
-              const next = new Set(prev);
-              next.delete(runner.id);
-              return next;
-            });
+            clearUpdating();
             fetchRunners();
           }
         }, 5000);
       } catch (err) {
         console.error("Failed to update runner:", err);
-        setUpdatingRunners((prev) => {
-          const next = new Set(prev);
-          next.delete(runner.id);
-          return next;
-        });
+        if (mountedRef.current && !isSessionStale(gen)) clearUpdating();
       }
     },
     [fetchRunners]
@@ -183,8 +193,14 @@ export function useRunnerState() {
   // Clean up any active update polls on unmount
   useEffect(() => {
     const polls = updatePollRef.current;
+    mountedRef.current = true;
     return () => {
+      // Flip the liveness flag first: handleUpdate checks it after every await,
+      // so a poll that is mid-request when the view closes must stop touching
+      // state and stop starting new intervals that nothing will ever clear.
+      mountedRef.current = false;
       Object.values(polls).forEach(clearInterval);
+      if (enrollPingRef.current) clearTimeout(enrollPingRef.current);
     };
   }, []);
 
@@ -212,8 +228,13 @@ export function useRunnerState() {
     (newRunner) => {
       setShowEnrollment(false);
       fetchRunners();
-      // Auto-ping the new runner
-      setTimeout(() => handlePing(newRunner), 1000);
+      // Auto-ping the new runner. The timer is tracked so the unmount cleanup
+      // can cancel a ping that has not fired yet.
+      if (enrollPingRef.current) clearTimeout(enrollPingRef.current);
+      enrollPingRef.current = setTimeout(() => {
+        enrollPingRef.current = null;
+        if (mountedRef.current) handlePing(newRunner);
+      }, 1000);
     },
     [fetchRunners, handlePing]
   );

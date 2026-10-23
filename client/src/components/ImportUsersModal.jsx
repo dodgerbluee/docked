@@ -12,6 +12,7 @@ import Alert from "./ui/Alert";
 import FileUploadStep from "./ImportUsersModal/FileUploadStep";
 import StepRenderer from "./ImportUsersModal/StepRenderer";
 import { graphqlClient } from "../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { USER_EXISTS_QUERY } from "../graphql/queries";
 import { parseUserImportFile, isInstanceAdmin } from "./ImportUsersModal/utils/userImportParsers";
 import {
@@ -225,8 +226,16 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               const validUsers = [];
               const preImportErrors = [];
 
+              // One generation for the whole pre-flight loop: the state
+              // writes below belong to the session that started the checks.
+              const generation = getSessionGeneration();
+
               for (const user of result.data.users) {
                 if (!user || !user.username) continue;
+                if (isSessionStale(generation)) {
+                  // Session ended mid-loop: drop the partial results.
+                  return;
+                }
 
                 try {
                   const { data } = await graphqlClient

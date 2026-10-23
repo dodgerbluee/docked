@@ -2,12 +2,12 @@
  * Hook for managing container upgrade operations
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "../../../utils/toast";
 import { getUpgradeSteps } from "../../../utils/upgradeSteps";
 import { TIMING } from "../../../constants/timing";
-import { upgradeRunnerContainer } from "../../../graphql/upgrades";
-import { fetchContainersGraphql } from "../../../graphql/containers";
+import { upgradeRunnerContainer, getUpgradeOutcome } from "../../../graphql/upgrades";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /** Auto-dismiss completed (success/error) items after this many ms (10 min) */
 const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
@@ -43,6 +43,55 @@ export const useContainerUpgrade = ({
   // Batch: show confirm dialog, then add each container to banner (no modal)
   const [batchUpgradeConfirmContainers, setBatchUpgradeConfirmContainers] = useState([]);
 
+  // Session + timer bookkeeping for in-flight upgrade loops.
+  //
+  // The generation is captured at hook mount: this hook lives inside the
+  // keyed SessionApp tree, so a login/logout bumps the generation (and
+  // unmounts us) — every continuation below then belongs to a dead session
+  // and must not fire NEW upgrade mutations through the replacement
+  // session's client, toast, or write the old session's container state.
+  const sessionGenRef = useRef(getSessionGeneration());
+  const mountedRef = useRef(true);
+  // Step-progress timers (setTimeout/setInterval) created by in-flight
+  // upgrade loops. Cleared on unmount so a queued batch cannot keep the
+  // loop alive past the session boundary; each entry resolves its promise
+  // so the awaiting loop resumes and exits at the next sessionActive() check.
+  const progressTimersRef = useRef(new Set());
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const timers = progressTimersRef.current;
+    return () => {
+      mountedRef.current = false;
+      for (const entry of timers) entry.clear();
+      timers.clear();
+    };
+  }, []);
+
+  const sessionActive = useCallback(
+    () => mountedRef.current && !isSessionStale(sessionGenRef.current),
+    []
+  );
+
+  // setTimeout that is registered in progressTimersRef (unmount-cancellable).
+  const delay = useCallback(
+    (ms) =>
+      new Promise((resolve) => {
+        const entry = {};
+        entry.clear = () => {
+          clearTimeout(entry.id);
+          progressTimersRef.current.delete(entry);
+          resolve();
+        };
+        entry.id = setTimeout(() => {
+          progressTimersRef.current.delete(entry);
+          resolve();
+        }, ms);
+        progressTimersRef.current.add(entry);
+      }),
+    []
+  );
+
   // Dismiss a single upgrade from the section (by key). Only completed items are dismissible.
   const dismissActiveUpgrade = useCallback((key) => {
     setActiveUpgrades((prev) => prev.filter((a) => a.key !== key));
@@ -75,11 +124,20 @@ export const useContainerUpgrade = ({
   // Execute upgrade API call for a given container (shared logic)
   const executeUpgradeForContainer = useCallback(
     async (container) => {
+      // Never launch an upgrade mutation once the session is gone: the
+      // mutation would fly through the NEW session's client for a container
+      // the new user may not even own.
+      if (!sessionActive()) {
+        throw Object.assign(new Error("Session ended before the upgrade started"), {
+          sessionEnded: true,
+        });
+      }
       setUpgrading((prev) => ({ ...prev, [container.id]: true }));
       try {
         // All containers are runner-backed; upgrades go through the Go GraphQL
         // API (mutation + wait for terminal outcome).
         await upgradeRunnerContainer(container);
+        if (!sessionActive()) return;
 
         successfullyUpdatedContainersRef.current.add(container.id);
         if (onContainersUpdate) {
@@ -103,28 +161,33 @@ export const useContainerUpgrade = ({
         }
         if (fetchContainers) fetchContainers();
       } finally {
-        setUpgrading((prev) => ({ ...prev, [container.id]: false }));
+        if (sessionActive()) setUpgrading((prev) => ({ ...prev, [container.id]: false }));
       }
     },
-    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]
+    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, sessionActive]
   );
 
   // Run upgrade for an existing list entry (by key). Used by batch after enqueueing; also by single.
   const runUpgradeForEntry = useCallback(
     async (key, container, steps) => {
+      if (!sessionActive()) return;
       const containerName = container.name;
       const updateActive = (patch) => {
         setActiveUpgrades((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
       };
 
       updateActive({ status: "in_progress" });
-      await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
+      await delay(TIMING.INITIAL_RENDER_DELAY);
+      if (!sessionActive()) return;
 
       const isNginx =
         containerName?.toLowerCase().includes("nginx-proxy-manager") ||
         containerName?.toLowerCase().includes("npm") ||
         container.image?.toLowerCase().includes("nginx-proxy-manager");
 
+      // Timestamp of the attempt: the authoritative upgradeHistory lookup in
+      // the network-recovery path only accepts rows written for THIS attempt.
+      const upgradeStartedAt = new Date();
       const apiPromise = executeUpgradeForContainer(container);
       const apiCompletedRef = { current: false };
       let apiError = null;
@@ -134,30 +197,43 @@ export const useContainerUpgrade = ({
       });
 
       for (let i = 0; i < steps.length; i++) {
+        if (!sessionActive()) return;
         updateActive({ currentStep: i });
         const stepDuration = steps[i].duration;
         const minStep = TIMING.MIN_STEP_DURATION;
         const stepStart = Date.now();
         await new Promise((resolve) => {
-          const id = setInterval(() => {
+          const entry = {};
+          entry.clear = () => {
+            clearInterval(entry.id);
+            progressTimersRef.current.delete(entry);
+            resolve();
+          };
+          entry.id = setInterval(() => {
             const elapsed = Date.now() - stepStart;
             if (elapsed < minStep) return;
             if (apiCompletedRef.current || elapsed >= stepDuration) {
-              clearInterval(id);
+              clearInterval(entry.id);
+              progressTimersRef.current.delete(entry);
               resolve();
             }
           }, 100);
+          progressTimersRef.current.add(entry);
         });
       }
+      if (!sessionActive()) return;
       updateActive({ currentStep: steps.length - 1 });
-      await new Promise((r) => setTimeout(r, TIMING.FINAL_STEP_DELAY));
+      await delay(TIMING.FINAL_STEP_DELAY);
+      if (!sessionActive()) return;
 
       try {
         await apiPromise;
+        if (!sessionActive()) return;
         updateActive({ status: "success", completedAt: Date.now() });
         toast.success(`Container ${containerName} upgraded successfully!`, 8000);
         if (fetchContainers) fetchContainers();
       } catch (err) {
+        if (!sessionActive()) return;
         if (apiError && isNginx) {
           const isNetworkError =
             !apiError.operationError &&
@@ -172,19 +248,33 @@ export const useContainerUpgrade = ({
             const pollInterval = TIMING.RECONNECT_POLL_INTERVAL;
             const start = Date.now();
             while (Date.now() - start < maxWait) {
-              await new Promise((r) => setTimeout(r, pollInterval));
+              await delay(pollInterval);
+              if (!sessionActive()) return;
               try {
-                const { containers: list } = await fetchContainersGraphql();
-                const found = list.find(
-                  (c) => c.name === containerName || c.name === container?.name
-                );
-                if (found) {
+                // Authoritative verification, NOT mere existence: a transport
+                // error with no response may mean the upgrade never started,
+                // in which case the unchanged OLD container is still running
+                // under the same name. Only a terminal upgradeHistory row for
+                // this attempt proves the worker accepted and finished it.
+                const outcome = await getUpgradeOutcome(container, upgradeStartedAt);
+                if (!sessionActive()) return;
+                if (outcome?.status === "SUCCESS") {
                   updateActive({ status: "success", completedAt: Date.now() });
                   toast.success(`Container ${containerName} upgraded successfully!`, 8000);
                   if (fetchContainers) fetchContainers();
                   return;
                 }
+                if (outcome?.status === "FAILED") {
+                  updateActive({
+                    status: "error",
+                    errorMessage: outcome.errorMessage || "Upgrade failed",
+                    completedAt: Date.now(),
+                  });
+                  return;
+                }
+                // No terminal row yet — keep polling until the timeout.
               } catch {
+                if (!sessionActive()) return;
                 // keep polling
               }
             }
@@ -204,7 +294,7 @@ export const useContainerUpgrade = ({
         });
       }
     },
-    [executeUpgradeForContainer, fetchContainers]
+    [executeUpgradeForContainer, fetchContainers, sessionActive, delay]
   );
 
   // Run upgrade in banner (add to list + step progress + API). Used by single confirm.
@@ -291,7 +381,8 @@ export const useContainerUpgrade = ({
         })),
       ]);
 
-      await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
+      await delay(TIMING.INITIAL_RENDER_DELAY);
+      if (!sessionActive()) return;
 
       // Group by stack (same stack = one at a time; different stacks = in
       // parallel). Stack names are only unique within a source, so the
@@ -308,12 +399,16 @@ export const useContainerUpgrade = ({
       await Promise.all(
         stackArrays.map(async (stackEntries) => {
           for (const { key, container, steps } of stackEntries) {
+            // A session change mid-batch must stop the queue: the NEXT entry
+            // would otherwise fire a fresh upgrade mutation through the new
+            // session's client for the old session's container.
+            if (!sessionActive()) return;
             await runUpgradeForEntry(key, container, steps);
           }
         })
       );
     },
-    [runUpgradeForEntry]
+    [runUpgradeForEntry, sessionActive, delay]
   );
 
   return {

@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { graphqlClient } from "../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import {
   CREATE_DISCORD_WEBHOOK_MUTATION,
   UPDATE_DISCORD_WEBHOOK_MUTATION,
@@ -112,6 +113,13 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
     setLoading(true);
 
     try {
+      // The webhook-info lookup below is an await, and the create/update
+      // mutation that follows runs on the CURRENT client (it re-reads the
+      // token at call time). Capture the generation up front so a
+      // logout/login in the middle cannot write this form into the new
+      // account.
+      const generation = getSessionGeneration();
+
       let webhookUrl = formData.webhookUrl.trim();
       // Preserve serverName if it's a non-empty string after trim, otherwise use null
       let serverName =
@@ -138,6 +146,10 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         }
       }
 
+      // Session ended while the info lookup was in flight: the mutation
+      // below would run with the new session's token.
+      if (isSessionStale(generation)) return;
+
       if (existingWebhook) {
         // For editing, webhook URL is optional (preserve existing if not provided)
         // Update existing webhook
@@ -155,6 +167,8 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         const result = await graphqlClient
           .mutation(UPDATE_DISCORD_WEBHOOK_MUTATION, { id: existingWebhook.id, input: updateData })
           .toPromise();
+
+        if (isSessionStale(generation)) return; // dead session: don't call onSuccess/onClose
 
         if (!result.error && result.data?.updateDiscordWebhook) {
           // Clear form
@@ -189,6 +203,8 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
             },
           })
           .toPromise();
+
+        if (isSessionStale(generation)) return; // dead session: don't call onSuccess/onClose
 
         if (!result.error && result.data?.createDiscordWebhook) {
           // Clear form

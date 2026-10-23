@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import Modal from "../../ui/Modal";
 import Button from "../../ui/Button";
 import { cropImage } from "./AvatarCropper";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 import styles from "./AvatarPreviewModal.module.css";
 
 const PREVIEW_SIZE = 400;
@@ -187,7 +188,13 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
 
   const handleUpload = async () => {
     if (!imageElement) return;
+    // cropImage is async; if the session ends during the crop, onUpload
+    // would start the upload with the NEW session's token (uploadGraphQL
+    // reads localStorage at call time) — the old user's image landing in the
+    // new account.
+    const generation = getSessionGeneration();
     const croppedUrl = await cropImage(imageElement, crop, zoom, pan);
+    if (isSessionStale(generation)) return;
     if (croppedUrl) {
       onUpload(croppedUrl);
     }

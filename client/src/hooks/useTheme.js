@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { graphqlClient } from "../graphql/client";
 import { USER_PREFERENCES_QUERY } from "../graphql/queries";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 /**
  * Custom hook for theme/color scheme management
@@ -25,15 +26,21 @@ export const useTheme = (isAuthenticated, authToken) => {
   // Fetch color scheme from GraphQL
   const fetchColorScheme = useCallback(async () => {
     if (!isAuthenticated || !authToken) return;
+    // The response may land after logout, when this hook's session is already
+    // dead and a new identity is showing. Its preference belongs to the old
+    // user and must not repaint the new session.
+    const generation = getSessionGeneration();
     try {
       const res = await graphqlClient
         .query(USER_PREFERENCES_QUERY, undefined, { requestPolicy: "network-only" })
         .toPromise();
+      if (isSessionStale(generation)) return;
       if (res.data?.userPreferences) {
         setColorScheme(res.data.userPreferences.colorScheme || "system");
       }
     } catch (err) {
       console.error("Error fetching color scheme:", err);
+      if (isSessionStale(generation)) return;
       // Fallback to localStorage if API fails (for backward compatibility during migration)
       const saved = localStorage.getItem("colorScheme");
       if (saved) {

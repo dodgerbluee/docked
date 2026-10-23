@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 /**
  * useExport Hook
@@ -18,7 +19,14 @@ export function useExport() {
     setExportSuccess("");
 
     try {
+      // The response is this session's data, but the blob + auto-click below
+      // happen after an await: if the session ended mid-flight, downloading
+      // would drop the previous user's data onto the new session's machine.
+      const generation = getSessionGeneration();
+
       const response = await axios.get(`${API_BASE_URL}${endpoint}`);
+
+      if (isSessionStale(generation)) return;
 
       if (response.data.success) {
         const jsonString = JSON.stringify(response.data.data, null, 2);

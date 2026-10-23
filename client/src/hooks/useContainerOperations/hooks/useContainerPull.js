@@ -7,6 +7,7 @@ import { fetchContainersGraphql } from "../../../graphql/containers";
 import { runContainerSync } from "../../../graphql/sync";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
 import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /**
  * Hook for container pull operations
@@ -38,6 +39,11 @@ export const useContainerPull = ({
   const handlePull = useCallback(
     async (additionalParams = {}) => {
       const { setLastPullTime } = additionalParams;
+      // Capture the session generation before any async work: a login/logout
+      // mid-flight makes every continuation below (state writes, localStorage,
+      // follow-up fetches, toasts) belong to a dead session.
+      const gen = getSessionGeneration();
+      const stale = () => isSessionStale(gen);
       try {
         setPulling(true);
         // Clear any previous errors when starting a new pull
@@ -47,12 +53,16 @@ export const useContainerPull = ({
 
         // Kick off the container sync in the Go API. The mutation registers a
         // 'running' docker-hub-pull batch run before responding, so the poll
-        // inside runContainerSync always observes the new run.
+        // inside runContainerSync always observes the new run. runContainerSync
+        // stops polling once the session goes stale; keep a no-op catch so an
+        // early return below can't surface an unhandled rejection.
         const syncPromise = runContainerSync();
+        syncPromise.catch(() => {});
 
         // Show the cached container set while the registry scan works.
         try {
           const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+          if (stale()) return;
           // updateContainersWithPreservedState keeps hasUpdate:false for
           // containers the user just upgraded in this session.
           const updatedContainers = updateContainersWithPreservedState(
@@ -63,13 +73,16 @@ export const useContainerPull = ({
           setStacks(apiStacks);
           setDataFetched(true);
         } catch {
+          if (stale()) return;
           // No cached data available yet - this is expected on first run
         }
 
         await syncPromise;
+        if (stale()) return;
 
         // Registry data is fresh now — refetch so hasUpdate reflects the scan
         const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+        if (stale()) return;
         const updatedContainers = updateContainersWithPreservedState(
           apiContainers,
           successfullyUpdatedContainersRef
@@ -90,13 +103,16 @@ export const useContainerPull = ({
         setPullError(null);
         setDataFetched(true);
         await fetchUnusedImages();
+        if (stale()) return;
         setPullSuccess("Data pulled successfully!");
       } catch (err) {
+        if (stale()) return;
         const errorMessage = await handleDockerHubError(err, setError);
+        if (stale()) return;
         setPullError(errorMessage);
         console.error("Error pulling containers:", err);
       } finally {
-        setPulling(false);
+        if (!stale()) setPulling(false);
       }
     },
     [

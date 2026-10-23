@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { graphqlClient } from "../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { ME_QUERY, UPDATE_USERNAME_MUTATION, UPDATE_PASSWORD_MUTATION } from "../graphql/queries";
 
 /**
@@ -20,6 +21,19 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Pending auto-logout after a password change. Kept in a ref so unmount
+  // (which a session change always triggers) can cancel it.
+  const passwordLogoutTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (passwordLogoutTimerRef.current) {
+        clearTimeout(passwordLogoutTimerRef.current);
+        passwordLogoutTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const fetchUserInfo = useCallback(async () => {
     try {
@@ -56,11 +70,20 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
       }
 
       try {
+        // A successful username change returns a NEW token that
+        // onUsernameUpdate installs into auth state, localStorage and axios.
+        // Capture the session generation first: if a logout/login happened
+        // while this was in flight, that token belongs to a dead session and
+        // installing it would hand the new account the old account's token.
+        const generation = getSessionGeneration();
+
         const result = await graphqlClient
           .mutation(UPDATE_USERNAME_MUTATION, {
             input: { newUsername: newUsername.trim(), password: usernamePassword },
           })
           .toPromise();
+
+        if (isSessionStale(generation)) return;
 
         if (!result.error && result.data?.updateUsername?.success) {
           const data = result.data.updateUsername;
@@ -135,7 +158,15 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
           // token-version bump), so skip any further authenticated calls;
           // onPasswordUpdateSuccess ends the session and returns to login.
           if (onPasswordUpdateSuccess) {
-            setTimeout(() => {
+            const generation = getSessionGeneration();
+            if (passwordLogoutTimerRef.current) {
+              clearTimeout(passwordLogoutTimerRef.current);
+            }
+            passwordLogoutTimerRef.current = setTimeout(() => {
+              passwordLogoutTimerRef.current = null;
+              // Someone logged out (or logged back in) during the delay: this
+              // timer belongs to a dead session and must not end the live one.
+              if (isSessionStale(generation)) return;
               onPasswordUpdateSuccess();
             }, 1500);
           }

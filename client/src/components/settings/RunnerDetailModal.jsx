@@ -109,13 +109,20 @@ function RunnerDetailModal({
   const [logsError, setLogsError] = useState(null);
   const logsEndRef = useRef(null);
   const [restarting, setRestarting] = useState(false);
+  // Identifies the currently open modal/runner. Requests capture it and discard
+  // their response if it changed while they were in flight, so a slow response
+  // for one runner can never be shown for another (or after the modal closed).
+  const requestTokenRef = useRef(null);
+  const requestEpochRef = useRef(0);
 
   const fetchEvents = useCallback(
     async (offset = 0) => {
       if (!runner) return;
+      const token = requestTokenRef.current;
       setEventsLoading(true);
       try {
         const data = await fetchRunnerEvents(runner.id, { limit: 50, offset });
+        if (requestTokenRef.current !== token) return;
         if (data.success) {
           setEvents((prev) => (offset === 0 ? data.events : [...prev, ...data.events]));
           setEventsTotal(data.total);
@@ -124,7 +131,7 @@ function RunnerDetailModal({
       } catch {
         // silently fail
       } finally {
-        setEventsLoading(false);
+        if (requestTokenRef.current === token) setEventsLoading(false);
       }
     },
     [runner]
@@ -132,10 +139,12 @@ function RunnerDetailModal({
 
   const fetchLogs = useCallback(async () => {
     if (!runner) return;
+    const token = requestTokenRef.current;
     setLogsLoading(true);
     setLogsError(null);
     try {
       const data = await fetchRunnerLogs(runner.id, 200);
+      if (requestTokenRef.current !== token) return;
       if (data.success) {
         setLogs(data.lines || []);
       } else {
@@ -143,15 +152,18 @@ function RunnerDetailModal({
         setLogs([]);
       }
     } catch (err) {
+      if (requestTokenRef.current !== token) return;
       setLogsError(err.response?.data?.error || err.message);
       setLogs([]);
     } finally {
-      setLogsLoading(false);
+      if (requestTokenRef.current === token) setLogsLoading(false);
     }
   }, [runner]);
 
   // Reset state when modal opens/closes or runner changes
   useEffect(() => {
+    // Invalidate in-flight Events/Logs requests from the previous runner/modal
+    requestTokenRef.current = isOpen && runner ? `${runner.id}:${++requestEpochRef.current}` : null;
     if (isOpen && runner) {
       setActiveTab(TABS.DETAILS);
       setEvents([]);

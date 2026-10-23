@@ -38,6 +38,7 @@ import {
   DELETE_RUNNER_MUTATION,
 } from "../../graphql/queries";
 import { mapGraphRunner } from "../../utils/runnerShape";
+import { getSessionGeneration, isSessionStale } from "../../utils/cacheRegistry";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
@@ -137,6 +138,8 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
                 `${API_BASE_URL}/api/runners/enrollment-status`,
                 { params: { token: enrollmentToken } }
               );
+              // The modal may have closed (or the session changed) while this poll was in flight
+              if (cancelled) return;
               if (statusData.success && statusData.status === "registered" && statusData.runner) {
                 clearInterval(pollRef.current);
                 onEnrolled(statusData.runner);
@@ -513,13 +516,18 @@ export default function RunnerTab() {
   const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId
   const [updatedRunners, setUpdatedRunners] = useState(new Set()); // ids that finished updating
   const updatePollRef = useRef({}); // runnerId → intervalId
+  const enrollPingRef = useRef(null); // pending auto-ping timer for a new runner
+  const mountedRef = useRef(true);
   const [runOp, setRunOp] = useState(null); // { runner, operationName }
   const [showOpsRunner, setShowOpsRunner] = useState(null); // runner to show ops modal for
   const [detailRunner, setDetailRunner] = useState(null); // runner for detail modal
 
   const fetchRunners = useCallback(async () => {
+    const gen = getSessionGeneration();
     try {
       const result = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+      // Discard the response if the session changed while it was in flight
+      if (isSessionStale(gen)) return [];
       if (!result.error && result.data?.runners) {
         const runners = result.data.runners.map(mapGraphRunner);
         setRunners(runners);
@@ -530,7 +538,7 @@ export default function RunnerTab() {
       console.error("Failed to fetch runners:", err);
       return [];
     } finally {
-      setLoading(false);
+      if (!isSessionStale(gen)) setLoading(false);
     }
   }, []);
 
@@ -539,18 +547,21 @@ export default function RunnerTab() {
   useEffect(() => {
     if (hasAutoPinged.current) return;
     hasAutoPinged.current = true;
+    const gen = getSessionGeneration();
     fetchRunners().then((list) => {
-      if (!list?.length) return;
+      if (!list?.length || !mountedRef.current || isSessionStale(gen)) return;
       list.forEach((r) => {
         setHealthStatus((prev) => ({ ...prev, [r.id]: { checking: true } }));
         checkRunnerHealth(r.id)
           .then((data) => {
+            if (!mountedRef.current || isSessionStale(gen)) return;
             setHealthStatus((prev) => ({
               ...prev,
               [r.id]: { online: data.online, checking: false, health: data.health },
             }));
           })
           .catch(() => {
+            if (!mountedRef.current || isSessionStale(gen)) return;
             setHealthStatus((prev) => ({
               ...prev,
               [r.id]: { online: false, checking: false },
@@ -584,15 +595,27 @@ export default function RunnerTab() {
 
   const handleUpdate = useCallback(
     async (runner) => {
+      const gen = getSessionGeneration();
       setUpdatingRunner(runner.id);
       try {
         await updateRunnerBinary(runner.id);
+        if (!mountedRef.current || isSessionStale(gen)) return;
         const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
+          if (!mountedRef.current || isSessionStale(gen)) {
+            clearInterval(updatePollRef.current[runner.id]);
+            delete updatePollRef.current[runner.id];
+            return;
+          }
           attempts++;
           try {
             const data = await checkRunnerHealth(runner.id);
+            if (!mountedRef.current || isSessionStale(gen)) {
+              clearInterval(updatePollRef.current[runner.id]);
+              delete updatePollRef.current[runner.id];
+              return;
+            }
             const liveVersion = data.health?.version || "";
             if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
@@ -615,6 +638,7 @@ export default function RunnerTab() {
         }, 5000);
       } catch (err) {
         console.error("Failed to update runner:", err);
+        if (!mountedRef.current || isSessionStale(gen)) return;
         setUpdatingRunner(null);
       }
     },
@@ -625,19 +649,24 @@ export default function RunnerTab() {
   useEffect(() => {
     const polls = updatePollRef.current;
     return () => {
+      mountedRef.current = false;
       Object.values(polls).forEach(clearInterval);
+      if (enrollPingRef.current) clearTimeout(enrollPingRef.current);
     };
   }, []);
 
   const handlePing = useCallback(async (runner) => {
+    const gen = getSessionGeneration();
     setHealthStatus((prev) => ({ ...prev, [runner.id]: { checking: true } }));
     try {
       const data = await checkRunnerHealth(runner.id);
+      if (!mountedRef.current || isSessionStale(gen)) return;
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: data.online, checking: false, health: data.health },
       }));
     } catch {
+      if (!mountedRef.current || isSessionStale(gen)) return;
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: false, checking: false },
@@ -654,7 +683,11 @@ export default function RunnerTab() {
       setShowEnrollment(false);
       fetchRunners();
       // Auto-ping the new runner
-      setTimeout(() => handlePing(newRunner), 1000);
+      if (enrollPingRef.current) clearTimeout(enrollPingRef.current);
+      enrollPingRef.current = setTimeout(() => {
+        enrollPingRef.current = null;
+        handlePing(newRunner);
+      }, 1000);
     },
     [fetchRunners, handlePing]
   );

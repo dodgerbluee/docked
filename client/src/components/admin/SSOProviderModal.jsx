@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
@@ -44,9 +44,18 @@ function SSOProviderModal({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
+  // A discovery test is tied to the issuer it was submitted for. The issuer
+  // field stays editable while a test is pending and the modal is reused
+  // across providers, so a late response for a retired issuer/provider must
+  // never render next to the current value.
+  const testSeqRef = useRef(0);
+  const liveIssuerRef = useRef("");
+
   const isEdit = !!existingProvider;
 
   useEffect(() => {
+    // New target (or re-open): retire any discovery test still in flight.
+    testSeqRef.current += 1;
     if (isOpen) {
       if (existingProvider) {
         setFormData({
@@ -61,11 +70,14 @@ function SSOProviderModal({
           defaultRole: existingProvider.defaultRole,
           enabled: existingProvider.enabled,
         });
+        liveIssuerRef.current = existingProvider.issuerUrl || "";
       } else {
         setFormData(INITIAL_FORM);
+        liveIssuerRef.current = INITIAL_FORM.issuerUrl;
       }
       setError("");
       setTestResult(null);
+      setTesting(false);
     }
   }, [isOpen, existingProvider]);
 
@@ -76,23 +88,38 @@ function SSOProviderModal({
       [name]: type === "checkbox" ? checked : value,
     }));
     if (error) setError("");
-    if (name === "issuerUrl") setTestResult(null);
+    if (name === "issuerUrl") {
+      // Editing the issuer invalidates any discovery test that was started
+      // against the previous value.
+      liveIssuerRef.current = value;
+      testSeqRef.current += 1;
+      setTestResult(null);
+      setTesting(false);
+    }
   };
 
   const handleTest = async () => {
-    if (!formData.issuerUrl.trim()) {
+    const issuer = formData.issuerUrl.trim();
+    if (!issuer) {
       setTestResult({ valid: false, error: "Enter an Issuer URL first" });
       return;
     }
+    const seq = testSeqRef.current + 1;
+    testSeqRef.current = seq;
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await testConnection(formData.issuerUrl.trim());
+      const result = await testConnection(issuer);
+      // Only surface a result that still belongs to the issuer on screen.
+      if (seq !== testSeqRef.current || liveIssuerRef.current.trim() !== issuer) return;
       setTestResult(result);
     } catch (err) {
+      if (seq !== testSeqRef.current || liveIssuerRef.current.trim() !== issuer) return;
       setTestResult({ valid: false, error: err.response?.data?.error || err.message });
     } finally {
-      setTesting(false);
+      if (seq === testSeqRef.current) {
+        setTesting(false);
+      }
     }
   };
 

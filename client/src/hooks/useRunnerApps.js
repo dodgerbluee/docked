@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate } from "../utils/versionHelpers";
-import { registerCacheClear } from "../utils/cacheRegistry";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
 import { RUNNERS_QUERY } from "../graphql/queries";
 import { mapGraphRunner } from "../utils/runnerShape";
@@ -38,17 +38,23 @@ export const useRunnerApps = () => {
   const mountedRef = useRef(true);
 
   const fetchAll = useCallback(async (silent = false) => {
+    const gen = getSessionGeneration();
     try {
       if (!silent && cachedRunners === null) setLoading(true);
       setError(null);
 
       // 1. Fetch runners
       const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+      // A GraphQL error must not be mistaken for "no runners": committing and
+      // caching an empty list would hide the failure for the whole session.
+      if (runnersResult.error) throw new Error(runnersResult.error.message);
       const enabledRunners = (runnersResult.data?.runners || [])
         .map(mapGraphRunner)
         .filter((r) => r.enabled !== 0);
 
-      if (!mountedRef.current) return;
+      // Unmounted, or logout mid-flight (the response belongs to a dead
+      // session and must never reach the module cache the next user reads).
+      if (!mountedRef.current || isSessionStale(gen)) return;
       setRunners(enabledRunners);
       cachedRunners = enabledRunners;
 
@@ -60,7 +66,7 @@ export const useRunnerApps = () => {
         })
       );
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || isSessionStale(gen)) return;
 
       const newAppsByRunner = {};
       appsResults.forEach((result) => {
@@ -85,7 +91,7 @@ export const useRunnerApps = () => {
         })
       );
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || isSessionStale(gen)) return;
 
       const allHistory = historyResults
         .filter((r) => r.status === "fulfilled")
@@ -96,12 +102,13 @@ export const useRunnerApps = () => {
       setHistory(allHistory);
       cachedHistory = allHistory;
     } catch (err) {
+      if (isSessionStale(gen)) return;
       if (mountedRef.current) {
         setError(err.response?.data?.error || err.message || "Failed to fetch runner apps");
         console.error("useRunnerApps: fetch error", err);
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && !isSessionStale(gen)) setLoading(false);
     }
   }, []);
 

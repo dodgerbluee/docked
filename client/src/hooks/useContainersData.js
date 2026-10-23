@@ -88,8 +88,11 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
 
   const fetchContainers = useCallback(
     async (showLoading = true, instanceUrl = null) => {
+      // Captured before the try so the catch/finally below can tell whether
+      // they still belong to this session: a failed fetch from a dead session
+      // must not replace the new session's error or clear its loading state.
+      const gen = getSessionGeneration();
       try {
-        const gen = getSessionGeneration();
         // Track loading state for specific instance if provided
         if (instanceUrl) {
           setLoadingInstances((prev) => new Set(prev).add(instanceUrl));
@@ -143,16 +146,19 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
         // Await the unused images fetch that was started in parallel
         await unusedImagesPromise;
       } catch (err) {
+        if (isSessionStale(gen)) return;
         setError(err?.message || "Failed to fetch containers");
         console.error("Error fetching containers:", err);
       } finally {
-        setLoading(false);
-        if (instanceUrl) {
-          setLoadingInstances((prev) => {
-            const next = new Set(prev);
-            next.delete(instanceUrl);
-            return next;
-          });
+        if (!isSessionStale(gen)) {
+          setLoading(false);
+          if (instanceUrl) {
+            setLoadingInstances((prev) => {
+              const next = new Set(prev);
+              next.delete(instanceUrl);
+              return next;
+            });
+          }
         }
       }
     },

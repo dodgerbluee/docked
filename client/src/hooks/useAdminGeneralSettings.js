@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
 import {
   BATCH_LOG_LEVEL_QUERY,
@@ -23,8 +24,12 @@ export function useAdminGeneralSettings() {
   const [generalSettingsSuccess, setGeneralSettingsSuccess] = useState("");
 
   const fetchLogLevel = useCallback(async () => {
+    const generation = getSessionGeneration();
     try {
       const result = await graphqlClient.query(BATCH_LOG_LEVEL_QUERY).toPromise();
+      // A response that lands after logout belongs to a dead session and must
+      // not seed the replacement session's state.
+      if (isSessionStale(generation)) return;
       if (!result.error && result.data?.batchLogLevel) {
         const fetchedLevel = result.data.batchLogLevel.toLowerCase() || "info";
         setLogLevel(fetchedLevel);
@@ -38,6 +43,7 @@ export function useAdminGeneralSettings() {
       }
     } catch (err) {
       console.error("Error fetching log level:", err);
+      if (isSessionStale(generation)) return;
       // On error, use default
       const defaultLevel = "info";
       setLogLevel(defaultLevel);
@@ -46,14 +52,17 @@ export function useAdminGeneralSettings() {
   }, []);
 
   const fetchDebugEndpointsEnabled = useCallback(async () => {
+    const generation = getSessionGeneration();
     try {
       const { data, error } = await graphqlClient.query(DEBUG_ENDPOINTS_ENABLED_QUERY).toPromise();
+      if (isSessionStale(generation)) return;
       if (error) throw error;
       const enabled = !!data?.debugEndpointsEnabled;
       setDebugEndpointsEnabled(enabled);
       setLocalDebugEndpointsEnabled(enabled);
     } catch (err) {
       console.error("Error fetching debug endpoints enabled:", err);
+      if (isSessionStale(generation)) return;
       setDebugEndpointsEnabled(false);
       setLocalDebugEndpointsEnabled(false);
     }
@@ -82,6 +91,7 @@ export function useAdminGeneralSettings() {
     setGeneralSettingsSaving(true);
     isSavingRef.current = true;
     setGeneralSettingsSuccess("");
+    const generation = getSessionGeneration();
 
     try {
       const errors = [];
@@ -92,6 +102,9 @@ export function useAdminGeneralSettings() {
         const logLevelResult = await graphqlClient
           .mutation(SET_BATCH_LOG_LEVEL_MUTATION, { logLevel: localLogLevel.toUpperCase() })
           .toPromise();
+        // The first mutation can complete after logout; nothing below it may
+        // run inside the replacement session.
+        if (isSessionStale(generation)) return;
         logLevelSuccess = !logLevelResult.error && !!logLevelResult.data?.setBatchLogLevel?.success;
         if (logLevelSuccess) {
           // Update the actual log level state
@@ -99,17 +112,20 @@ export function useAdminGeneralSettings() {
         }
       } catch (err) {
         console.error("Error saving log level:", err);
+        if (isSessionStale(generation)) return;
         errors.push("Failed to save log level");
       }
 
       // Save debug endpoints enabled
       let debugEndpointsSuccess = false;
       try {
+        if (isSessionStale(generation)) return;
         const debugResult = await graphqlClient
           .mutation(SET_DEBUG_ENDPOINTS_ENABLED_MUTATION, {
             enabled: localDebugEndpointsEnabled,
           })
           .toPromise();
+        if (isSessionStale(generation)) return;
         debugEndpointsSuccess =
           !debugResult.error && !!debugResult.data?.setDebugEndpointsEnabled?.success;
         if (debugEndpointsSuccess) {
@@ -117,10 +133,12 @@ export function useAdminGeneralSettings() {
         }
       } catch (err) {
         console.error("Error saving debug endpoints enabled:", err);
+        if (isSessionStale(generation)) return;
         errors.push("Failed to save debug endpoints setting");
       }
 
       // Check if all settings were saved successfully
+      if (isSessionStale(generation)) return;
       if (logLevelSuccess && debugEndpointsSuccess) {
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("Settings saved successfully!");

@@ -5,6 +5,7 @@
 import { useState, useCallback } from "react";
 import { deleteImages } from "../../../graphql/imageOps";
 import { showContainerError } from "../utils/containerErrorHandling";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /** Map an unused-image row to the deleteImages mutation payload contract
  *  (same shape as useContainersPage/hooks/useImageDeletion). */
@@ -37,9 +38,14 @@ export const useContainerDeletion = ({
 
   const handleDeleteImage = useCallback(
     async (image) => {
+      // A login/logout mid-flight makes this completion belong to a dead
+      // session: it must not filter the new session's image list, decrement
+      // its counts, or raise an alert for it.
+      const gen = getSessionGeneration();
       try {
         setDeletingImages(true);
         const data = await deleteImages([toDeletePayload(image)]);
+        if (isSessionStale(gen)) return;
 
         if (data.success) {
           updateLastImageDeleteTime();
@@ -54,10 +60,11 @@ export const useContainerDeletion = ({
           throw new Error(data.error || "image delete failed");
         }
       } catch (err) {
+        if (isSessionStale(gen)) return;
         console.error("Error deleting image:", err);
         showContainerError("delete", "image", err);
       } finally {
-        setDeletingImagesState(false);
+        if (!isSessionStale(gen)) setDeletingImagesState(false);
       }
     },
     [
@@ -91,11 +98,13 @@ export const useContainerDeletion = ({
         return;
       }
 
+      const gen = getSessionGeneration();
       try {
         setDeletingImagesState(true);
         updateLastImageDeleteTime();
 
         const data = await deleteImages(imagesToDelete.map(toDeletePayload));
+        if (isSessionStale(gen)) return;
 
         if (data.success) {
           const deletedIds = new Set(imagesToDelete.map((img) => img.id));
@@ -108,10 +117,11 @@ export const useContainerDeletion = ({
           throw new Error(data.error || "image delete failed");
         }
       } catch (err) {
+        if (isSessionStale(gen)) return;
         console.error("Error deleting images:", err);
         showContainerError("delete", "image", err);
       } finally {
-        setDeletingImagesState(false);
+        if (!isSessionStale(gen)) setDeletingImagesState(false);
       }
     },
     [

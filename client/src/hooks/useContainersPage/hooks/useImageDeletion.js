@@ -6,6 +6,7 @@ import { useState, useCallback } from "react";
 import { getImageKey } from "../../../utils/imageHelpers";
 import { deleteImages } from "../../../graphql/imageOps";
 import { toast } from "../../../utils/toast";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /**
  * Hook to manage image deletion operations (single and batch)
@@ -35,6 +36,10 @@ export const useImageDeletion = ({
   // Execute delete after confirmation
   const executeDeleteImage = useCallback(
     async (image) => {
+      // A login/logout mid-flight makes this completion belong to a dead
+      // session: it must not mutate the new session's image list/counts or
+      // toast for it (the deleted image may not even exist in the new list).
+      const gen = getSessionGeneration();
       try {
         setDeletingImages(true);
         const data = await deleteImages([
@@ -43,6 +48,7 @@ export const useImageDeletion = ({
             runnerId: image.runnerId,
           },
         ]);
+        if (isSessionStale(gen)) return;
 
         if (data.success) {
           const imageKey = getImageKey(image);
@@ -66,11 +72,12 @@ export const useImageDeletion = ({
           console.error("Delete errors:", data.errors);
         }
       } catch (err) {
+        if (isSessionStale(gen)) return;
         const errorMessage = err.response?.data?.error || err.message || "Unknown error";
         toast.error(`Failed to delete image: ${errorMessage}`);
         console.error("Error deleting image:", err);
       } finally {
-        setDeletingImages(false);
+        if (!isSessionStale(gen)) setDeletingImages(false);
       }
     },
     [onUnusedImagesUpdate, onUnusedImagesCountUpdate, setSelectedImages]
@@ -92,6 +99,10 @@ export const useImageDeletion = ({
   // Execute batch delete after confirmation
   const executeDeleteImages = useCallback(
     async (imagesToDelete) => {
+      // Same session-staleness guard as executeDeleteImage: a completion from
+      // a dead session must not filter the new session's list, decrement its
+      // count, or toast.
+      const gen = getSessionGeneration();
       try {
         setDeletingImages(true);
 
@@ -111,6 +122,7 @@ export const useImageDeletion = ({
             runnerId: img.runnerId,
           }))
         );
+        if (isSessionStale(gen)) return;
 
         if (data.success) {
           const deletedCount = data.deleted || uniqueImages.length;
@@ -138,11 +150,12 @@ export const useImageDeletion = ({
           console.error("Delete errors:", data.errors);
         }
       } catch (err) {
+        if (isSessionStale(gen)) return;
         const errorMessage = err.response?.data?.error || err.message || "Unknown error";
         toast.error(`Failed to delete images: ${errorMessage}`);
         console.error("Error deleting images:", err);
       } finally {
-        setDeletingImages(false);
+        if (!isSessionStale(gen)) setDeletingImages(false);
       }
     },
     [onUnusedImagesUpdate, onUnusedImagesCountUpdate, setSelectedImages]

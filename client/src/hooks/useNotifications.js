@@ -7,11 +7,24 @@ import { computeHasUpdate } from "../utils/containerUpdateHelpers";
  * Handles dismissed notifications for containers and tracked apps
  */
 export const useNotifications = (containers, trackedApps, instanceAdmin = false) => {
+  // Dismissals are per-user state, but localStorage is shared by every account
+  // on this browser. Namespace the keys by the signed-in username so one user's
+  // dismissal cannot hide another user's notification for the same resource id.
+  const username = (() => {
+    try {
+      return localStorage.getItem("username") || "anonymous";
+    } catch (err) {
+      console.error("Error reading username for notification keys:", err);
+      return "anonymous";
+    }
+  })();
+  const storageKey = useCallback((name) => `${name}:${username}`, [username]);
+
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
   const [dismissedContainerNotifications, setDismissedContainerNotifications] = useState(() => {
     try {
-      const stored = localStorage.getItem("dismissedContainerNotifications");
+      const stored = localStorage.getItem(storageKey("dismissedContainerNotifications"));
       if (stored) {
         const parsed = JSON.parse(stored);
         return new Map(Object.entries(parsed));
@@ -24,7 +37,7 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
 
   const [dismissedTrackedAppNotifications, setDismissedTrackedAppNotifications] = useState(() => {
     try {
-      const stored = localStorage.getItem("dismissedTrackedAppNotifications");
+      const stored = localStorage.getItem(storageKey("dismissedTrackedAppNotifications"));
       if (stored) {
         const parsed = JSON.parse(stored);
         // Convert keys to strings to ensure consistent lookup (IDs might be numbers)
@@ -43,7 +56,7 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
   const [dismissedVersionUpdateNotification, setDismissedVersionUpdateNotification] = useState(
     () => {
       try {
-        const stored = localStorage.getItem("dismissedVersionUpdateNotification");
+        const stored = localStorage.getItem(storageKey("dismissedVersionUpdateNotification"));
         return stored || null;
       } catch (err) {
         console.error("Error loading dismissed version update notification:", err);
@@ -56,36 +69,42 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
   useEffect(() => {
     try {
       const containerData = Object.fromEntries(dismissedContainerNotifications);
-      localStorage.setItem("dismissedContainerNotifications", JSON.stringify(containerData));
+      localStorage.setItem(
+        storageKey("dismissedContainerNotifications"),
+        JSON.stringify(containerData)
+      );
     } catch (err) {
       console.error("Error saving dismissed container notifications:", err);
     }
-  }, [dismissedContainerNotifications]);
+  }, [dismissedContainerNotifications, storageKey]);
 
   useEffect(() => {
     try {
       // Convert Map to object, ensuring keys are strings for JSON serialization
       const trackedAppData = Object.fromEntries(dismissedTrackedAppNotifications);
-      localStorage.setItem("dismissedTrackedAppNotifications", JSON.stringify(trackedAppData));
+      localStorage.setItem(
+        storageKey("dismissedTrackedAppNotifications"),
+        JSON.stringify(trackedAppData)
+      );
     } catch (err) {
       console.error("Error saving dismissed tracked app notifications:", err);
     }
-  }, [dismissedTrackedAppNotifications]);
+  }, [dismissedTrackedAppNotifications, storageKey]);
 
   useEffect(() => {
     try {
       if (dismissedVersionUpdateNotification) {
         localStorage.setItem(
-          "dismissedVersionUpdateNotification",
+          storageKey("dismissedVersionUpdateNotification"),
           dismissedVersionUpdateNotification
         );
       } else {
-        localStorage.removeItem("dismissedVersionUpdateNotification");
+        localStorage.removeItem(storageKey("dismissedVersionUpdateNotification"));
       }
     } catch (err) {
       console.error("Error saving dismissed version update notification:", err);
     }
-  }, [dismissedVersionUpdateNotification]);
+  }, [dismissedVersionUpdateNotification, storageKey]);
 
   // Filter containers with updates - compute hasUpdate on-the-fly for accuracy
   const containersWithUpdates = useMemo(

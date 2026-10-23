@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../utils/api";
 import { getErrorMessage } from "../../../utils/errorHandling";
+import { clearAllCaches, getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
+import { resetGraphQLClient } from "../../../graphql/client";
 
 // Step types
 const STEP_TYPES = {
@@ -16,7 +18,11 @@ const STEP_TYPES = {
 // so later member imports need a session. Non-fatal: if this fails, the next
 // create call simply surfaces the server's 403 rather than undoing the admin
 // import that already succeeded.
-async function bootstrapSessionToken(username, password) {
+// `generation` is the session generation captured before the create request:
+// this is a real session transition (anonymous → authenticated), so a session
+// change that happened while the create/bootstrap was in flight means these
+// credentials belong to a dead session and must not be installed.
+async function bootstrapSessionToken(username, password, generation) {
   try {
     const res = await axios.post(
       `${API_BASE_URL}/api/auth/login`,
@@ -24,6 +30,13 @@ async function bootstrapSessionToken(username, password) {
       { headers: { "Content-Type": "application/json" } }
     );
     if (res.data?.success && res.data.token) {
+      if (isSessionStale(generation)) return;
+      // Mirror useAuth.handleLogin: a fresh urql+graphql-ws pair and a fresh
+      // cache generation before installing credentials, so nothing in flight
+      // from the pre-login (anonymous bootstrap) window can be deduplicated
+      // into, or pass staleness guards against, this session.
+      resetGraphQLClient();
+      clearAllCaches();
       localStorage.setItem("authToken", res.data.token);
       if (res.data.role) localStorage.setItem("userRole", res.data.role);
       if (res.data.instanceAdmin !== undefined) {
@@ -57,6 +70,11 @@ export function useUserCreation({
 
     setImporting(true);
     setError("");
+
+    // Captured before the create request: the bootstrap login below installs
+    // credentials, so it must know whether the session it belongs to is still
+    // the live one by the time the request lands.
+    const generation = getSessionGeneration();
 
     try {
       const createAxios = axios.create({
@@ -170,7 +188,7 @@ export function useUserCreation({
         // session yet, log in with the credentials just set so subsequent
         // member imports in this wizard carry an authenticated token.
         if (isInstanceAdmin && !localStorage.getItem("authToken")) {
-          await bootstrapSessionToken(username, password);
+          await bootstrapSessionToken(username, password, generation);
         }
         setImportedUsers((prev) => [...prev, username]);
         return { success: true, imported: true, username };

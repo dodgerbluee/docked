@@ -7,6 +7,7 @@ import axios from "axios";
 import { API_BASE_URL } from "../../../../utils/api";
 import { graphqlClient } from "../../../../graphql/client";
 import { uploadGraphQL } from "../../../../graphql/upload";
+import { getSessionGeneration, isSessionStale } from "../../../../utils/cacheRegistry";
 import { UPLOAD_AVATAR_MUTATION, DELETE_AVATAR_MUTATION } from "../../../../graphql/queries";
 
 /**
@@ -37,12 +38,21 @@ export const useAvatarUpload = ({
     setAvatarUploading(true);
     setAvatarError("");
 
+    // One generation spans the whole crop → blob → upload chain:
+    // uploadGraphQL reads the CURRENT token from localStorage at call time,
+    // so a crop started by a dead session must not upload into the next
+    // account, and a dead session's completion must not call back into App.
+    const generation = getSessionGeneration();
+
     try {
       const response = await fetch(croppedImageUrl);
       const blob = await response.blob();
       const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
 
+      if (isSessionStale(generation)) return; // session ended mid-crop: not our account
+
       const data = await uploadGraphQL(UPLOAD_AVATAR_MUTATION, { file: null }, { file });
+      if (isSessionStale(generation)) return; // session ended mid-upload: drop the completion
       const result = data.uploadAvatar;
 
       if (result?.success) {
@@ -50,6 +60,7 @@ export const useAvatarUpload = ({
         if (onAvatarChange) {
           await onAvatarChange(avatarUrl);
         }
+        if (isSessionStale(generation)) return;
 
         // Refresh the recent list from the (still REST) recent-avatars endpoint
         let serverRecentAvatars = [];
@@ -59,6 +70,7 @@ export const useAvatarUpload = ({
         } catch (err) {
           console.error("Error refreshing recent avatars:", err);
         }
+        if (isSessionStale(generation)) return;
         if (onRecentAvatarsChange) {
           onRecentAvatarsChange(serverRecentAvatars);
         }
@@ -70,6 +82,7 @@ export const useAvatarUpload = ({
 
         if (onAvatarUploaded) {
           setTimeout(() => {
+            if (isSessionStale(generation)) return;
             onAvatarUploaded();
           }, 200);
         }
@@ -86,7 +99,9 @@ export const useAvatarUpload = ({
   const handleDeleteAvatar = async () => {
     try {
       setAvatarError("");
+      const generation = getSessionGeneration();
       const result = await graphqlClient.mutation(DELETE_AVATAR_MUTATION).toPromise();
+      if (isSessionStale(generation)) return; // dead session: don't touch the new one's state
 
       if (!result.error && result.data?.deleteAvatar?.success) {
         if (avatar && avatar.startsWith("blob:")) {
@@ -96,6 +111,7 @@ export const useAvatarUpload = ({
         if (onAvatarChange) {
           await onAvatarChange("/img/default-avatar.jpg");
         }
+        if (isSessionStale(generation)) return;
 
         if (onRecentAvatarsChange) {
           onRecentAvatarsChange([]);
@@ -105,6 +121,7 @@ export const useAvatarUpload = ({
 
         if (onAvatarUploaded) {
           setTimeout(() => {
+            if (isSessionStale(generation)) return;
             onAvatarUploaded();
           }, 200);
         }

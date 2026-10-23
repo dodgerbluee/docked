@@ -48,6 +48,13 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // `status` in this closure is the value from before the stream started
+    // (IDLE), so terminal state has to be tracked locally inside the routine.
+    // `cancelled` marks the run retired — the modal closed or the runner/op
+    // target changed — so late chunks must not touch state.
+    let sawTerminalEvent = false;
+    let cancelled = false;
+
     (async () => {
       try {
         const resp = await fetch(url, {
@@ -71,6 +78,7 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (cancelled) return;
           buffer += decoder.decode(value, { stream: true });
 
           const parts = buffer.split("\n\n");
@@ -85,6 +93,7 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
             if (eventLine === "log") {
               appendLog(dataLine);
             } else if (eventLine === "done") {
+              sawTerminalEvent = true;
               try {
                 const payload = JSON.parse(dataLine);
                 setExitCode(payload.exitCode ?? 0);
@@ -96,6 +105,7 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
                 setStatus(STATUS.DONE);
               }
             } else if (eventLine === "error") {
+              sawTerminalEvent = true;
               try {
                 const payload = JSON.parse(dataLine);
                 setErrorMsg(payload.message || dataLine);
@@ -108,21 +118,24 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
           }
         }
 
-        // Stream ended without explicit done
-        if (status === STATUS.RUNNING) {
+        if (cancelled) return;
+
+        // Stream ended without an explicit done/error event: the operation is
+        // over either way, so close out instead of staying Running forever.
+        if (!sawTerminalEvent) {
           setStatus(STATUS.DONE);
         }
       } catch (err) {
-        if (err.name === "AbortError") return;
+        if (err.name === "AbortError" || cancelled) return;
         setErrorMsg(err.message || "Connection failed");
         setStatus(STATUS.ERROR);
       }
     })();
 
     return () => {
+      cancelled = true;
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, runnerId, appName, operationName, appendLog]);
 
   // Reset on close

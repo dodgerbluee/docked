@@ -9,11 +9,20 @@ import {
   TRACKED_APP_UPGRADE_HISTORY_QUERY,
   TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY,
 } from "../graphql/queries";
+import { registerCacheClear, getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
 let cachedHistory = null;
 let cachedStats = null;
+
+// Holds one user's upgrade history; must not survive logout into the next
+// session in the same tab.
+export function clearTrackedAppUpgradeHistoryCache() {
+  cachedHistory = null;
+  cachedStats = null;
+}
+registerCacheClear(clearTrackedAppUpgradeHistoryCache);
 
 /** Maps a graph TrackedAppUpgradeRecord to the snake_case shape UI components expect. */
 function mapRecord(r) {
@@ -45,6 +54,7 @@ export function useTrackedAppUpgradeHistory() {
   const mountedRef = useRef(true);
 
   const fetchHistory = useCallback(async (options = {}) => {
+    const gen = getSessionGeneration();
     try {
       if (cachedHistory === null) {
         setLoading(true);
@@ -64,6 +74,9 @@ export function useTrackedAppUpgradeHistory() {
         })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      // Logout mid-flight: this response belongs to the dead session
+      // (possibly another user's history); never repopulate state or cache.
+      if (isSessionStale(gen)) return;
 
       if (mountedRef.current) {
         const rows = (data?.trackedAppUpgradeHistory || []).map(mapRecord);
@@ -71,22 +84,25 @@ export function useTrackedAppUpgradeHistory() {
         setHistory(rows);
       }
     } catch (err) {
+      if (isSessionStale(gen)) return;
       if (mountedRef.current) {
         setError(err.message || "Failed to fetch upgrade history");
       }
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && !isSessionStale(gen)) {
         setLoading(false);
       }
     }
   }, []);
 
   const fetchStats = useCallback(async () => {
+    const gen = getSessionGeneration();
     try {
       const { data, error: gqlError } = await graphqlClient
         .query(TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY)
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      if (isSessionStale(gen)) return;
 
       if (mountedRef.current) {
         const s = data?.trackedAppUpgradeHistoryStats || null;

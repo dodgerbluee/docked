@@ -5,6 +5,7 @@
 import { useCallback } from "react";
 import { graphqlClient } from "../../../graphql/client";
 import { CLEAR_CONTAINER_DATA_MUTATION } from "../../../graphql/queries";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /**
  * Hook for container data clearing operations
@@ -37,12 +38,18 @@ export const useContainerClear = ({
 }) => {
   const handleClear = useCallback(
     async (skipConfirmation = false) => {
+      // Capture the session generation before the mutation: a login/logout
+      // mid-flight must not let this completion empty the NEW session's
+      // state, rewrite its storage, or kick off another fetch for it.
+      const gen = getSessionGeneration();
+      const stale = () => isSessionStale(gen);
       try {
         setClearingState(true);
         setError(null);
 
         const result = await graphqlClient.mutation(CLEAR_CONTAINER_DATA_MUTATION, {}).toPromise();
         if (result.error) throw result.error;
+        if (stale()) return;
 
         const clearFrontendState = () => {
           setContainers([]);
@@ -60,17 +67,20 @@ export const useContainerClear = ({
         clearFrontendState();
         try {
           await fetchContainers(true, null, true);
+          if (stale()) return;
         } catch (fetchError) {
+          if (stale()) return;
           console.error("Error fetching container data:", fetchError);
           setError(fetchError?.message || "Failed to fetch container data after clearing cache");
         } finally {
-          setClearingState(false);
+          if (!stale()) setClearingState(false);
         }
       } catch (err) {
+        if (stale()) return;
         console.error("Error clearing cache:", err);
         setError(err?.message || "Failed to clear cache");
       } finally {
-        setClearingState(false);
+        if (!stale()) setClearingState(false);
       }
     },
     [

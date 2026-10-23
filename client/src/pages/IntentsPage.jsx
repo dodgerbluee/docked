@@ -193,7 +193,10 @@ function IntentsPage({ containers = [], sourceInstances = [], runners = [] }) {
       />
 
       {/* Execution Detail Modal (standalone — e.g. after dry run) */}
+      {/* key: force a fresh instance per target so a response for the previous
+          execution/intent can never populate the one being shown now. */}
       <ExecutionDetailModal
+        key={`exec-${detailExecutionId ?? "none"}`}
         isOpen={showDetailModal}
         onClose={handleCloseDetailModal}
         executionId={detailExecutionId}
@@ -202,6 +205,7 @@ function IntentsPage({ containers = [], sourceInstances = [], runners = [] }) {
 
       {/* Intent Detail Modal */}
       <IntentDetailModal
+        key={`intent-${detailIntent?.id ?? "none"}`}
         intent={detailIntent}
         isOpen={!!detailIntent}
         onClose={() => {

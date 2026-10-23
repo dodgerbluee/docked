@@ -396,6 +396,10 @@ export default function AppsPage({
   const [tasksOpen, setTasksOpen] = useState(false); // unified tasks modal open
   const [activeTaskId, setActiveTaskId] = useState(null); // task selected in the modal
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
+  // Runner-update poll timers, tracked so unmount can cancel a chain that was
+  // scheduled after an await — the mount cleanup would already have run by then.
+  const updateTimersRef = useRef(new Set());
+  const mountedRef = useRef(true);
   const { tasks, startTask, runningKeys, dismissTask, dismissAll } = useOperationTasks();
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
@@ -438,6 +442,9 @@ export default function AppsPage({
       try {
         const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
         if (isSessionStale(gen)) return; // logout mid-flight: not this session's data
+        // A GraphQL error must not be mistaken for "no runners": committing
+        // and caching an empty list would blank the page for the whole session.
+        if (runnersResult.error) throw new Error(runnersResult.error.message);
         const list = (runnersResult.data?.runners || [])
           .map(mapGraphRunner)
           .filter((r) => r.enabled !== 0);
@@ -596,11 +603,44 @@ export default function AppsPage({
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
 
+  // Track every update-poll timer so unmount can cancel the chain, and stop
+  // firing health mutations / refreshes once this instance is gone.
+  useEffect(() => {
+    mountedRef.current = true;
+    const timers = updateTimersRef.current;
+    return () => {
+      mountedRef.current = false;
+      timers.forEach(clearTimeout);
+      timers.clear();
+    };
+  }, []);
+
+  const scheduleTimer = useCallback((fn, ms) => {
+    const id = setTimeout(() => {
+      updateTimersRef.current.delete(id);
+      fn();
+    }, ms);
+    updateTimersRef.current.add(id);
+  }, []);
+
   const handleUpdate = useCallback(
     async (runner) => {
+      // Captured before the first mutation: the poll below keeps firing health
+      // mutations for up to 90s, and a timer started by a dead session must not
+      // keep pinging (or refreshing) under whoever is signed in now.
+      const gen = getSessionGeneration();
+      const clearUpdating = () =>
+        setUpdatingRunners((prev) => {
+          const next = new Set(prev);
+          next.delete(runner.id);
+          return next;
+        });
       setUpdatingRunners((prev) => new Set(prev).add(runner.id));
       try {
         await updateRunnerBinary(runner.id);
+        // Unmounted or logged out mid-flight: creating the poll chain here
+        // would outlive the unmount cleanup, which already ran.
+        if (!mountedRef.current || isSessionStale(gen)) return;
 
         // Poll health until the runner comes back with the new version (up to 90s)
         const targetVersion = runner.latest_version?.replace(/^v/, "");
@@ -608,46 +648,37 @@ export default function AppsPage({
         const maxAttempts = 30; // 30 × 3s = 90s
 
         const poll = async () => {
+          if (!mountedRef.current || isSessionStale(gen)) return;
           if (attempts >= maxAttempts) {
-            setUpdatingRunners((prev) => {
-              const next = new Set(prev);
-              next.delete(runner.id);
-              return next;
-            });
+            clearUpdating();
             fetchAll(true);
             return;
           }
           attempts++;
           try {
             const data = await checkRunnerHealth(runner.id);
+            if (!mountedRef.current || isSessionStale(gen)) return;
             const currentVersion = data.health?.version?.replace(/^v/, "");
             if (data.online && currentVersion && currentVersion === targetVersion) {
-              setUpdatingRunners((prev) => {
-                const next = new Set(prev);
-                next.delete(runner.id);
-                return next;
-              });
+              clearUpdating();
               fetchAll(true);
               return;
             }
           } catch {
             // Runner still restarting — keep polling
+            if (!mountedRef.current || isSessionStale(gen)) return;
           }
-          setTimeout(poll, 3000);
+          scheduleTimer(poll, 3000);
         };
 
         // Give the runner a few seconds to begin the update before polling
-        setTimeout(poll, 5000);
+        scheduleTimer(poll, 5000);
       } catch (err) {
         console.error("AppsPage: runner update failed", err);
-        setUpdatingRunners((prev) => {
-          const next = new Set(prev);
-          next.delete(runner.id);
-          return next;
-        });
+        if (mountedRef.current && !isSessionStale(gen)) clearUpdating();
       }
     },
-    [fetchAll]
+    [fetchAll, scheduleTimer]
   );
 
   /* ── Render helpers ────────────────────────────────────────────────── */

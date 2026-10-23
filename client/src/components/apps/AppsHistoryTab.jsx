@@ -4,7 +4,7 @@
  * Mirrors the UpgradeHistoryTab pattern from the Containers page.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import {
@@ -18,12 +18,24 @@ import {
   Server,
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
+import {
+  registerCacheClear,
+  getSessionGeneration,
+  isSessionStale,
+} from "../../utils/cacheRegistry";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import styles from "./AppsHistoryTab.module.css";
 
 // Module-level cache – survives unmount/remount so the history view
 // renders instantly on re-navigation instead of showing a spinner.
 let cachedHistoryByRunner = null;
+
+// Holds one user's run history; must not survive logout into the next
+// session in the same tab.
+export function clearAppsHistoryCache() {
+  cachedHistoryByRunner = null;
+}
+registerCacheClear(clearAppsHistoryCache);
 
 function formatDate(ts) {
   if (!ts) return "—";
@@ -62,9 +74,11 @@ export default function AppsHistoryTab({ runners }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
+  const mountedRef = useRef(true);
 
   const fetchAll = useCallback(
     async (isRefresh = false) => {
+      const gen = getSessionGeneration();
       if (!isRefresh) setLoading(true);
       const results = await Promise.allSettled(
         runners.map((r) =>
@@ -73,6 +87,10 @@ export default function AppsHistoryTab({ runners }) {
             .then(({ data }) => ({ runnerId: r.id, records: data.history || [] }))
         )
       );
+      // Logout mid-flight or unmounted: these rows belong to a dead session
+      // (possibly another user's runs) and must not repopulate state or the
+      // module cache the next user would be served from.
+      if (isSessionStale(gen) || !mountedRef.current) return;
       const map = {};
       for (const result of results) {
         if (result.status === "fulfilled") {
@@ -87,8 +105,12 @@ export default function AppsHistoryTab({ runners }) {
   );
 
   useEffect(() => {
+    mountedRef.current = true;
     if (runners.length > 0) fetchAll(hasCachedData);
     else setLoading(false);
+    return () => {
+      mountedRef.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hasCachedData is captured once at mount
   }, [fetchAll, runners.length]);
 

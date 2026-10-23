@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { validateStep } from "../utils/userImportValidators";
 import { graphqlClient } from "../../../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 import { TEST_DISCORD_WEBHOOK_URL_MUTATION } from "../../../graphql/queries";
 
 // Step types
@@ -61,12 +62,20 @@ export function useCredentialValidation({
       ) {
         const webhooks = currentUser.discordWebhooks || [];
         if (webhooks.length > 0) {
+          // Each test mutation runs on the CURRENT client (it re-reads the
+          // token at call time), so a session change partway through the loop
+          // must stop the remaining tests: they would run with the new
+          // session's credentials.
+          const generation = getSessionGeneration();
           for (let i = 0; i < creds.discordWebhooks.length; i++) {
             const cred = creds.discordWebhooks[i];
             const webhook = webhooks[i];
 
             // Only validate if webhook URL is provided
             if (cred.webhookUrl) {
+              if (isSessionStale(generation)) {
+                return { success: false, error: "Session ended. Please log in again." };
+              }
               try {
                 const result = await graphqlClient
                   .mutation(TEST_DISCORD_WEBHOOK_URL_MUTATION, { webhookUrl: cred.webhookUrl })

@@ -28,16 +28,12 @@ import { registerCacheClear, getSessionGeneration, isSessionStale } from "../uti
 // first load; subsequent hook instances initialise from cache without API calls.
 let cachedTrackedApps = null;
 let cachedLastScanTime = null;
-// Module-level flag to prevent duplicate fetches across hook instances
-// (e.g. App.jsx and TrackedAppsPage both call useTrackedApps)
-let initialFetchStarted = false;
 
 // Module-level caches hold one user's tracked apps; they must not survive
 // logout into the next session in the same tab.
 export function clearTrackedAppsCache() {
   cachedTrackedApps = null;
   cachedLastScanTime = null;
-  initialFetchStarted = false;
 }
 registerCacheClear(clearTrackedAppsCache);
 
@@ -97,13 +93,13 @@ export function useTrackedApps(isAuthenticated, authToken) {
       if (!hasAuth || !effectiveToken) {
         return;
       }
+      const gen = getSessionGeneration();
       try {
         // Only show loading state if explicitly requested (e.g., user clicks "Check for Updates")
         // Don't show loading on initial mount - just populate data when it arrives
         if (showLoading) {
           setIsLoading(true);
         }
-        const gen = getSessionGeneration();
         const result = await graphqlClient.query(TRACKED_APPS_QUERY).toPromise();
         if (result.error) throw new Error(result.error.message);
         // Logout mid-flight: this response belongs to the dead session
@@ -142,9 +138,10 @@ export function useTrackedApps(isAuthenticated, authToken) {
           }
         }
       } catch (err) {
+        if (isSessionStale(gen)) return;
         console.error("Error fetching tracked apps:", err);
       } finally {
-        if (mountedRef.current) {
+        if (mountedRef.current && !isSessionStale(gen)) {
           setIsLoading(false);
         }
       }
@@ -152,18 +149,20 @@ export function useTrackedApps(isAuthenticated, authToken) {
     [hasAuth, effectiveToken]
   );
 
-  // Fetch tracked apps on mount (only if authenticated, only once across all instances)
+  // Fetch tracked apps on mount. Every instance fetches for itself: the module
+  // cache only seeds useState at mount time, so an instance that mounts while
+  // another instance's request is still in flight would otherwise never receive
+  // a result. urql deduplicates identical in-flight queries on one client, so
+  // the extra call costs nothing (a module boolean is not state sync).
   const initialFetchDoneRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
-    if (hasAuth && effectiveToken && !initialFetchDoneRef.current && !initialFetchStarted) {
+    if (hasAuth && effectiveToken && !initialFetchDoneRef.current) {
       initialFetchDoneRef.current = true;
-      initialFetchStarted = true;
       fetchTrackedApps();
     }
-    // Reset module-level flag on logout so re-login triggers a fresh fetch
+    // Reset on logout so re-login triggers a fresh fetch
     if (!hasAuth) {
-      initialFetchStarted = false;
       initialFetchDoneRef.current = false;
       cachedTrackedApps = null;
       cachedLastScanTime = null;
@@ -176,6 +175,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
   const handleTrackedAppModalSuccess = useCallback(
     async (appId) => {
+      const gen = getSessionGeneration();
       // If we have an app ID, check the version first, then refresh once
       if (appId) {
         try {
@@ -186,6 +186,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
           // Silently fail - version check is not critical, just a nice-to-have
           console.error("Error checking version for tracked app:", err);
         }
+        if (isSessionStale(gen)) return; // logout mid-flight: no follow-up request
       }
 
       // Single refresh after all mutations are done
@@ -360,26 +361,36 @@ export function useTrackedApps(isAuthenticated, authToken) {
   }, []);
 
   const handleCheckTrackedAppsUpdates = useCallback(async () => {
+    const gen = getSessionGeneration();
     setCheckingUpdates(true);
     setTrackedAppError("");
     try {
       const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
+      // Logout mid-flight: stop the chain, the next mutation would run under
+      // whoever is signed in now.
+      if (isSessionStale(gen)) return;
       if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         await fetchTrackedApps({ showRefreshing: true });
+        if (isSessionStale(gen)) return;
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately
         setTrackedAppSuccess("success");
         setTimeout(() => setTrackedAppSuccess(""), 100);
       }
     } catch (err) {
+      if (isSessionStale(gen)) return;
       setTrackedAppError(err.message || "Failed to check for updates");
     } finally {
-      setCheckingUpdates(false);
+      if (!isSessionStale(gen)) setCheckingUpdates(false);
     }
   }, [fetchTrackedApps]);
 
   // Batch handler for tracked apps updates check
   const handleBatchTrackedAppsCheck = useCallback(async () => {
+    // Captured before the first mutation: every step of this chain must be
+    // abandoned if the session ends, or a dead session's batch run gets
+    // driven under the current user's credentials.
+    const gen = getSessionGeneration();
     let runId = null;
     const logs = [];
 
@@ -396,6 +407,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
       const runResult = await graphqlClient
         .mutation(CREATE_BATCH_RUN_MUTATION, { jobType: "TRACKED_APPS_CHECK" })
         .toPromise();
+      if (isSessionStale(gen)) return;
       if (runResult.error || !runResult.data?.createBatchRun?.id) {
         throw new Error(runResult.error?.message || "Failed to create batch run");
       }
@@ -408,12 +420,14 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // Start the check operation
       log("Initiating tracked apps update check...");
       const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
+      if (isSessionStale(gen)) return;
 
       if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         log("Tracked apps check completed successfully");
 
         // Fetch updated tracked apps to get accurate counts and update UI in one call
         await fetchTrackedApps(false);
+        if (isSessionStale(gen)) return;
         const updatedApps = cachedTrackedApps || [];
         const appsChecked = updatedApps.length;
         const appsWithUpdates = updatedApps.filter((app) => Boolean(app.hasUpdate)).length;
@@ -432,6 +446,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
               logs: logs.join("\n"),
             })
             .toPromise();
+          if (isSessionStale(gen)) return;
           log(`Batch run ${runId} marked as completed`);
         }
       } else {
@@ -447,7 +462,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
       console.error("Error checking tracked apps:", err);
 
       // Update batch run as failed
-      if (runId) {
+      if (runId && !isSessionStale(gen)) {
         try {
           await graphqlClient
             .mutation(UPDATE_BATCH_RUN_MUTATION, {
@@ -463,7 +478,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
         }
       }
     } finally {
-      setCheckingUpdates(false);
+      if (!isSessionStale(gen)) setCheckingUpdates(false);
       log("Tracked apps batch check process finished (success or failure)");
     }
   }, [fetchTrackedApps]);

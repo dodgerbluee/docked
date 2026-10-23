@@ -14,6 +14,7 @@ import { fetchContainersGraphql } from "../../../graphql/containers";
 import { runContainerSync } from "../../../graphql/sync";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
 import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 
 /**
  * Hook for batch trigger operations
@@ -38,6 +39,11 @@ export const useBatchTriggers = ({
     containersData;
 
   const handleBatchPull = useCallback(async () => {
+    // Session generation captured before any async work: every continuation
+    // (state writes, localStorage, follow-up fetches) must be dropped when a
+    // login/logout ends the session this pull was started in.
+    const gen = getSessionGeneration();
+    const stale = () => isSessionStale(gen);
     try {
       setPulling(true);
       setError(null);
@@ -45,11 +51,15 @@ export const useBatchTriggers = ({
       // Kick off the container sync in the Go API and wait for its batch run
       // to finish (the mutation registers a 'running' docker-hub-pull run
       // before responding, so the poll always observes the new run).
+      // runContainerSync stops polling on session change; the no-op catch
+      // keeps an early return from surfacing an unhandled rejection.
       const syncPromise = runContainerSync();
+      syncPromise.catch(() => {});
 
       // Show cached data while the registry scan works
       try {
         const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+        if (stale()) return;
         const updatedContainers = updateContainersWithPreservedState(
           apiContainers,
           successfullyUpdatedContainersRef
@@ -58,13 +68,16 @@ export const useBatchTriggers = ({
         setStacks(apiStacks);
         setDataFetched(true);
       } catch {
+        if (stale()) return;
         // Ignore cache errors
       }
 
       await syncPromise;
+      if (stale()) return;
 
       // Registry data is fresh now — refetch so hasUpdate reflects the scan
       const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+      if (stale()) return;
       const updatedContainers = updateContainersWithPreservedState(
         apiContainers,
         successfullyUpdatedContainersRef
@@ -83,13 +96,15 @@ export const useBatchTriggers = ({
 
       // Fetch unused images
       await fetchUnusedImages();
+      if (stale()) return;
     } catch (err) {
+      if (stale()) return;
       await handleDockerHubError(err, (msg) => {
-        setError(msg);
+        if (!stale()) setError(msg);
       });
       console.error("Error in batch pull:", err);
     } finally {
-      setPulling(false);
+      if (!stale()) setPulling(false);
     }
   }, [
     setPulling,
@@ -107,6 +122,12 @@ export const useBatchTriggers = ({
     let runId = null;
     const logs = [];
 
+    // Session generation guard: after a login/logout the follow-up refresh
+    // and the terminal batch-run bookkeeping mutations belong to a dead
+    // session and must not fire through the replacement session's client.
+    const gen = getSessionGeneration();
+    const stale = () => isSessionStale(gen);
+
     const log = (message) => {
       const timestamp = new Date().toISOString();
       const logEntry = `[${timestamp}] ${message}`;
@@ -119,6 +140,7 @@ export const useBatchTriggers = ({
       const runResult = await graphqlClient
         .mutation(CREATE_BATCH_RUN_MUTATION, { jobType: "TRACKED_APPS_CHECK" })
         .toPromise();
+      if (stale()) return;
       if (runResult.error || !runResult.data?.createBatchRun?.id) {
         throw new Error(runResult.error?.message || "Failed to create batch run");
       }
@@ -128,11 +150,13 @@ export const useBatchTriggers = ({
       log("🔄 Checking for tracked app updates...");
       log("Initiating tracked apps update check...");
       const result = await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATES_MUTATION).toPromise();
+      if (stale()) return;
 
       if (!result.error && result.data?.checkTrackedAppUpdates?.success) {
         log("Tracked apps check completed successfully");
 
         const updatedResponse = await graphqlClient.query(TRACKED_APPS_QUERY).toPromise();
+        if (stale()) return;
         if (updatedResponse.error || !updatedResponse.data?.trackedApps) {
           throw new Error("Failed to fetch updated tracked images");
         }
@@ -142,6 +166,7 @@ export const useBatchTriggers = ({
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         await fetchTrackedApps();
+        if (stale()) return;
 
         if (runId) {
           await graphqlClient
@@ -153,12 +178,14 @@ export const useBatchTriggers = ({
               logs: logs.join("\n"),
             })
             .toPromise();
+          if (stale()) return;
           log(`Batch run ${runId} marked as completed`);
         }
       } else {
         throw new Error(result.error?.message || "Failed to check tracked apps");
       }
     } catch (err) {
+      if (stale()) return;
       let errorMessage =
         err.response?.data?.error ||
         err.response?.data?.message ||
@@ -177,13 +204,15 @@ export const useBatchTriggers = ({
               logs: logs.join("\n"),
             })
             .toPromise();
+          if (stale()) return;
           log(`Batch run ${runId} marked as failed`);
         } catch (updateErr) {
+          if (stale()) return;
           console.error("Error updating batch run:", updateErr);
         }
       }
     } finally {
-      log("Tracked apps batch check process finished (success or failure)");
+      if (!stale()) log("Tracked apps batch check process finished (success or failure)");
     }
   }, [fetchTrackedApps]);
 

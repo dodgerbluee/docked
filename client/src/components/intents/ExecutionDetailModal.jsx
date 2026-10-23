@@ -3,7 +3,7 @@
  * Modal showing per-container results for a specific execution
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import { CheckCircle2, XCircle, SkipForward, Eye, Clock, Container } from "lucide-react";
 import Modal from "../ui/Modal";
@@ -74,12 +74,22 @@ function ExecutionDetailModal({ isOpen, onClose, executionId, fetchExecutionDeta
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // The modal is reused across openings (the parent only flips isOpen), so a
+  // detail response for the previous execution can arrive after a new one was
+  // opened. Each request remembers the id it was made for plus the open epoch
+  // that was live at the time, and drops its result when either has moved on.
+  const activeIdRef = useRef(null);
+  const openEpochRef = useRef(0);
+
   const loadDetail = useCallback(async () => {
     if (!executionId || !fetchExecutionDetail) return;
+    const id = executionId;
+    const epoch = openEpochRef.current;
     setIsLoading(true);
     setError("");
     try {
-      const result = await fetchExecutionDetail(executionId);
+      const result = await fetchExecutionDetail(id);
+      if (epoch !== openEpochRef.current || activeIdRef.current !== id) return;
       if (result.success) {
         setExecution(result.execution);
         setContainers(result.containers);
@@ -89,26 +99,33 @@ function ExecutionDetailModal({ isOpen, onClose, executionId, fetchExecutionDeta
     } catch (err) {
       // Log the error for debugging and show a generic message
       console.error("loadDetail error:", err);
-      setError("Failed to load execution detail");
+      if (epoch === openEpochRef.current && activeIdRef.current === id) {
+        setError("Failed to load execution detail");
+      }
     } finally {
-      setIsLoading(false);
+      if (epoch === openEpochRef.current && activeIdRef.current === id) {
+        setIsLoading(false);
+      }
     }
   }, [executionId, fetchExecutionDetail]);
 
   useEffect(() => {
-    if (isOpen && executionId) {
-      loadDetail();
-    }
-  }, [isOpen, executionId, loadDetail]);
-
-  // Reset state when modal closes
-  useEffect(() => {
+    openEpochRef.current += 1;
+    activeIdRef.current = isOpen ? (executionId ?? null) : null;
     if (!isOpen) {
       setExecution(null);
       setContainers([]);
       setError("");
     }
-  }, [isOpen]);
+  }, [isOpen, executionId]);
+
+  // Must run after the identity effect above so the request captures the epoch
+  // that was just opened for this execution id.
+  useEffect(() => {
+    if (isOpen && executionId) {
+      loadDetail();
+    }
+  }, [isOpen, executionId, loadDetail]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Execution Detail" size="xl" fullScreenMobile>

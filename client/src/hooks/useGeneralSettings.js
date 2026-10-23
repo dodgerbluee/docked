@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { BATCH_JOB_TYPES, DEFAULT_BATCH_CONFIG } from "../constants/settings";
 import { getErrorMessage, SUCCESS_MESSAGES } from "../utils/errorMessages";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
 import {
   USER_PREFERENCES_QUERY,
@@ -37,10 +38,14 @@ export function useGeneralSettings({
   const [batchLoading, setBatchLoading] = useState({});
 
   const fetchRefreshingTogglesEnabled = useCallback(async () => {
+    const generation = getSessionGeneration();
     try {
       const res = await graphqlClient
         .query(USER_PREFERENCES_QUERY, undefined, { requestPolicy: "network-only" })
         .toPromise();
+      // A response that lands after logout belongs to a dead session (it can
+      // carry another user's preference) — drop it.
+      if (isSessionStale(generation)) return;
       if (res.data?.userPreferences) {
         const fetchedEnabled = res.data.userPreferences.refreshingTogglesEnabled || false;
         setRefreshingTogglesEnabled(fetchedEnabled);
@@ -52,6 +57,7 @@ export function useGeneralSettings({
       }
     } catch (err) {
       console.error("Error fetching refreshing toggles enabled:", err);
+      if (isSessionStale(generation)) return;
       const defaultEnabled = false;
       setRefreshingTogglesEnabled(defaultEnabled);
       setLocalRefreshingTogglesEnabled(defaultEnabled);
@@ -59,8 +65,10 @@ export function useGeneralSettings({
   }, []);
 
   const fetchBatchConfig = useCallback(async () => {
+    const generation = getSessionGeneration();
     try {
       const result = await graphqlClient.query(BATCH_CONFIGS_QUERY).toPromise();
+      if (isSessionStale(generation)) return;
       if (!result.error && result.data?.batchConfigs) {
         const configs = {};
         result.data.batchConfigs.forEach((c) => {
@@ -144,6 +152,7 @@ export function useGeneralSettings({
     setGeneralSettingsSaving(true);
     setGeneralSettingsSuccess("");
     isSavingRef.current = true;
+    const generation = getSessionGeneration();
     const errors = [];
 
     try {
@@ -159,6 +168,11 @@ export function useGeneralSettings({
           },
         })
         .toPromise();
+
+      // The save can finish after logout. Applying it would push the previous
+      // user's theme into the replacement session and broadcast a global
+      // generalSettingsSaved event that the new session's listeners act on.
+      if (isSessionStale(generation)) return;
 
       if (res.error) {
         errors.push(res.error.message || "Failed to save settings");
@@ -207,6 +221,7 @@ export function useGeneralSettings({
 
       // Use provided configs or fall back to current batchConfigs
       const configs = configsToSubmit || batchConfigs;
+      const generation = getSessionGeneration();
 
       try {
         await Promise.all(
@@ -238,6 +253,11 @@ export function useGeneralSettings({
             }
           })
         );
+
+        // Mutations can complete after logout; the follow-up reads and the
+        // parent's refresh callback must not fire inside the replacement
+        // session (they would carry the previous user's settings).
+        if (isSessionStale(generation)) return;
 
         // Re-read the canonical configs from the server
         await fetchBatchConfig();

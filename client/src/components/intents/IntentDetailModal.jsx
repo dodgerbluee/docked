@@ -7,7 +7,7 @@
  *   - History: execution history with drill-down to per-container results
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import cronstrue from "cronstrue";
 import {
@@ -528,14 +528,31 @@ function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
   const [detailExec, setDetailExec] = useState(null);
   const [detailContainers, setDetailContainers] = useState([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  // This tab stays mounted while the user moves between executions, so a slow
+  // detail response for the previous execution must not render under the one
+  // that is currently selected.
+  const detailSeqRef = useRef(0);
+
+  // The parent can also swap the intent out from under this tab. Any detail
+  // request for the previous intent's execution is retired here so its
+  // response can never render as part of the new intent's history.
+  useEffect(() => {
+    detailSeqRef.current += 1;
+    setSelectedExecId(null);
+    setDetailExec(null);
+    setDetailContainers([]);
+  }, [intent?.id]);
 
   const handleViewDetail = useCallback(
     async (executionId) => {
       if (!fetchExecutionDetail) return;
+      const seq = detailSeqRef.current + 1;
+      detailSeqRef.current = seq;
       setSelectedExecId(executionId);
       setLoadingDetail(true);
       try {
         const result = await fetchExecutionDetail(executionId);
+        if (seq !== detailSeqRef.current) return;
         if (result.success) {
           setDetailExec(result.execution);
           setDetailContainers(result.containers);
@@ -543,13 +560,17 @@ function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
       } catch (err) {
         console.error("Failed to load execution detail:", err);
       } finally {
-        setLoadingDetail(false);
+        if (seq === detailSeqRef.current) {
+          setLoadingDetail(false);
+        }
       }
     },
     [fetchExecutionDetail]
   );
 
   const handleBack = useCallback(() => {
+    // Retire any detail request that is still in flight for the old execution.
+    detailSeqRef.current += 1;
     setSelectedExecId(null);
     setDetailExec(null);
     setDetailContainers([]);
@@ -562,7 +583,17 @@ function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
   // Detail view
   if (selectedExecId) {
     if (loadingDetail) {
-      return <LoadingSpinner size="sm" message="Loading execution detail..." />;
+      // Keep the way out visible: a slow detail request must not trap the
+      // user inside a spinner with no way back to the list.
+      return (
+        <div>
+          <button type="button" className={styles.backButton} onClick={handleBack}>
+            <ChevronLeft size={16} />
+            <span>Back to History</span>
+          </button>
+          <LoadingSpinner size="sm" message="Loading execution detail..." />
+        </div>
+      );
     }
 
     if (!detailExec) {
@@ -795,8 +826,18 @@ function IntentDetailModal({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingExecutions, setLoadingExecutions] = useState(false);
 
+  // The modal component itself is never unmounted between openings, so a
+  // preview/history response for the intent that was open before can land
+  // while a different intent is showing. Requests are keyed by the intent id
+  // they were made for plus an open-epoch counter that bumps whenever the
+  // target changes; results from a retired target are dropped.
+  const activeIntentIdRef = useRef(null);
+  const openEpochRef = useRef(0);
+
   // Reset state when modal opens with a new intent
   useEffect(() => {
+    openEpochRef.current += 1;
+    activeIntentIdRef.current = isOpen ? (intent?.id ?? null) : null;
     if (isOpen) {
       setActiveTab(initialTab || TAB_CONFIG);
       setPreviewData(null);
@@ -804,33 +845,47 @@ function IntentDetailModal({
     }
   }, [isOpen, intent?.id, initialTab]);
 
+  const isRequestCurrent = useCallback((intentId, epoch) => {
+    return epoch === openEpochRef.current && activeIntentIdRef.current === intentId;
+  }, []);
+
   const loadPreview = useCallback(async () => {
     if (!intent?.id) return;
+    const intentId = intent.id;
+    const epoch = openEpochRef.current;
     setLoadingPreview(true);
     try {
-      const data = await fetchIntentPreview(intent.id);
+      const data = await fetchIntentPreview(intentId);
+      if (!isRequestCurrent(intentId, epoch)) return;
       setPreviewData(data);
     } catch (error) {
       console.error("Failed to load preview:", error);
     } finally {
-      setLoadingPreview(false);
+      if (isRequestCurrent(intentId, epoch)) {
+        setLoadingPreview(false);
+      }
     }
-  }, [intent?.id, fetchIntentPreview]);
+  }, [intent?.id, fetchIntentPreview, isRequestCurrent]);
 
   const loadExecutions = useCallback(async () => {
     if (!intent?.id) return;
+    const intentId = intent.id;
+    const epoch = openEpochRef.current;
     setLoadingExecutions(true);
     try {
-      const result = await fetchExecutions(intent.id, 25);
+      const result = await fetchExecutions(intentId, 25);
+      if (!isRequestCurrent(intentId, epoch)) return;
       if (result.success) {
         setExecutions(result.executions);
       }
     } catch (error) {
       console.error("Failed to load executions:", error);
     } finally {
-      setLoadingExecutions(false);
+      if (isRequestCurrent(intentId, epoch)) {
+        setLoadingExecutions(false);
+      }
     }
-  }, [intent?.id, fetchExecutions]);
+  }, [intent?.id, fetchExecutions, isRequestCurrent]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -857,6 +912,7 @@ function IntentDetailModal({
       case TAB_HISTORY:
         return (
           <HistoryTab
+            key={intent?.id ?? "none"}
             intent={intent}
             executions={executions}
             loading={loadingExecutions}

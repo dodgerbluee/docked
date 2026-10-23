@@ -11,6 +11,7 @@ import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
 import { graphqlClient } from "../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../utils/cacheRegistry";
 import { CREATE_TRACKED_APP_MUTATION, UPDATE_TRACKED_APP_MUTATION } from "../graphql/queries";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedAppModal.module.css";
@@ -147,6 +148,7 @@ function AddTrackedAppModal({
       }
 
       let result;
+      const generation = getSessionGeneration();
       if (initialData) {
         result = await graphqlClient
           .mutation(UPDATE_TRACKED_APP_MUTATION, { id: initialData.id, input })
@@ -157,6 +159,14 @@ function AddTrackedAppModal({
 
       const savedApp = result.data?.updateTrackedApp || result.data?.createTrackedApp;
       if (!result.error && savedApp) {
+        // The save can complete after logout. onSuccess() chains straight into
+        // the post-create version check, so it must not run once this session
+        // is dead — its follow-up mutations would land in the replacement one.
+        if (isSessionStale(generation)) {
+          setLoading(false);
+          return;
+        }
+
         // Pass the app ID to onSuccess so it can check the version
         const imageId = savedApp.id || initialData?.id;
 

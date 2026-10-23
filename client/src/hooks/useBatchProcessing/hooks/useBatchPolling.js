@@ -7,6 +7,7 @@ import { parseUTCTimestamp } from "../../../utils/formatters";
 import { fetchLatestRunsByJobType } from "../../batchRunsCache";
 import { isBackendUp } from "../../../utils/backendStatus";
 import { graphqlClient } from "../../../graphql/client";
+import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 import {
   INTENT_EXECUTIONS_QUERY,
   BATCH_JOB_PROGRESS_SUBSCRIPTION,
@@ -54,6 +55,12 @@ export const useBatchPolling = ({
     const dockerHubEnabled = batchConfig["docker-hub-pull"]?.enabled || false;
     const trackedAppsEnabled = batchConfig["tracked-apps-check"]?.enabled || false;
 
+    // Capture the session generation for this effect's lifetime: a login/logout
+    // mid-flight makes every continuation below (localStorage writes, follow-up
+    // fetches) belong to a dead session, and the interval/subscriptions of the
+    // dead effect must not keep firing through the new session's client.
+    const gen = getSessionGeneration();
+
     const checkBatchRuns = async () => {
       const isFirstCheck = isFirstCheckRef.current;
       if (isFirstCheck) {
@@ -62,6 +69,7 @@ export const useBatchPolling = ({
 
       try {
         const runs = await fetchLatestRunsByJobType();
+        if (isSessionStale(gen)) return;
         if (runs) {
           // Check Docker Hub pull batch run (only if enabled)
           if (dockerHubEnabled) {
@@ -148,6 +156,7 @@ export const useBatchPolling = ({
             const execResult = await graphqlClient
               .query(INTENT_EXECUTIONS_QUERY, { first: 1 })
               .toPromise();
+            if (isSessionStale(gen)) return;
             const executions = (execResult.data?.intentExecutions?.items || []).map((e) => ({
               id: Number(e.id),
               status: e.status?.toLowerCase(),
@@ -188,6 +197,7 @@ export const useBatchPolling = ({
       checkBatchRuns();
     }
     const interval = setInterval(() => {
+      if (isSessionStale(gen)) return;
       if (document.visibilityState === "visible" && isBackendUp()) {
         checkBatchRuns();
       }
@@ -202,10 +212,14 @@ export const useBatchPolling = ({
   useEffect(() => {
     if (!isAuthenticated || !authToken) return undefined;
 
+    // Same guard as the poll: an event that lands after a session change must
+    // not write the new session's lastPullTime/storage or trigger its fetches.
+    const gen = getSessionGeneration();
     const subs = [];
 
     subs.push(
       graphqlClient.subscription(BATCH_JOB_PROGRESS_SUBSCRIPTION).subscribe(({ data }) => {
+        if (isSessionStale(gen)) return;
         const run = data?.batchJobProgress;
         if (!run) return;
         const status = (run.status || "").toLowerCase();
@@ -226,6 +240,7 @@ export const useBatchPolling = ({
 
     subs.push(
       graphqlClient.subscription(INTENT_EXECUTION_PROGRESS_SUBSCRIPTION).subscribe(({ data }) => {
+        if (isSessionStale(gen)) return;
         const exec = data?.intentExecutionProgress;
         if (!exec || !fetchContainers) return;
         const status = (exec.status || "").toLowerCase();
@@ -237,6 +252,7 @@ export const useBatchPolling = ({
 
     subs.push(
       graphqlClient.subscription(CONTAINERS_UPDATED_SUBSCRIPTION).subscribe(() => {
+        if (isSessionStale(gen)) return;
         if (fetchContainers) fetchContainers(false);
       })
     );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
@@ -19,26 +19,50 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [saving, setSaving] = useState(false);
 
+  // The modal stays mounted while `token` changes (the parent only flips
+  // isOpen), so a response for the previous token can land after the new
+  // token's requests have already started. Every request captures the token
+  // it was made for plus the request sequence number that was live when it
+  // started, and drops its result once either one has moved on — otherwise
+  // the old token's container list/selection would populate the new token,
+  // and saving would submit that stale selection under the new token's id.
+  const tokenKey = token ? String(token.id) : null;
+  const activeTokenKeyRef = useRef(tokenKey);
+  const requestSeqRef = useRef(0);
+
+  const isRequestCurrent = useCallback((key, seq) => {
+    return seq === requestSeqRef.current && activeTokenKeyRef.current === key;
+  }, []);
+
   const fetchAssociatedImages = useCallback(async () => {
     if (!token) return;
+
+    const key = String(token.id);
+    const seq = requestSeqRef.current;
 
     try {
       const { data, error: gqlError } = await graphqlClient
         .query(TOKEN_ASSOCIATED_IMAGES_QUERY)
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
+      if (!isRequestCurrent(key, seq)) return;
       const entry = (data?.repositoryTokens || []).find((t) => String(t.id) === String(token.id));
       const associatedImageRepos = (entry?.associatedImages || []).map((i) => i.imageRepo);
       setSelectedImages(new Set(associatedImageRepos));
     } catch (err) {
       console.error("Error fetching associated images:", err);
       // Don't show error for this - just start with empty selection
-      setSelectedImages(new Set());
+      if (isRequestCurrent(key, seq)) {
+        setSelectedImages(new Set());
+      }
     }
-  }, [token]);
+  }, [token, isRequestCurrent]);
 
   const fetchContainers = useCallback(async () => {
     if (!token) return;
+
+    const key = String(token.id);
+    const seq = requestSeqRef.current;
 
     setLoading(true);
     setError(null);
@@ -81,17 +105,27 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
         }
       });
 
+      if (!isRequestCurrent(key, seq)) return;
       setContainers(Array.from(uniqueImages.values()));
     } catch (err) {
       console.error("Error fetching containers:", err);
-      setError("Failed to fetch containers. Please try again.");
+      if (isRequestCurrent(key, seq)) {
+        setError("Failed to fetch containers. Please try again.");
+      }
     } finally {
-      setLoading(false);
+      if (isRequestCurrent(key, seq)) {
+        setLoading(false);
+      }
     }
-  }, [token]);
+  }, [token, isRequestCurrent]);
 
   useEffect(() => {
+    // New target (or re-open): retire anything still in flight for the old one.
+    activeTokenKeyRef.current = tokenKey;
+    requestSeqRef.current += 1;
+
     if (isOpen && token) {
+      setSaving(false);
       fetchContainers();
       fetchAssociatedImages();
     } else {
@@ -99,7 +133,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       setSelectedImages(new Set());
       setError(null);
     }
-  }, [isOpen, token, fetchContainers, fetchAssociatedImages]);
+  }, [isOpen, token, tokenKey, fetchContainers, fetchAssociatedImages]);
 
   const handleImageToggle = (imageRepo) => {
     setSelectedImages((prev) => {
@@ -124,24 +158,35 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   const handleSave = async () => {
     if (!token || selectedImages.size === 0) return;
 
+    const key = String(token.id);
+    const seq = requestSeqRef.current;
+    const imageRepos = Array.from(selectedImages);
+
     setSaving(true);
     setError(null);
 
     try {
       const { error: gqlError } = await graphqlClient
         .mutation(ASSOCIATE_IMAGES_MUTATION, {
-          tokenId: String(token.id),
-          input: { imageRepos: Array.from(selectedImages) },
+          tokenId: key,
+          input: { imageRepos },
         })
         .toPromise();
       if (gqlError) throw new Error(gqlError.message);
 
+      // The modal may have been re-pointed at another token (or closed) while
+      // the save was in flight; closing then would dismiss the new target.
+      if (!isRequestCurrent(key, seq)) return;
       onClose();
     } catch (err) {
       console.error("Error associating images:", err);
-      setError(err.message || "Failed to associate images. Please try again.");
+      if (isRequestCurrent(key, seq)) {
+        setError(err.message || "Failed to associate images. Please try again.");
+      }
     } finally {
-      setSaving(false);
+      if (isRequestCurrent(key, seq)) {
+        setSaving(false);
+      }
     }
   };
 
