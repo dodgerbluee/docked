@@ -80,6 +80,31 @@ export const useAuth = () => {
 
   // Handle logout - defined early so it can be used in validation
   const handleLogout = useCallback(() => {
+    // Ask the server to revoke the session before tearing anything down. The
+    // client used to only delete its local credentials, which left the access
+    // token valid for the rest of its 24h TTL (and an OAuth refresh token for
+    // seven days): a copy taken from a shared machine, a browser log or a
+    // support dump kept full access after the user signed out.
+    //
+    // Read synchronously and fire without awaiting - the local session must
+    // end now regardless of the network - but use a dedicated instance so the
+    // shared client's 401 interceptor cannot treat a rejected logout as an
+    // expired session and re-enter this function.
+    const accessToken = localStorage.getItem("authToken");
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (accessToken) {
+      const revoke = axios.create({
+        baseURL: API_BASE_URL,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      revoke
+        .post("/api/auth/logout", refreshToken ? { refreshToken } : {})
+        .catch(() => console.warn("logout: server-side token revocation failed"));
+    }
+
     localStorage.removeItem("authToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("username");

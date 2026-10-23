@@ -345,9 +345,27 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, input model.Refresh
 
 // Logout is the resolver for the logout field.
 func (r *mutationResolver) Logout(ctx context.Context, refreshToken *string) (*model.SuccessResult, error) {
-	r.revokeCurrentToken(ctx)
+	// Both revocations are attempted even if the first fails: a caller that
+	// hands over a refresh token expects the whole session to be dead.
+	//
+	// A failed revocation write must not be swallowed. The client clears its
+	// local state either way, so reporting success would leave the caller
+	// believing the session ended while the access token stays valid until it
+	// expires.
+	var failed []string
+	if err := r.revokeCurrentToken(ctx); err != nil {
+		failed = append(failed, err.Error())
+	}
 	if refreshToken != nil && *refreshToken != "" {
-		r.revokeRefreshToken(ctx, *refreshToken)
+		if err := r.revokeRefreshToken(ctx, *refreshToken); err != nil {
+			failed = append(failed, err.Error())
+		}
+	}
+	if len(failed) > 0 {
+		return &model.SuccessResult{
+			Success: false,
+			Message: strPtr("session ended locally, but could not be revoked server-side: " + strings.Join(failed, "; ")),
+		}, nil
 	}
 	return &model.SuccessResult{Success: true, Message: strPtr("Logged out")}, nil
 }

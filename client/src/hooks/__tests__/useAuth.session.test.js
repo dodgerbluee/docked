@@ -2,16 +2,23 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { getSessionGeneration, isSessionStale } from "../../utils/cacheRegistry";
 import { showToast } from "../../utils/toast";
 
-// Inline axios mock: useAuth needs get(), defaults.headers.common, and a
-// capturable response interceptor. (The shared __mocks__/axios.js is jest-based
-// and unusable under vitest.)
+// Inline axios mock: useAuth needs get(), defaults.headers.common, a capturable
+// response interceptor, and create() for the logout revocation client. (The
+// shared __mocks__/axios.js is jest-based and unusable under vitest.)
 const interceptors = vi.hoisted(() => ({ response: { use: vi.fn(), eject: vi.fn() } }));
+const revokeCalls = vi.hoisted(() => []);
 vi.mock("axios", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
     defaults: { headers: { common: {} } },
     interceptors,
+    create: vi.fn((createCfg) => ({
+      post: vi.fn((url, body) => {
+        revokeCalls.push({ url, body, createCfg });
+        return Promise.resolve({ data: { message: "Logged out" } });
+      }),
+    })),
   },
 }));
 
@@ -40,6 +47,7 @@ describe("useAuth session lifecycle", () => {
     axios.get.mockReset();
     axios.get.mockResolvedValue({ data: {} });
     interceptors.response.use.mockReset();
+    revokeCalls.length = 0;
   });
 
   afterEach(() => {
@@ -78,6 +86,45 @@ describe("useAuth session lifecycle", () => {
     expect(isSessionStale(genBefore)).toBe(true);
     expect(document.getElementById("toast-container").childElementCount).toBe(0);
     expect(localStorage.getItem("authToken")).toBeNull();
+  });
+
+  it("handleLogout asks the server to revoke the session it is ending", () => {
+    localStorage.setItem("authToken", "tokenA");
+    localStorage.setItem("refreshToken", "refreshA");
+
+    const { result } = renderHook(() => useAuth());
+    act(() => {
+      result.current.handleLogout();
+    });
+
+    // Deleting local credentials does not invalidate the token: without this
+    // call an access token stayed usable for the rest of its 24h TTL and an
+    // OAuth refresh token for seven days.
+    expect(revokeCalls).toHaveLength(1);
+    const { url, body, createCfg } = revokeCalls[0];
+    expect(url).toBe("/api/auth/logout");
+    expect(createCfg.headers.Authorization).toBe("Bearer tokenA");
+    expect(body).toEqual({ refreshToken: "refreshA" });
+  });
+
+  it("cross-tab logout during mount verification ends validation instead of hanging", () => {
+    localStorage.setItem("authToken", "tokenA");
+    // /verify never answers: the tab is torn down while it is in flight.
+    axios.get.mockImplementation(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useAuth());
+    expect(result.current.isValidating).toBe(true);
+
+    // Another tab logs out.
+    localStorage.removeItem("authToken");
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: "authToken" }));
+    });
+
+    // Without clearing isValidating the tab renders neither Login nor the app,
+    // and the one-shot verify effect never reruns.
+    expect(result.current.isValidating).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
   });
 
   it("cross-tab authToken change detaches this tab without touching shared storage", () => {

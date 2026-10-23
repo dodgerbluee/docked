@@ -767,15 +767,6 @@ export const REFRESH_TOKEN_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const LOGOUT_MUTATION = /* GraphQL */ `
-  mutation Logout($refreshToken: String) {
-    logout(refreshToken: $refreshToken) {
-      success
-      message
-    }
-  }
-`;
-
 export const TRIGGER_INTENT_MUTATION = /* GraphQL */ `
   mutation TriggerIntent($id: ID!) {
     triggerIntent(id: $id) {
