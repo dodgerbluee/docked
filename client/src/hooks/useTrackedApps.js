@@ -56,6 +56,9 @@ function mapTrackedApp(a) {
     currentVersionPublishDate: a.currentVersionPublishDate,
     latestVersionPublishDate: a.latestVersionPublishDate,
     last_checked: a.lastChecked,
+    // The edit form's token selector pre-selects from this; without it the
+    // modal showed "None" for an app that has a token associated.
+    repository_token_id: a.repositoryTokenId,
     created_at: a.createdAt,
     updated_at: a.updatedAt,
   };

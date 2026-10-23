@@ -272,6 +272,10 @@ export const TRACKED_APPS_QUERY = /* GraphQL */ `
       currentVersionPublishDate
       latestVersionPublishDate
       lastChecked
+      # The edit form's token selector pre-selects from this. Without it the
+      # modal always opened showing "None", and submitting that cleared an
+      # association the user never touched.
+      repositoryTokenId
       createdAt
       updatedAt
     }

@@ -162,6 +162,16 @@ function AddTrackedAppModal({
       // backend treats an explicit "" as "clear the credential". Sending it
       // silently wiped the stored token of every legacy GitLab app on edit.
 
+      // Repository token association. The selector offers an explicit
+      // "None (Optional)" entry, so on edit a null selection is a deliberate
+      // choice and has to reach the backend as "" (an absent field means
+      // "leave the association alone"). On create there is nothing to clear.
+      if (formData.repositoryTokenId != null) {
+        input.repositoryTokenId = String(formData.repositoryTokenId);
+      } else if (initialData) {
+        input.repositoryTokenId = "";
+      }
+
       let result;
       const generation = getSessionGeneration();
       if (initialData) {
