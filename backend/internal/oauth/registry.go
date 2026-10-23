@@ -54,6 +54,10 @@ func NewRegistry(database *sql.DB, cfg config.OAuthConfig) *Registry {
 	}
 }
 
+// reloadTimeout bounds a registry refresh so a wedged DB can neither pin the
+// reload mutex nor leave a login request waiting on it.
+const reloadTimeout = 5 * time.Second
+
 // EnsureFresh reloads the registry when it is older than the TTL.
 func (r *Registry) EnsureFresh(ctx context.Context) {
 	r.mu.Lock()
@@ -61,29 +65,57 @@ func (r *Registry) EnsureFresh(ctx context.Context) {
 	if time.Since(r.lastLoaded) < reloadTTL {
 		return
 	}
-	r.reloadLocked(ctx)
+	// The reload must not inherit the caller's cancellation: Login calls this
+	// with its request context, and a client that hangs up mid-request would
+	// otherwise abort the provider read (see reloadLocked).
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reloadTimeout)
+	defer cancel()
+	r.reloadLocked(rctx)
 }
 
+// reloadLocked rebuilds the provider set. The rebuild is staged and only
+// published on success: Login gates the local-login door on Enabled(), so a
+// half-loaded (empty) set would silently open that door for the whole TTL.
 func (r *Registry) reloadLocked(ctx context.Context) {
-	r.providers = map[string]*Provider{}
-	r.settings = map[string]Settings{}
-	r.initializeFromDB(ctx)
-	r.initializeFromEnv()
+	providers, settings, err := r.loadProviders(ctx)
+	if err != nil {
+		// Keep serving the last good set and wait out the TTL before retrying,
+		// so a broken DB cannot turn into an SSO-bypass window or a reload storm.
+		slog.Warn("Could not refresh OAuth providers, keeping the previous provider set", "error", err.Error())
+		r.lastLoaded = time.Now()
+		return
+	}
+	r.providers, r.settings = providers, settings
 	r.lastLoaded = time.Now()
 	if len(r.providers) == 0 {
 		slog.Info("No OAuth providers configured (DB or env vars)")
 	}
 }
 
-func (r *Registry) initializeFromDB(ctx context.Context) {
-	rows, err := db.GetEnabledOAuthProviders(ctx, r.database)
+// loadProviders builds the active provider set from the DB (enabled rows) and
+// the env-var fallback. It returns an error only when the provider table
+// could not be read at all; a missing table is a fresh install and falls
+// through to the env vars, matching Node.
+func (r *Registry) loadProviders(ctx context.Context) (map[string]*Provider, map[string]Settings, error) {
+	providers := map[string]*Provider{}
+	settings := map[string]Settings{}
+	disabled := map[string]bool{}
+
+	rows, err := db.GetAllOAuthProviders(ctx, r.database)
 	if err != nil {
-		// The table may not exist yet on a fresh install (Node's migration
-		// creates it); fall through to env vars like Node does.
-		slog.Debug("Could not load OAuth providers from DB, falling back to env vars", "error", err.Error())
-		return
+		if !isMissingTableErr(err) {
+			return nil, nil, err
+		}
+		slog.Debug("OAuth provider table not present yet, falling back to env vars", "error", err.Error())
 	}
 	for _, row := range rows {
+		// Disabled rows are still remembered: an admin who turns a provider off
+		// in the DB must not have it resurrected by the env-var fallback of the
+		// same name.
+		if row.Enabled != 1 {
+			disabled[row.Name] = true
+			continue
+		}
 		if row.ClientID == "" || row.ClientSecret == "" || row.IssuerURL == "" {
 			slog.Warn("OAuth provider missing required fields (client_id, client_secret, issuer_url), skipping", "name", row.Name)
 			continue
@@ -97,42 +129,41 @@ func (r *Registry) initializeFromDB(ctx context.Context) {
 			slog.Warn("Unknown provider type, skipping", "type", row.ProviderType, "name", row.Name)
 			continue
 		}
-		p := NewProvider(pt, row.Name, row.DisplayName, row.ClientID, row.ClientSecret, row.IssuerURL, splitScopes(row.Scopes))
-		r.registerLocked(p)
+		registerProvider(providers, NewProvider(pt, row.Name, row.DisplayName, row.ClientID, row.ClientSecret, row.IssuerURL, splitScopes(row.Scopes)))
 		role := row.DefaultRole
 		if role == "" {
 			role = "Administrator"
 		}
-		r.settings[row.Name] = Settings{AutoRegister: row.AutoRegister == 1, DefaultRole: role}
+		settings[row.Name] = Settings{AutoRegister: row.AutoRegister == 1, DefaultRole: role}
 	}
+
+	if r.cfg.Enabled && !disabled[r.cfg.Provider] {
+		if !validAbsoluteURL(r.cfg.IssuerURL) {
+			slog.Warn("OAuth env-var provider has an invalid issuer URL, skipping")
+		} else if _, exists := providers[r.cfg.Provider]; !exists {
+			pt := resolveProviderType(r.cfg.Provider)
+			if pt == "" {
+				slog.Warn("OAuth env-var provider type is unsupported. Supported: authentik, generic_oidc")
+			} else {
+				registerProvider(providers, NewProvider(pt, r.cfg.Provider, "", r.cfg.ClientID, r.cfg.ClientSecret, r.cfg.IssuerURL, r.cfg.Scopes))
+				settings[r.cfg.Provider] = Settings{AutoRegister: r.cfg.AutoRegister, DefaultRole: r.cfg.DefaultRole}
+			}
+		}
+	}
+	return providers, settings, nil
 }
 
-func (r *Registry) initializeFromEnv() {
-	if !r.cfg.Enabled {
-		return
-	}
-	if !validAbsoluteURL(r.cfg.IssuerURL) {
-		slog.Warn("OAuth env-var provider has an invalid issuer URL, skipping")
-		return
-	}
-	if _, exists := r.providers[r.cfg.Provider]; exists {
-		return
-	}
-	pt := resolveProviderType(r.cfg.Provider)
-	if pt == "" {
-		slog.Warn("OAuth env-var provider type is unsupported. Supported: authentik, generic_oidc")
-		return
-	}
-	p := NewProvider(pt, r.cfg.Provider, "", r.cfg.ClientID, r.cfg.ClientSecret, r.cfg.IssuerURL, r.cfg.Scopes)
-	r.registerLocked(p)
-	r.settings[r.cfg.Provider] = Settings{AutoRegister: r.cfg.AutoRegister, DefaultRole: r.cfg.DefaultRole}
+// isMissingTableErr reports the one DB error that is a normal state rather
+// than a failure: the provider table has not been created yet.
+func isMissingTableErr(err error) bool {
+	return strings.Contains(err.Error(), "no such table")
 }
 
-func (r *Registry) registerLocked(p *Provider) {
-	if _, exists := r.providers[p.Name]; exists {
+func registerProvider(providers map[string]*Provider, p *Provider) {
+	if _, exists := providers[p.Name]; exists {
 		slog.Warn("OAuth provider is already registered, overwriting", "name", p.Name)
 	}
-	r.providers[p.Name] = p
+	providers[p.Name] = p
 	slog.Info("Registered OAuth provider", "name", p.Name, "displayName", p.DisplayName)
 }
 
