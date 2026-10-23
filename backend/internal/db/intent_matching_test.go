@@ -197,7 +197,7 @@ func TestCreateIntentEmptyListsStoredNull(t *testing.T) {
 	id, err := CreateIntent(ctx, database, 1, "ui-created", nil, true,
 		[]string{"web"}, []string{}, []string{}, []string{}, []string{},
 		[]string{}, []string{}, []string{}, []string{},
-		"scheduled", strPtr("0 3 * * *"), 1, false, 0)
+		"scheduled", strPtr("0 3 * * *"), nil, 1, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

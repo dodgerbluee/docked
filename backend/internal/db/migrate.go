@@ -552,6 +552,7 @@ var migrations = []migration{
 	{13, "Rename portainer to sources", migrateRenamePortainerToSources},
 	{14, "Restore containers UNIQUE constraint and deduplicate rows", migrateRestoreContainersUnique},
 	{15, "Add runner health tracking", migrateRunnerHealthTracking},
+	{16, "Add intent schedule timezone", migrateIntentScheduleTimezone},
 }
 
 // runMigrations ports db/migrations/index.js: create the tracking table,

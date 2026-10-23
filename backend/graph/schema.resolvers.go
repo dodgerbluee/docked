@@ -1543,8 +1543,9 @@ func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateI
 	if err != nil {
 		return nil, err
 	}
-	if input.ScheduleTimezone != nil {
-		return nil, fmt.Errorf("scheduleTimezone is not supported by the shared database schema")
+	tz, err := normalizeScheduleTimezone(input.ScheduleTimezone)
+	if err != nil {
+		return nil, err
 	}
 
 	enabled := true
@@ -1567,7 +1568,7 @@ func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateI
 	id, err := db.CreateIntent(ctx, r.DB, uid, input.Name, input.Description, enabled,
 		input.MatchContainers, input.MatchImages, input.MatchSources, input.MatchStacks, input.MatchRegistries,
 		input.ExcludeContainers, input.ExcludeImages, input.ExcludeStacks, input.ExcludeRegistries,
-		dbEnumValue(string(input.ScheduleType)), input.ScheduleCron,
+		dbEnumValue(string(input.ScheduleType)), input.ScheduleCron, tz,
 		maxConcurrent, dryRun, seqDelay)
 	if err != nil {
 		return nil, err
@@ -1587,8 +1588,13 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 		return nil, err
 	}
 	iid, _ := strconv.ParseInt(id, 10, 64)
+	var tz *string
 	if input.ScheduleTimezone != nil {
-		return nil, fmt.Errorf("scheduleTimezone is not supported by the shared database schema")
+		var err error
+		tz, err = normalizeScheduleTimezone(input.ScheduleTimezone)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build dynamic update
@@ -1644,6 +1650,15 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 	if input.ScheduleCron != nil {
 		setClauses = append(setClauses, "schedule_cron = ?")
 		args = append(args, *input.ScheduleCron)
+	}
+	if input.ScheduleTimezone != nil {
+		// Field present: empty/blank clears it (fall back to the server zone).
+		if tz == nil {
+			setClauses = append(setClauses, "schedule_timezone = NULL")
+		} else {
+			setClauses = append(setClauses, "schedule_timezone = ?")
+			args = append(args, *tz)
+		}
 	}
 	if input.MaxConcurrent != nil {
 		setClauses = append(setClauses, "max_concurrent = ?")

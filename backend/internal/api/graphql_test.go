@@ -122,6 +122,7 @@ CREATE TABLE intents (
   exclude_registries TEXT,
   schedule_type TEXT NOT NULL,
   schedule_cron TEXT,
+  schedule_timezone TEXT,
   max_concurrent INTEGER DEFAULT 1,
   dry_run INTEGER DEFAULT 0,
   sequential_delay_sec INTEGER DEFAULT 0,
@@ -1226,7 +1227,7 @@ func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
 // dimension to NULL (the intent form sends [] for dimensions the user did
 // not pick, and a stored "[]" would make the intent match nothing), and an
 // omitted field leaves the column untouched.
-func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
+func TestUpdateIntentPersistsSafetyFiltersAndTimezone(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
 	res, err := env.database.Exec(`INSERT INTO intents
@@ -1280,11 +1281,32 @@ func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 		t.Fatalf("omitted matchContainers was modified: %s", matchContainers)
 	}
 
-	unsupported := env.gql(t, admin, `mutation($id: ID!, $in: UpdateIntentInput!){ updateIntent(id: $id, input: $in){ id } }`,
-		map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": "UTC"}})
-	if !unsupported.hasErrorContaining("scheduleTimezone is not supported") {
-		t.Fatalf("unsupported timezone must be rejected, got: %+v", unsupported)
+	// scheduleTimezone is a real column: valid IANA zones persist and come
+	// back, unknown zones are rejected, blank clears it (evaluate in UTC).
+	tzMut := `mutation($id: ID!, $in: UpdateIntentInput!){ updateIntent(id: $id, input: $in){ scheduleTimezone } }`
+	if r := env.gql(t, admin, tzMut, map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": "Europe/Berlin"}}); len(r.Errors) != 0 {
+		t.Fatalf("updateIntent(scheduleTimezone) errored: %+v", r.Errors)
+	} else if got := updateIntentField(t, r, "scheduleTimezone"); got != "Europe/Berlin" {
+		t.Fatalf("scheduleTimezone = %q, want Europe/Berlin", got)
 	}
+	if r := env.gql(t, admin, tzMut, map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": "Mars/Olympus_Mons"}}); !r.hasErrorContaining("unknown timezone") {
+		t.Fatalf("unknown timezone must be rejected, got: %+v", r.Errors)
+	}
+	if r := env.gql(t, admin, tzMut, map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": ""}}); len(r.Errors) != 0 {
+		t.Fatalf("clearing scheduleTimezone errored: %+v", r.Errors)
+	} else if got := updateIntentField(t, r, "scheduleTimezone"); got != "" {
+		t.Fatalf("scheduleTimezone after clear = %q, want empty", got)
+	}
+}
+
+func updateIntentField(t *testing.T, r gqlResp, field string) string {
+	t.Helper()
+	var obj map[string]any
+	if err := json.Unmarshal(r.Data["updateIntent"], &obj); err != nil {
+		t.Fatalf("decode updateIntent: %v", err)
+	}
+	s, _ := obj[field].(string)
+	return s
 }
 
 // --- regression tests for the full-sweep findings ---

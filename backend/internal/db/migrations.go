@@ -911,6 +911,17 @@ func migrateRestoreContainersUnique(ctx context.Context, tx *sql.Tx) error {
 }
 
 // migrateRunnerHealthTracking (0015).
+func migrateIntentScheduleTimezone(ctx context.Context, tx *sql.Tx) error {
+	// The GraphQL schema has always advertised intent scheduleTimezone; the
+	// resolvers had no column to put it in and rejected every write.
+	if ok, err := txTableExists(ctx, tx, "intents"); err != nil {
+		return err
+	} else if !ok {
+		return nil
+	}
+	return txAddColumn(ctx, tx, "intents", "schedule_timezone", "TEXT")
+}
+
 func migrateRunnerHealthTracking(ctx context.Context, tx *sql.Tx) error {
 	if err := txAddColumn(ctx, tx, "runners", "last_seen", "TEXT"); err != nil {
 		return err

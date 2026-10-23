@@ -51,6 +51,20 @@ func IsIntentDue(intent *db.IntentRow, now time.Time) DueResult {
 	if err != nil {
 		return DueResult{Reason: "invalid cron: " + err.Error()}
 	}
+	// A cron expression fires on the wall clock of the intent's own zone when
+	// it has one, the server's zone otherwise (that is what the pre-Go engine
+	// did, so existing intents keep firing at the same local time). cron.Next
+	// reads the calendar fields of the instant it is handed, so shifting the
+	// reference instant into the zone is all that is needed; the returned time
+	// is still an absolute instant.
+	loc := time.Local
+	if tz := strings.TrimSpace(intent.ScheduleTimezone.String); intent.ScheduleTimezone.Valid && tz != "" {
+		l, lerr := time.LoadLocation(tz)
+		if lerr != nil {
+			return DueResult{Reason: "unknown schedule timezone: " + tz}
+		}
+		loc = l
+	}
 
 	lastEvalStr := strings.TrimSpace(intent.LastEvaluatedAt.String)
 	if intent.LastEvaluatedAt.Valid && lastEvalStr != "" {
@@ -60,7 +74,7 @@ func IsIntentDue(intent *db.IntentRow, now time.Time) DueResult {
 			// intent doesn't get stuck forever.
 			return DueResult{IsDue: true, TriggerTime: &now, Legacy: true, Reason: "unparseable last_evaluated_at (legacy)"}
 		}
-		next := sched.Next(lastEval)
+		next := sched.Next(lastEval.In(loc))
 		if !next.IsZero() && !next.After(now) {
 			return DueResult{IsDue: true, TriggerTime: &next, Reason: "cron triggered at " + next.UTC().Format(isoMillis)}
 		}

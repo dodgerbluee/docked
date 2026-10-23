@@ -73,15 +73,15 @@ func TestMigrateFreshSchema(t *testing.T) {
 	migrate(t, database)
 	ctx := context.Background()
 
-	if v := schemaVersion(t, database); v != 15 {
-		t.Errorf("schema version = %d, want 15", v)
+	if v := schemaVersion(t, database); v != 16 {
+		t.Errorf("schema version = %d, want 16", v)
 	}
 	var rows int
 	if err := database.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
-	if rows != 15 {
-		t.Errorf("schema_migrations rows = %d, want 15", rows)
+	if rows != 16 {
+		t.Errorf("schema_migrations rows = %d, want 16", rows)
 	}
 
 	wantTables := []string{
@@ -144,8 +144,8 @@ func TestMigrateFreshSchema(t *testing.T) {
 	if err := Migrate(ctx, database); err != nil {
 		t.Fatalf("second Migrate: %v", err)
 	}
-	if v := schemaVersion(t, database); v != 15 {
-		t.Errorf("schema version after re-run = %d, want 15", v)
+	if v := schemaVersion(t, database); v != 16 {
+		t.Errorf("schema version after re-run = %d, want 16", v)
 	}
 }
 
@@ -346,8 +346,8 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 
 	migrate(t, database)
 
-	if v := schemaVersion(t, database); v != 15 {
-		t.Fatalf("schema version = %d, want 15", v)
+	if v := schemaVersion(t, database); v != 16 {
+		t.Fatalf("schema version = %d, want 16", v)
 	}
 
 	// Migration 5: users rebuilt, row preserved, password_hash now nullable.
@@ -506,8 +506,8 @@ func TestMigrateVersionGate(t *testing.T) {
 
 	migrate(t, database)
 
-	if v := schemaVersion(t, database); v != 15 {
-		t.Fatalf("schema version = %d, want 15", v)
+	if v := schemaVersion(t, database); v != 16 {
+		t.Fatalf("schema version = %d, want 16", v)
 	}
 	// Dedup keeps the highest id per identity: 3+2 rows collapse to 2.
 	var count int

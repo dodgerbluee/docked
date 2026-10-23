@@ -493,6 +493,24 @@ func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
 		UpdatedAt:                 parseTime(t.UpdatedAt),
 	}
 }
+
+// normalizeScheduleTimezone validates an IANA zone name (e.g. "Europe/Berlin")
+// and returns the value to store. nil means "no timezone": the field was
+// absent, or it was present but blank, which clears the column.
+func normalizeScheduleTimezone(tz *string) (*string, error) {
+	if tz == nil {
+		return nil, nil
+	}
+	v := strings.TrimSpace(*tz)
+	if v == "" {
+		return nil, nil
+	}
+	if _, err := time.LoadLocation(v); err != nil {
+		return nil, fmt.Errorf("invalid scheduleTimezone %q: unknown timezone", v)
+	}
+	return &v, nil
+}
+
 func intentToModel(i *db.IntentRow) *model.Intent {
 	if i == nil {
 		return nil
@@ -513,6 +531,7 @@ func intentToModel(i *db.IntentRow) *model.Intent {
 		ExcludeRegistries:  db.UnmarshalStringArr(i.ExcludeRegistries),
 		ScheduleType:       model.IntentScheduleType(enumConst(i.ScheduleType)),
 		ScheduleCron:       nullStrPtr(i.ScheduleCron),
+		ScheduleTimezone:   nullStrPtr(i.ScheduleTimezone),
 		MaxConcurrent:      i.MaxConcurrent,
 		DryRun:             i.DryRun == 1,
 		SequentialDelaySec: i.SequentialDelaySec,

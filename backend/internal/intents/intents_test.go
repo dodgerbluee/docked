@@ -45,7 +45,7 @@ func testDB(t *testing.T) *sql.DB {
 			enabled INTEGER DEFAULT 1,
 			match_containers TEXT, match_images TEXT, match_sources TEXT, match_stacks TEXT, match_registries TEXT,
 			exclude_containers TEXT, exclude_images TEXT, exclude_stacks TEXT, exclude_registries TEXT,
-			schedule_type TEXT DEFAULT 'scheduled', schedule_cron TEXT,
+			schedule_type TEXT DEFAULT 'scheduled', schedule_cron TEXT, schedule_timezone TEXT,
 			max_concurrent INTEGER DEFAULT 1, dry_run INTEGER DEFAULT 0, sequential_delay_sec INTEGER DEFAULT 0,
 			last_evaluated_at TEXT, last_execution_id INTEGER,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -249,6 +249,52 @@ func TestIsIntentDue(t *testing.T) {
 	r = IsIntentDue(mk("scheduled", "0 */5 * * * *", last), now)
 	if !r.IsDue {
 		t.Errorf("6-field cron should parse and fire: %+v", r)
+	}
+}
+
+// An intent's cron fires on the wall clock of its scheduleTimezone when it has
+// one, and on the server's zone when it does not (the pre-Go engine's behavior,
+// so existing intents keep firing at the same local time).
+func TestIsIntentDueScheduleTimezone(t *testing.T) {
+	last := "2026-10-21T06:00:00.000Z"
+	mk := func(tz string) *db.IntentRow {
+		i := &db.IntentRow{ScheduleType: "scheduled"}
+		i.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+		i.ScheduleTimezone = sql.NullString{String: tz, Valid: tz != ""}
+		i.LastEvaluatedAt = sql.NullString{String: last, Valid: true}
+		return i
+	}
+
+	// Explicit zone: 09:00 America/New_York is 13:00Z on that date (EDT).
+	if r := IsIntentDue(mk("America/New_York"), time.Date(2026, 10, 21, 12, 30, 0, 0, time.UTC)); r.IsDue {
+		t.Errorf("New York intent fired early: %+v", r)
+	}
+	r := IsIntentDue(mk("America/New_York"), time.Date(2026, 10, 21, 13, 5, 0, 0, time.UTC))
+	if !r.IsDue || r.TriggerTime == nil {
+		t.Fatalf("New York intent not due at 13:05Z: %+v", r)
+	}
+	if want := time.Date(2026, 10, 21, 13, 0, 0, 0, time.UTC); !r.TriggerTime.Equal(want) {
+		t.Errorf("triggerTime = %v, want %v (09:00 EDT)", r.TriggerTime, want)
+	}
+
+	// No zone: 09:00 on the server's own wall clock.
+	lastT, err := db.ParseSQLiteTime(last)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := lastT.In(time.Local)
+	want := time.Date(local.Year(), local.Month(), local.Day(), 9, 0, 0, 0, time.Local)
+	if !want.After(lastT) {
+		want = want.Add(24 * time.Hour)
+	}
+	r = IsIntentDue(mk(""), want.Add(5*time.Minute))
+	if !r.IsDue || r.TriggerTime == nil || !r.TriggerTime.Equal(want) {
+		t.Errorf("default-zone triggerTime = %v, want %v", r.TriggerTime, want)
+	}
+
+	// An unknown zone must not silently fall back.
+	if r := IsIntentDue(mk("Mars/Olympus_Mons"), time.Now()); r.IsDue || r.Reason == "" {
+		t.Errorf("unknown timezone must not fire: %+v", r)
 	}
 }
 

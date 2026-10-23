@@ -25,6 +25,7 @@ type IntentRow struct {
 	ExcludeRegistries  sql.NullString
 	ScheduleType       string
 	ScheduleCron       sql.NullString
+	ScheduleTimezone   sql.NullString
 	MaxConcurrent      int
 	DryRun             int
 	SequentialDelaySec int
@@ -36,7 +37,7 @@ type IntentRow struct {
 const intentCols = `id, user_id, name, description, enabled,
 	match_containers, match_images, match_sources, match_stacks, match_registries,
 	exclude_containers, exclude_images, exclude_stacks, exclude_registries,
-	schedule_type, schedule_cron,
+	schedule_type, schedule_cron, schedule_timezone,
 	max_concurrent, dry_run, sequential_delay_sec, last_evaluated_at, created_at, updated_at`
 
 func scanIntent(row interface{ Scan(...any) error }) (IntentRow, error) {
@@ -44,7 +45,7 @@ func scanIntent(row interface{ Scan(...any) error }) (IntentRow, error) {
 	err := row.Scan(&r.ID, &r.UserID, &r.Name, &r.Description, &r.Enabled,
 		&r.MatchContainers, &r.MatchImages, &r.MatchSources, &r.MatchStacks, &r.MatchRegistries,
 		&r.ExcludeContainers, &r.ExcludeImages, &r.ExcludeStacks, &r.ExcludeRegistries,
-		&r.ScheduleType, &r.ScheduleCron,
+		&r.ScheduleType, &r.ScheduleCron, &r.ScheduleTimezone,
 		&r.MaxConcurrent, &r.DryRun, &r.SequentialDelaySec, &r.LastEvaluatedAt,
 		&r.CreatedAt, &r.UpdatedAt)
 	return r, err
@@ -86,7 +87,7 @@ func GetIntentByID(ctx context.Context, database *sql.DB, id, userID int64) (*In
 func CreateIntent(ctx context.Context, database *sql.DB, userID int64, name string,
 	description *string, enabled bool, matchContainers, matchImages, matchSources,
 	matchStacks, matchRegistries, excludeContainers, excludeImages, excludeStacks,
-	excludeRegistries []string, scheduleType string, scheduleCron *string,
+	excludeRegistries []string, scheduleType string, scheduleCron *string, scheduleTimezone *string,
 	maxConcurrent int, dryRun bool, sequentialDelaySec int) (int64, error) {
 
 	mc := marshalJSONArr(matchContainers)
@@ -112,12 +113,12 @@ func CreateIntent(ctx context.Context, database *sql.DB, userID int64, name stri
 		`INSERT INTO intents (user_id, name, description, enabled,
 		 match_containers, match_images, match_sources, match_stacks, match_registries,
 		 exclude_containers, exclude_images, exclude_stacks, exclude_registries,
-		 schedule_type, schedule_cron,
+		 schedule_type, schedule_cron, schedule_timezone,
 		 max_concurrent, dry_run, sequential_delay_sec)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID, name, description, enabledInt,
 		mc, mi, ms, mst, mr, ec, ei, es, er,
-		scheduleType, scheduleCron,
+		scheduleType, scheduleCron, scheduleTimezone,
 		maxConcurrent, dryRunInt, sequentialDelaySec)
 	if err != nil {
 		return 0, fmt.Errorf("create intent: %w", err)
