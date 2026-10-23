@@ -11,10 +11,16 @@
  * itself restarted (e.g. an update upgraded the Docker daemon hosting docked),
  * or the connection otherwise dropped — the task is NOT marked failed. It moves
  * to a `reconnecting` state and is reconciled from the runner's persisted
- * history: we poll the operation's live `active` flag and `lastRun.exitCode`
- * until the run has finished on the runner, then finalize from that real exit
- * code. Persistent operations (dockhand `persistent: true`) keep running across
- * the disconnect, so this recovers their true result instead of a false failure.
+ * history: we poll the operation's live `active` flag and `lastRun` until the
+ * run has finished on the runner, then finalize from that real exit code.
+ * Persistent operations (dockhand `persistent: true`) keep running across the
+ * disconnect, so this recovers their true result instead of a false failure.
+ *
+ * Reconciliation only accepts a `lastRun` that belongs to the attempt: dockhand
+ * ids every run, and the id recorded before we started is remembered so an
+ * older run's success can never stand in for a run that never happened. When
+ * no matching result appears within the reconcile window the task ends as an
+ * explicit error rather than an assumed outcome.
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -26,6 +32,12 @@ import { STATUS, processRawLog } from "../utils/operationLog";
 const MAX_LINES = 2000;
 // How often a reconnecting task polls the runner for its live state.
 const RECONCILE_INTERVAL_MS = 4000;
+// How long a reconnecting task waits for a result it can attribute to its own
+// attempt before giving up. Only applies once the operation is inactive on the
+// runner with no matching result, so a long-running op is never cut short.
+const RECONCILE_DEADLINE_MS = 120000;
+// Tolerance for clock differences between the browser and the runner host.
+const CLOCK_SKEW_MS = 120000;
 
 function makeId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -42,6 +54,29 @@ function runKey(runnerId, appName, opName) {
 // reconnecting — in both cases the operation is still going on the runner.
 function isActiveStatus(status) {
   return status === STATUS.RUNNING || status === STATUS.RECONNECTING;
+}
+
+// Decide whether the runner's persisted `lastRun` belongs to this attempt, and
+// return its exit code if so (null = no usable result yet).
+//
+// Without this, a run whose POST never reached the runner is "reconciled"
+// against whatever the operation did last - possibly a successful run from days
+// ago - and reported as Completed (exit 0). dockhand gives every run a
+// monotonically increasing id, so a lastRun still carrying the id recorded
+// before we started is an older run, not our result.
+// (Exported for tests; the hook is the only caller.)
+export function reconcileOutcome(task, lastRun) {
+  if (!lastRun) return null;
+  if (task.priorRunId != null && lastRun.id != null) {
+    return lastRun.id === task.priorRunId ? null : (lastRun.exitCode ?? 1);
+  }
+  // Older agent without run ids: fall back to the finish time.
+  const finished = Date.parse(lastRun.finishedAt);
+  const started = Date.parse(task.startedAt);
+  if (Number.isFinite(finished) && Number.isFinite(started) && finished + CLOCK_SKEW_MS < started) {
+    return null;
+  }
+  return lastRun.exitCode ?? 1;
 }
 
 export function useOperationTasks() {
@@ -74,6 +109,10 @@ export function useOperationTasks() {
         lines: [],
         startedAt: new Date().toISOString(),
         finishedAt: null,
+        // The run this operation had before we started, used to tell our own
+        // result apart from an older one if the stream drops.
+        priorRunId: op.lastRun?.id ?? null,
+        reconnectingAt: null,
       };
       setTasks((prev) => [task, ...prev]);
 
@@ -172,6 +211,7 @@ export function useOperationTasks() {
                 ? {
                     ...t,
                     status: STATUS.RECONNECTING,
+                    reconnectingAt: new Date().toISOString(),
                     lines: [
                       ...t.lines,
                       "[connection lost — waiting for the run to finish on the runner…]",
@@ -199,6 +239,7 @@ export function useOperationTasks() {
                 ? {
                     ...t,
                     status: STATUS.RECONNECTING,
+                    reconnectingAt: new Date().toISOString(),
                     lines: [
                       ...t.lines,
                       "[connection lost — waiting for the run to finish on the runner…]",
@@ -256,7 +297,29 @@ export function useOperationTasks() {
           // the runner — keep polling.
           if (!op || op.active) continue;
 
-          const exitCode = op.lastRun?.exitCode ?? 1;
+          const exitCode = reconcileOutcome(t, op.lastRun);
+          if (exitCode === null) {
+            // The operation is idle on the runner but nothing persisted there
+            // belongs to this attempt: the run either never started or its
+            // result never landed. Give the runner a bounded window to report,
+            // then say so — an older run's exit code is not this run's result.
+            const since = Date.parse(t.reconnectingAt);
+            if (Number.isFinite(since) && Date.now() - since < RECONCILE_DEADLINE_MS) continue;
+            updateTask(t.id, (cur) =>
+              cur.status === STATUS.RECONNECTING
+                ? {
+                    ...cur,
+                    status: STATUS.ERROR,
+                    error:
+                      cur.error ||
+                      "The connection was lost and the runner never reported a result for this run.",
+                    finishedAt: new Date().toISOString(),
+                  }
+                : cur
+            );
+            continue;
+          }
+
           updateTask(t.id, (cur) =>
             cur.status === STATUS.RECONNECTING
               ? {
