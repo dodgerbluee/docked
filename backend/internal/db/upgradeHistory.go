@@ -263,3 +263,53 @@ func GetUpgradeHistoryBy(ctx context.Context, database *sql.DB, userID int64, li
 	}
 	return results, total, rows.Err()
 }
+
+// GetUpgradeHistoryForContainer returns the history rows belonging to one
+// container, matched on its stable identity (host + name) rather than its
+// Docker container id.
+//
+// An upgrade removes the old container and recreates it under the same name,
+// so the row written by that upgrade records the id of the container that was
+// REPLACED. Matching on the live container's current id finds nothing after
+// the very upgrade the row describes, and every upgraded container's history
+// goes empty.
+func GetUpgradeHistoryForContainer(ctx context.Context, database *sql.DB, userID int64, limit, offset int, runnerID, endpointID *int64, name string) ([]UpgradeHistoryRow, int, error) {
+	if name == "" {
+		return nil, 0, fmt.Errorf("get upgrade history for container: name required")
+	}
+	where := []string{"user_id = ?", "container_name = ?"}
+	args := []any{userID, name}
+	switch {
+	case runnerID != nil:
+		where = append(where, "runner_id = ?")
+		args = append(args, *runnerID)
+	case endpointID != nil:
+		where = append(where, "endpoint_id = ?")
+		args = append(args, *endpointID)
+	}
+	cond := strings.Join(where, " AND ")
+
+	var total int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM upgrade_history WHERE "+cond, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count upgrade history: %w", err)
+	}
+
+	rows, err := database.QueryContext(ctx,
+		"SELECT "+upgradeCols+" FROM upgrade_history WHERE "+cond+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get upgrade history: %w", err)
+	}
+	defer rows.Close()
+
+	var results []UpgradeHistoryRow
+	for rows.Next() {
+		r, err := scanUpgrade(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan upgrade history: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, total, rows.Err()
+}

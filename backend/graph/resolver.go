@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"database/sql"
+	"sync"
 
 	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
@@ -27,6 +28,22 @@ type Resolver struct {
 	// Intents is the shared scheduled/immediate intent evaluator wired by
 	// api.NewServer; resolvers borrow its executor for manual triggers.
 	Intents *intents.Evaluator
+
+	// BG tracks fire-and-forget upgrade goroutines so process shutdown can
+	// wait for them instead of exiting between a container removal and its
+	// recreate. Nil-safe: test resolvers are built without it.
+	BG *sync.WaitGroup
+}
+
+// trackWork guards one fire-and-forget upgrade. The returned func must be
+// deferred inside the goroutine; it is a no-op when BG is unset.
+func (r *Resolver) trackWork() func() {
+	if r.BG == nil {
+		return func() {}
+	}
+	r.BG.Add(1)
+	var once sync.Once
+	return func() { once.Do(r.BG.Done) }
 }
 
 // localLoginAllowed reports whether password login/registration may run.

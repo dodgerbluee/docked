@@ -65,8 +65,13 @@ func jsNullInt(i sql.NullInt64) string {
 	return strconv.FormatInt(i.Int64, 10)
 }
 
-func prevKey(name string, sourceURL sql.NullString, endpointID sql.NullInt64) string {
-	return fmt.Sprintf("%s-%s-%s", name, jsNull(sourceURL), jsNullInt(endpointID))
+// prevKey identifies a container across two scans. The runner is part of the
+// key: with only name + source url + endpoint, every runner-backed row
+// collapses to "name--" and two runners hosting a container of the same name
+// overwrite each other in the previous-scan map, so the second one's update is
+// never detected.
+func prevKey(name string, sourceURL sql.NullString, endpointID, runnerID sql.NullInt64) string {
+	return fmt.Sprintf("%s-%s-%s-%s", name, jsNull(sourceURL), jsNullInt(endpointID), jsNullInt(runnerID))
 }
 
 // previousEntry is the normalized snapshot of a pre-scan container row.
@@ -85,7 +90,7 @@ func buildPreviousMap(previous []db.ContainerRow) map[string]previousEntry {
 		} else if row.LatestTag.Valid && row.LatestTag.String != "" {
 			version = row.LatestTag.String
 		}
-		m[prevKey(row.ContainerName, row.SourceURL, row.EndpointID)] = previousEntry{
+		m[prevKey(row.ContainerName, row.SourceURL, row.EndpointID, row.RunnerID)] = previousEntry{
 			hasUpdate:     db.ContainerHasUpdate(row),
 			latestDigest:  normalizedDigest(row.LatestDigest.String),
 			latestVersion: version,
@@ -145,7 +150,7 @@ func (n *notifier) SendContainerUpdateNotifications(ctx context.Context, current
 		if !db.ContainerHasUpdate(c) {
 			continue
 		}
-		key := prevKey(c.ContainerName, c.SourceURL, c.EndpointID)
+		key := prevKey(c.ContainerName, c.SourceURL, c.EndpointID, c.RunnerID)
 		prev, ok := prevMap[key]
 		if !ok {
 			slog.Debug("previous container not found for key", "key", key, "container", c.ContainerName)
@@ -185,8 +190,10 @@ func normalizeImageName(imageName string) string {
 	return normalized
 }
 
-// createDedupKey ports createPortainerContainerKey.
-func createDedupKey(userID int64, containerName, imageName, latestDigest, latestVersion string) string {
+// createDedupKey ports createPortainerContainerKey. The host is part of the
+// key: two runners can each host a container with the same name and the same
+// image, and without the host the second one is silently deduped away.
+func createDedupKey(userID int64, containerName, imageName, latestDigest, latestVersion string, runnerID sql.NullInt64) string {
 	normalizedImage := normalizeImageName(imageName)
 	normalizedVersion := ""
 	if latestVersion != "" && latestVersion != "Unknown" {
@@ -196,7 +203,8 @@ func createDedupKey(userID int64, containerName, imageName, latestDigest, latest
 	if strings.TrimSpace(key) == "" {
 		key = normalizedVersion
 	}
-	return fmt.Sprintf("%d:%s:%s:%s", userID, containerName, normalizedImage, key)
+	host := "src:" + jsNullInt(runnerID)
+	return fmt.Sprintf("%d:%s:%s:%s:%s", userID, host, containerName, normalizedImage, key)
 }
 
 var shaKeyRe = regexp.MustCompile(`:[a-f0-9]{64}$`)
@@ -277,7 +285,7 @@ func (n *notifier) queueNotification(ctx context.Context, c db.ContainerRow, use
 	}
 	rawDigest := normalizedDigest(c.LatestDigest.String)
 
-	dedupKey := createDedupKey(userID, c.ContainerName, imageName, rawDigest, latestVersion)
+	dedupKey := createDedupKey(userID, c.ContainerName, imageName, rawDigest, latestVersion, c.RunnerID)
 	if n.isDuplicate(ctx, dedupKey, userID) {
 		slog.Debug("skipping duplicate discord notification", "container", c.ContainerName, "key", dedupKey)
 		return

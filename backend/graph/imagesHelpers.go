@@ -119,7 +119,7 @@ func (r *queryResolver) unusedFromRunner(ctx context.Context, rr db.RunnerRow) [
 		out = append(out, &model.DockerImage{
 			ID:         img.ID,
 			RepoTags:   tags,
-			Size:       int(img.Size),
+			Size:       model.BigInt(img.Size),
 			Created:    time.Unix(img.Created, 0).UTC().Format(time.RFC3339),
 			SourceURL:  rr.URL,
 			SourceName: displayName,

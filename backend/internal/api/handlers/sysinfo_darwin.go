@@ -31,6 +31,10 @@ func sysFreeMemMB() int {
 	return int(free * uint64(unix.Getpagesize()) / 1024 / 1024)
 }
 
+// procRSSMB reports the process's current resident set. darwin's x/sys has no
+// cheap task_info binding, so this falls back to Getrusage's Maxrss, which is
+// a high-water mark rather than a live reading. Dev-only: the deployed build
+// is linux and reads /proc/self/statm.
 func procRSSMB() int {
 	var ru unix.Rusage
 	if err := unix.Getrusage(unix.RUSAGE_SELF, &ru); err != nil {

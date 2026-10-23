@@ -24,6 +24,29 @@ import (
 // package's runner upgrade pipeline + upgrade-history recording).
 type UpgradeFunc func(ctx context.Context, userID int64, c *db.ContainerRow, rr *db.RunnerRow, imageName string) error
 
+type intentIDKey struct{}
+
+// withIntentID tags ctx with the policy being executed. The upgrade callback
+// records an upgrade_history row, and without the policy on the context that
+// row can never say which intent caused the upgrade - the intentId column was
+// NULL for every intent-triggered upgrade.
+func withIntentID(ctx context.Context, id int64) context.Context {
+	return context.WithValue(ctx, intentIDKey{}, id)
+}
+
+// IntentIDFromContext returns the policy id tagged on ctx, if any.
+func IntentIDFromContext(ctx context.Context) (int64, bool) {
+	v, ok := ctx.Value(intentIDKey{}).(int64)
+	return v, ok
+}
+
+// terminalCtx detaches final bookkeeping from the caller's lifetime. An
+// execution that ends because the requesting client went away still has to
+// write its totals and release its locks, or the row reads as still running.
+func terminalCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+}
+
 // ContainerResult is one per-container outcome (Node's containerResults entry).
 type ContainerResult struct {
 	ContainerID   string
@@ -34,6 +57,11 @@ type ContainerResult struct {
 	NewImage      *string
 	ErrorMessage  *string
 	DurationMs    *int64
+	// BookkeepingErr records a failed intent_execution_containers write. The
+	// upgrade itself may have succeeded; what is lost is the per-container
+	// detail row, so the execution's detail list silently disagrees with its
+	// own totals. Surfaced on the execution rather than dropped.
+	BookkeepingErr *string
 }
 
 // Summary is the execution result returned to callers (Node's executeIntent result).
@@ -94,10 +122,12 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 
 	failExec := func(err error) (*Summary, error) {
 		if execID != 0 {
-			if uerr := db.MarkIntentExecutionFailed(ctx, e.DB, execID, err.Error()); uerr != nil {
+			done, cancelDone := terminalCtx(ctx)
+			defer cancelDone()
+			if uerr := db.MarkIntentExecutionFailed(done, e.DB, execID, err.Error()); uerr != nil {
 				slog.Error("failed to update execution on error", "executionId", execID, "error", uerr)
 			}
-			e.publish(ctx, userID, execID)
+			e.publish(done, userID, execID)
 		}
 		slog.Error("intent execution failed", "intentId", intent.ID, "executionId", execID, "error", err)
 		return nil, err
@@ -269,17 +299,26 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	}
 	wg.Wait()
 
+	// A group that errored must not erase what the other groups achieved. The
+	// old early return discarded every ContainerResult and left the totals at
+	// zero, so a partially applied policy read as "nothing happened" - and the
+	// execution row was rewritten as a bare failure.
+	var groupErr error
 	for _, g := range groups {
-		if g.err != nil {
-			return failExec(g.err)
+		if g.err != nil && groupErr == nil {
+			groupErr = g.err
 		}
 	}
 
 	var results []ContainerResult
 	upgraded, failed, skipped := 0, 0, 0
+	var bookkeepingErrs []string
 	for _, g := range groups {
 		for _, res := range g.results {
 			results = append(results, res)
+			if res.BookkeepingErr != nil {
+				bookkeepingErrs = append(bookkeepingErrs, res.ContainerName+": "+*res.BookkeepingErr)
+			}
 			switch res.Status {
 			case "upgraded":
 				upgraded++
@@ -293,7 +332,7 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 
 	// Step 5: final totals.
 	finalStatus := "completed"
-	if failed != 0 {
+	if failed != 0 || groupErr != nil {
 		if upgraded == 0 {
 			finalStatus = "failed"
 		} else {
@@ -301,11 +340,34 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 		}
 	}
 	matched := len(out.Matched)
-	if err := db.UpdateIntentExecution(ctx, e.DB, execID, finalStatus, matched, upgraded, failed, skipped, nil); err != nil {
+	var execErrMsg *string
+	{
+		var notes []string
+		if groupErr != nil {
+			notes = append(notes, groupErr.Error())
+		}
+		// The totals above count containers whose detail rows were never
+		// written, so the execution's container list is shorter than its own
+		// numbers. Say so instead of leaving the two to disagree quietly.
+		if len(bookkeepingErrs) > 0 {
+			notes = append(notes, fmt.Sprintf("%d container result(s) could not be recorded: %s",
+				len(bookkeepingErrs), strings.Join(bookkeepingErrs, "; ")))
+		}
+		if len(notes) > 0 {
+			msg := strings.Join(notes, " | ")
+			execErrMsg = &msg
+		}
+	}
+	// Terminal bookkeeping runs detached from the caller: a client that
+	// disconnects mid-run must not leave the execution stuck in 'running'
+	// with no totals, which is what an aborted context used to cause.
+	done, cancelDone := terminalCtx(ctx)
+	defer cancelDone()
+	if err := db.UpdateIntentExecution(done, e.DB, execID, finalStatus, matched, upgraded, failed, skipped, execErrMsg); err != nil {
 		return failExec(err)
 	}
-	e.publish(ctx, userID, execID)
-	e.updateLastEvaluated(ctx, intent, userID, execID, opts.TriggerTime)
+	e.publish(done, userID, execID)
+	e.updateLastEvaluated(done, intent, userID, execID, opts.TriggerTime)
 
 	slog.Info("intent execution complete",
 		"intentId", intent.ID, "intentName", intent.Name, "executionId", execID,
@@ -357,7 +419,7 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 			"lockedBy", owner, "intentId", intentID)
 
 		msg := fmt.Sprintf("Upgrade already in progress (locked by %s)", owner)
-		_ = e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
+		recErr := e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
 			Status:       "skipped",
 			OldImage:     strPtr(c.ImageName.String),
 			ErrorMessage: &msg,
@@ -365,6 +427,7 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 		return ContainerResult{
 			ContainerID: c.ContainerID, ContainerName: c.ContainerName,
 			ImageName: c.ImageName.String, Status: "skipped", ErrorMessage: &msg,
+			BookkeepingErr: recordErrNote(recErr),
 		}, nil
 	}
 
@@ -389,7 +452,11 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 		}
 	}()
 	defer func() {
-		if err := db.ReleaseUpgradeLock(ctx, e.DB, lockKey, token); err != nil {
+		// Detached: a cancelled run still has to give the lock back, or the
+		// container stays locked out of every later upgrade until the TTL.
+		done, cancelRelease := terminalCtx(ctx)
+		defer cancelRelease()
+		if err := db.ReleaseUpgradeLock(done, e.DB, lockKey, token); err != nil {
 			slog.Warn("upgrade lock release failed", "lockKey", lockKey, "error", err)
 		}
 	}()
@@ -404,7 +471,7 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 	if rr == nil || strings.TrimSpace(rr.URL) == "" {
 		msg := "Runner not found for container"
 		duration := time.Since(startTime).Milliseconds()
-		_ = e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
+		recErr := e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
 			Status:       "failed",
 			OldImage:     strPtr(c.ImageName.String),
 			ErrorMessage: &msg,
@@ -413,17 +480,18 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 		return ContainerResult{
 			ContainerID: c.ContainerID, ContainerName: c.ContainerName,
 			ImageName: c.ImageName.String, Status: "failed", ErrorMessage: &msg, DurationMs: &duration,
+			BookkeepingErr: recordErrNote(recErr),
 		}, nil
 	}
 
-	upgradeCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	upgradeCtx, cancel := context.WithTimeout(withIntentID(ctx, intentID), 15*time.Minute)
 	defer cancel()
 	if err := e.Upgrade(upgradeCtx, userID, c, rr, c.ImageName.String); err != nil {
 		duration := time.Since(startTime).Milliseconds()
 		slog.Error("container upgrade failed during intent execution",
 			"containerId", c.ContainerID, "containerName", c.ContainerName, "error", err)
 		errMsg := err.Error()
-		_ = e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
+		recErr := e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
 			Status:       "failed",
 			OldImage:     strPtr(c.ImageName.String),
 			ErrorMessage: &errMsg,
@@ -432,6 +500,7 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 		return ContainerResult{
 			ContainerID: c.ContainerID, ContainerName: c.ContainerName,
 			ImageName: c.ImageName.String, Status: "failed", ErrorMessage: strPtr(err.Error()), DurationMs: &duration,
+			BookkeepingErr: recordErrNote(recErr),
 		}, nil
 	}
 
@@ -440,7 +509,7 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 	newImg := c.ImageName.String
 	oldDigest := c.CurrentDigest.String
 	// Node records newDigest as null: the upgrade response doesn't carry it.
-	_ = e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
+	recErr := e.recordContainer(ctx, execID, c, db.IntentExecContainerInsert{
 		Status:     "upgraded",
 		OldImage:   &oldImg,
 		NewImage:   &newImg,
@@ -450,10 +519,14 @@ func (e *Executor) upgradeContainer(ctx context.Context, c *db.ContainerRow, use
 	return ContainerResult{
 		ContainerID: c.ContainerID, ContainerName: c.ContainerName,
 		ImageName: c.ImageName.String, Status: "upgraded", OldImage: &oldImg, NewImage: &newImg, DurationMs: &duration,
+		BookkeepingErr: recordErrNote(recErr),
 	}, nil
 }
 
-// recordContainer fills the identity fields and writes the result row.
+// recordContainer fills the identity fields and writes the result row. The
+// write is detached from the caller's context: a cancelled or timed-out
+// execution still has to leave its per-container audit rows behind, or the
+// execution's detail list silently disagrees with its own totals.
 func (e *Executor) recordContainer(ctx context.Context, execID int64, c *db.ContainerRow, in db.IntentExecContainerInsert) error {
 	in.ExecutionID = execID
 	in.ContainerID = c.ContainerID
@@ -461,7 +534,21 @@ func (e *Executor) recordContainer(ctx context.Context, execID int64, c *db.Cont
 	in.ImageName = c.ImageName.String
 	in.SourceInstanceID = nullInt64Ptr(c.SourceInstanceID)
 	in.RunnerID = nullInt64Ptr(c.RunnerID)
-	return db.InsertIntentExecutionContainer(ctx, e.DB, in)
+	done, cancel := terminalCtx(ctx)
+	defer cancel()
+	return db.InsertIntentExecutionContainer(done, e.DB, in)
+}
+
+// recordErrNote turns a failed bookkeeping write into a message that can ride
+// along on the container result, so it reaches the execution row instead of
+// being dropped.
+func recordErrNote(err error) *string {
+	if err == nil {
+		return nil
+	}
+	slog.Error("failed to record intent execution container", "error", err)
+	msg := "detail row not saved: " + err.Error()
+	return &msg
 }
 
 // updateLastEvaluated anchors last_evaluated_at to the cron trigger point
@@ -477,14 +564,11 @@ func (e *Executor) updateLastEvaluated(ctx context.Context, intent *db.IntentRow
 }
 
 // containerLockKey mirrors upgradeLockManager._key's typed prefixes.
+// containerLockKey is the cross-process upgrade guard for a container. It must
+// match what the GraphQL upgrade pipeline uses, so it is name-scoped: the
+// upgrade recreates the container under the same name with a new Docker id.
 func containerLockKey(c *db.ContainerRow) string {
-	if c.SourceInstanceID.Valid {
-		return fmt.Sprintf("source:%d:%s", c.SourceInstanceID.Int64, c.ContainerID)
-	}
-	if c.RunnerID.Valid {
-		return fmt.Sprintf("runner:%d:%s", c.RunnerID.Int64, c.ContainerID)
-	}
-	return c.ContainerID
+	return db.UpgradeLockKeyForContainer(c)
 }
 
 // randHexToken builds the unique half of a lock token (Node uses a UUID).

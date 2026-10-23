@@ -33,6 +33,8 @@ models:
     fields:
       containers:
         resolver: true
+      source:
+        resolver: true
   ContainerGroup:
     fields:
       standalone:
@@ -75,6 +77,22 @@ models:
     fields:
       upgradeHistory:
         resolver: true
+      # The parent query pre-seeds source with only the host's id so the
+      # resolver can load the whole runner: a partial Runner projected
+      # straight from the container row would report enabled=false and
+      # zero timestamps for every container in the list.
+      source:
+        resolver: true
+  UpgradeRecord:
+    fields:
+      source:
+        resolver: true
+      intent:
+        resolver: true
+  IntentExecutionContainer:
+    fields:
+      runner:
+        resolver: true
   TrackedApp:
     fields:
       upgradeHistory:
@@ -82,6 +100,8 @@ models:
   IntentExecution:
     fields:
       containers:
+        resolver: true
+      intent:
         resolver: true
   Intent:
     fields:

@@ -45,7 +45,18 @@ func sysFreeMemMB() int {
 	return availKB / 1024
 }
 
+// procRSSMB reports the process's CURRENT resident set. Getrusage's Maxrss is
+// a high-water mark that never comes back down, so the panel showed the
+// largest the process had ever been rather than what it is holding.
 func procRSSMB() int {
+	if b, err := os.ReadFile("/proc/self/statm"); err == nil {
+		// statm fields are page counts; resident is the second.
+		if fields := strings.Fields(string(b)); len(fields) >= 2 {
+			if pages, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+				return int(pages * int64(unix.Getpagesize()) / 1024 / 1024)
+			}
+		}
+	}
 	var ru unix.Rusage
 	if err := unix.Getrusage(unix.RUSAGE_SELF, &ru); err != nil {
 		return 0

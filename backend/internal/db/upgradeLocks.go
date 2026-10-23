@@ -5,7 +5,38 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
+
+// UpgradeLockKey is the identity an upgrade lock is held against: the
+// container NAME scoped to its runner.
+//
+// Names, not Docker ids. The upgrade removes the old container and creates a
+// new one under the same name, so an id-keyed lock stops guarding the
+// container halfway through the operation: a second request for the same
+// container computes a different key and walks past the guard, and the release
+// at the end frees an id that no longer exists. Every producer of an upgrade
+// lock key must use this so the guards actually interoperate.
+func UpgradeLockKey(runnerID int64, name string) string {
+	return fmt.Sprintf("runner:%d:name:%s", runnerID, strings.TrimPrefix(name, "/"))
+}
+
+// UpgradeLockKeyForContainer derives the same identity from a persisted row.
+// With no name recorded it falls back to the Docker id: the guard is then
+// weaker across a recreate, but still present.
+func UpgradeLockKeyForContainer(c *ContainerRow) string {
+	name := c.ContainerName
+	if name == "" {
+		name = c.ContainerID
+	}
+	if c.RunnerID.Valid {
+		return UpgradeLockKey(c.RunnerID.Int64, name)
+	}
+	if c.SourceInstanceID.Valid {
+		return fmt.Sprintf("source:%d:name:%s", c.SourceInstanceID.Int64, strings.TrimPrefix(name, "/"))
+	}
+	return "unknown:name:" + strings.TrimPrefix(name, "/")
+}
 
 // AcquireUpgradeLock atomically claims a target across every process sharing
 // the SQLite database. Expired locks can be replaced after ten minutes.

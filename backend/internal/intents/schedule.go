@@ -75,8 +75,20 @@ func IsIntentDue(intent *db.IntentRow, now time.Time) DueResult {
 			return DueResult{IsDue: true, TriggerTime: &now, Legacy: true, Reason: "unparseable last_evaluated_at (legacy)"}
 		}
 		next := sched.Next(lastEval.In(loc))
-		if !next.IsZero() && !next.After(now) {
-			return DueResult{IsDue: true, TriggerTime: &next, Reason: "cron triggered at " + next.UTC().Format(isoMillis)}
+		// Coalesce missed points. A cron finer than the 60s evaluation tick
+		// advanced last_evaluated_at by a single point per tick and never
+		// caught up, so the intent read as permanently due and ran back to
+		// back forever. Only the most recent missed point fires.
+		latest := next
+		for i := 0; !latest.IsZero() && i < 1000; i++ {
+			follow := sched.Next(latest.In(loc))
+			if follow.IsZero() || follow.After(now) {
+				break
+			}
+			latest = follow
+		}
+		if !latest.IsZero() && !latest.After(now) {
+			return DueResult{IsDue: true, TriggerTime: &latest, Reason: "cron triggered at " + latest.UTC().Format(isoMillis)}
 		}
 		return DueResult{Reason: "not yet due"}
 	}

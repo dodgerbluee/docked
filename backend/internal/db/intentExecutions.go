@@ -31,7 +31,12 @@ func GetIntentExecutions(ctx context.Context, database *sql.DB, userID int64, in
 		countQ += " AND intent_id = ?"
 		args = append(args, *intentID)
 	}
-	database.QueryRowContext(ctx, countQ, args...).Scan(&total)
+	// A failed count must not pass as "zero executions": the caller would
+	// return a page of rows with totalCount 0 and a connection that claims
+	// there is nothing more.
+	if err := database.QueryRowContext(ctx, countQ, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count intent executions: %w", err)
+	}
 
 	q := "SELECT ie.id, ie.intent_id, ie.user_id, ie.status, ie.trigger_type, ie.containers_matched, ie.containers_upgraded, ie.containers_failed, ie.containers_skipped, ie.error_message, ie.started_at, ie.completed_at, ie.duration_ms, i.name AS intent_name FROM intent_executions ie LEFT JOIN intents i ON ie.intent_id = i.id WHERE ie.user_id = ?"
 	args2 := []any{userID}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -220,7 +220,9 @@ func TestIsIntentDue(t *testing.T) {
 		t.Errorf("unparseable last_evaluated_at should be due with triggerTime=now, got %+v", r)
 	}
 
-	// Old last evaluation: due, trigger time is the cron point AFTER it.
+	// Old last evaluation: due. The trigger point is the LAST cron point at or
+	// before now, not the first one after the last evaluation: missed points
+	// are coalesced rather than replayed.
 	last := "2026-10-21T11:58:00.000Z"
 	r = IsIntentDue(mk("scheduled", "*/5 * * * *", last), now)
 	if !r.IsDue {
@@ -235,8 +237,18 @@ func TestIsIntentDue(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := want.Next(lastT)
+	for {
+		next := want.Next(expected)
+		if next.IsZero() || next.After(now) {
+			break
+		}
+		expected = next
+	}
+	if expected.Equal(want.Next(lastT)) {
+		t.Fatal("fixture expected more than one missed cron point")
+	}
 	if !r.TriggerTime.Equal(expected) {
-		t.Errorf("triggerTime = %v, want cron point %v", r.TriggerTime, expected)
+		t.Errorf("triggerTime = %v, want the most recent cron point %v", r.TriggerTime, expected)
 	}
 
 	// Fresh last evaluation: next cron point is in the future.
@@ -323,10 +335,17 @@ func setupMatchFixture(t *testing.T) (*sql.DB, int64) {
 		 VALUES (1, 'cid-orphan', 'db-orphan', 'repo/app:latest')`); err != nil {
 		t.Fatal(err)
 	}
-	// DB row on a known source instance with an available update.
-	if _, err := database.Exec(
-		`INSERT INTO source_instances (id, user_id, name, url) VALUES (7, 1, 'legacy', 'http://x')`); err != nil {
-		t.Fatal(err)
+	// DB row on a runner that cannot be reached: the live fetch fails, so the
+	// persisted row is NOT superseded and stays matchable (stale beats
+	// missing). Its update is provable from the joined registry data.
+	var deadRunnerID int64
+	{
+		res, err := database.Exec(
+			`INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (1, 'dead', 'http://127.0.0.1:1', 'key', 1)`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deadRunnerID, _ = res.LastInsertId()
 	}
 	di, err := database.Exec(
 		`INSERT INTO deployed_images (user_id, image_digest, image_tag, repo_digests, image_repo, registry)
@@ -337,8 +356,35 @@ func setupMatchFixture(t *testing.T) (*sql.DB, int64) {
 	diID, _ := di.LastInsertId()
 	seedRegistry(t, database, "repo/src", "latest", digestNew)
 	if _, err := database.Exec(
+		`INSERT INTO containers (user_id, container_id, container_name, image_name, deployed_image_id, runner_id)
+		 VALUES (1, 'cid-src', 'db-source', 'repo/src:latest', ?, ?)`, diID, deadRunnerID); err != nil {
+		t.Fatal(err)
+	}
+	// Retired source-instance (Portainer) row: kept for history, but nothing
+	// can recreate it, so it must never match.
+	if _, err := database.Exec(
+		`INSERT INTO source_instances (id, user_id, name, url) VALUES (7, 1, 'legacy', 'http://x')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(
 		`INSERT INTO containers (user_id, container_id, container_name, image_name, deployed_image_id, source_instance_id)
-		 VALUES (1, 'cid-src', 'db-source', 'repo/src:latest', ?, 7)`, diID); err != nil {
+		 VALUES (1, 'cid-legacy', 'db-legacy', 'repo/src:latest', ?, 7)`, diID); err != nil {
+		t.Fatal(err)
+	}
+	// Container on a DISABLED runner: it matches nothing, because the upgrade
+	// would fail on "runner disabled" after being counted in the execution.
+	var disabledRunnerID int64
+	{
+		res, err := database.Exec(
+			`INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (1, 'off', 'http://127.0.0.1:2', 'key', 0)`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		disabledRunnerID, _ = res.LastInsertId()
+	}
+	if _, err := database.Exec(
+		`INSERT INTO containers (user_id, container_id, container_name, image_name, deployed_image_id, runner_id)
+		 VALUES (1, 'cid-off', 'db-disabled', 'repo/src:latest', ?, ?)`, diID, disabledRunnerID); err != nil {
 		t.Fatal(err)
 	}
 	return database, runnerID
@@ -367,6 +413,15 @@ func TestFindMatchingContainers(t *testing.T) {
 	got := names(out.Matched)
 	if got != "db-source,live-updated" {
 		t.Errorf("matched = [%s], want [live-updated,db-source]", got)
+	}
+	// A retired source-instance row and a container on a disabled runner must
+	// never match: both can only ever produce a failed container.
+	for _, name := range []string{"db-legacy", "db-disabled", "db-orphan", "db-runner-backed"} {
+		for _, c := range out.Matched {
+			if c.ContainerName == name {
+				t.Errorf("%s must not match", name)
+			}
+		}
 	}
 	if len(out.Excluded) != 0 {
 		t.Errorf("excluded should be empty without trackExcluded, got %d", len(out.Excluded))
@@ -480,7 +535,7 @@ func TestExecuteIntentUpgrades(t *testing.T) {
 
 	// Lock released.
 	if _, found, err := db.GetActiveUpgradeLockOwner(ctx, database,
-		fmt.Sprintf("runner:%d:cid-live-up", runnerID)); err != nil || found {
+		db.UpgradeLockKey(runnerID, "live-updated")); err != nil || found {
 		t.Errorf("lock should be released, found=%v err=%v", found, err)
 	}
 
@@ -491,6 +546,114 @@ func TestExecuteIntentUpgrades(t *testing.T) {
 	}
 	if _, perr := time.Parse(isoMillis, updated.LastEvaluatedAt.String); perr != nil {
 		t.Errorf("last_evaluated_at %q not ISO millis: %v", updated.LastEvaluatedAt.String, perr)
+	}
+}
+
+// TestExecuteIntentReportsPartialTotalsWhenSomeUpgradesFail pins the
+// aggregate-before-fail rule. One failing container must not erase what the
+// other groups achieved: the old code returned on the first group error and
+// rewrote the execution as a bare failure with every total at zero, so a
+// policy that had already upgraded two containers read as "nothing happened".
+func TestExecuteIntentReportsPartialTotalsWhenSomeUpgradesFail(t *testing.T) {
+	ctx := context.Background()
+	database, _ := setupMatchFixture(t)
+	_, _ = seedRunner(t, database, "partial",
+		dockhand("cid-p1", "part-one", "repo/app:latest", "repo/app@"+digestOld),
+		dockhand("cid-p2", "part-two", "repo/app:latest", "repo/app@"+digestOld),
+		dockhand("cid-p3", "part-three", "repo/app:latest", "repo/app@"+digestOld),
+	)
+	seedRegistry(t, database, "repo/app", "latest", digestNew)
+	intent := insertIntent(t, database, map[string]any{
+		"name": "partial", "schedule_type": "scheduled",
+		"match_containers": `["part-*"]`, "max_concurrent": 3,
+	})
+
+	exec := &Executor{
+		DB: database,
+		Upgrade: func(ctx context.Context, userID int64, c *db.ContainerRow, rr *db.RunnerRow, imageName string) error {
+			if c.ContainerName == "part-two" {
+				return errors.New("boom: create failed")
+			}
+			return nil
+		},
+	}
+
+	sum, err := exec.ExecuteIntent(ctx, intent, 1, ExecOptions{TriggerType: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Status != "partial" {
+		t.Errorf("status = %q, want partial", sum.Status)
+	}
+	if sum.ContainersMatched != 3 || sum.ContainersUpgraded != 2 || sum.ContainersFailed != 1 {
+		t.Errorf("totals = matched %d upgraded %d failed %d, want 3/2/1",
+			sum.ContainersMatched, sum.ContainersUpgraded, sum.ContainersFailed)
+	}
+	if len(sum.Containers) != 3 {
+		t.Errorf("results = %d, want 3: every group's outcome must survive", len(sum.Containers))
+	}
+
+	stored, err := db.GetIntentExecutionByID(ctx, database, sum.ExecutionID, 1)
+	if err != nil || stored == nil {
+		t.Fatalf("execution row: %v", err)
+	}
+	if stored.Status != "partial" || stored.ContainersUpgraded != 2 || stored.ContainersFailed != 1 {
+		t.Errorf("execution row = %+v", stored)
+	}
+
+	details, err := db.GetIntentExecutionContainers(ctx, database, sum.ExecutionID)
+	if err != nil || len(details) != 3 {
+		t.Fatalf("container rows: %v (n=%d)", err, len(details))
+	}
+	var sawFailure bool
+	for _, d := range details {
+		if d.ContainerName == "part-two" {
+			sawFailure = d.Status == "failed" && strings.Contains(d.ErrorMessage.String, "boom")
+		}
+	}
+	if !sawFailure {
+		t.Error("the failed container must keep its own detail row with the cause")
+	}
+}
+
+// TestExecuteIntentSurfacesUnrecordedContainerResults: a per-container detail
+// write that fails must not vanish. The totals count the container, so a
+// silently missing row leaves the execution's detail list disagreeing with
+// its own numbers.
+func TestExecuteIntentSurfacesUnrecordedContainerResults(t *testing.T) {
+	ctx := context.Background()
+	database, _ := setupMatchFixture(t)
+	_, _ = seedRunner(t, database, "bookkeep",
+		dockhand("cid-bk", "book-one", "repo/app:latest", "repo/app@"+digestOld),
+	)
+	seedRegistry(t, database, "repo/app", "latest", digestNew)
+	intent := insertIntent(t, database, map[string]any{
+		"name": "bookkeep", "schedule_type": "scheduled", "match_containers": `["book-*"]`,
+	})
+
+	// Break the detail table without breaking the execution table: the
+	// upgrade still happens, only its audit row is lost.
+	if _, err := database.Exec(
+		`ALTER TABLE intent_execution_containers RENAME TO unusable_containers`); err != nil {
+		t.Fatal(err)
+	}
+
+	exec := &Executor{DB: database, Upgrade: func(context.Context, int64, *db.ContainerRow, *db.RunnerRow, string) error {
+		return nil
+	}}
+	sum, err := exec.ExecuteIntent(ctx, intent, 1, ExecOptions{TriggerType: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.ContainersUpgraded != 1 {
+		t.Fatalf("totals = %+v, want the upgrade still counted", sum)
+	}
+	stored, err := db.GetIntentExecutionByID(ctx, database, sum.ExecutionID, 1)
+	if err != nil || stored == nil {
+		t.Fatalf("execution row: %v", err)
+	}
+	if !strings.Contains(stored.ErrorMessage.String, "could not be recorded") {
+		t.Errorf("error_message = %q, want the lost detail row named", stored.ErrorMessage.String)
 	}
 }
 
@@ -578,7 +741,7 @@ func TestExecuteIntentSkipsLockedContainer(t *testing.T) {
 		"name": "locked", "schedule_type": "scheduled", "match_containers": `["live-updated"]`,
 	})
 
-	key := fmt.Sprintf("runner:%d:cid-live-up", runnerID)
+	key := db.UpgradeLockKey(runnerID, "live-updated")
 	acquired, err := db.AcquireUpgradeLock(ctx, database, key, "intent:99:0123456789abcdef")
 	if err != nil || !acquired {
 		t.Fatalf("pre-acquire lock: acquired=%v err=%v", acquired, err)
@@ -750,8 +913,8 @@ func TestEvaluateScheduledIntentsPreMarksCronPoint(t *testing.T) {
 	ctx := context.Background()
 	database, _ := setupMatchFixture(t)
 
-	// Last evaluated 20 minutes ago against a */5 cron: exactly one unprocessed
-	// cron point (the most recent one) is due.
+	// Last evaluated 20 minutes ago against a */5 cron: four cron points have
+	// passed, and the most recent one is the trigger.
 	last := time.Now().Add(-20 * time.Minute).UTC().Format(isoMillis)
 	intent := insertIntent(t, database, map[string]any{
 		"name": "sched", "schedule_type": "scheduled",
@@ -775,7 +938,21 @@ func TestEvaluateScheduledIntentsPreMarksCronPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantPoint, _ := cron.ParseStandard("*/5 * * * *")
+	// Missed points are coalesced, not replayed: the trigger point is the LAST
+	// cron point at or before now, so a cron finer than the 60s evaluation tick
+	// cannot leave the intent permanently due and running back to back.
+	now := time.Now().UTC()
 	want := wantPoint.Next(lastT)
+	for {
+		next := wantPoint.Next(want)
+		if next.IsZero() || next.After(now) {
+			break
+		}
+		want = next
+	}
+	if want.Equal(wantPoint.Next(lastT)) {
+		t.Fatal("fixture expected more than one missed cron point")
+	}
 	got, err := db.ParseSQLiteTime(updated.LastEvaluatedAt.String)
 	if err != nil {
 		t.Fatalf("pre-marked last_evaluated_at %q unparseable: %v", updated.LastEvaluatedAt.String, err)

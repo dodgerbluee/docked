@@ -682,7 +682,7 @@ func importTrackedApps(ctx context.Context, database *sql.DB, apps []any, user *
 		}
 
 		id, err := db.CreateTrackedApp(ctx, database, user.ID, name,
-			nullStr(image["image_name"]), nullStr(image["github_repo"]), sourceType, gitlabToken, nil)
+			nullStr(image["image_name"]), nullStr(image["github_repo"]), sourceType, gitlabToken, nil, nil)
 		if err != nil {
 			appendImportError(results, `Tracked image "`+name+`": `+err.Error())
 			continue

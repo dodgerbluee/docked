@@ -369,10 +369,12 @@ func TestRunnerUpgradeLockHeldByOtherOwner(t *testing.T) {
 	seedRunner(t, database, stub.srv.URL, 1)
 
 	// A live lock held by the intent engine blocks the SSE route and the
-	// holder is named (minus the uuid suffix) in the conflict message.
+	// holder is named (minus the uuid suffix) in the conflict message. The
+	// key is name-scoped (see db.UpgradeLockKey); with no persisted row for
+	// abc123 the handler falls back to the container id.
 	_, err := database.Exec(
 		`INSERT INTO upgrade_locks (target_key, owner, expires_at)
-		 VALUES ('runner:1:abc123', 'intent:42:deadbeef-0000-0000-0000-000000000000', datetime('now','+5 minutes'))`)
+		 VALUES ('runner:1:name:abc123', 'intent:42:deadbeef-0000-0000-0000-000000000000', datetime('now','+5 minutes'))`)
 	if err != nil {
 		t.Fatalf("seed lock: %v", err)
 	}

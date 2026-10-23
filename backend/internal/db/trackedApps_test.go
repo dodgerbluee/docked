@@ -271,10 +271,10 @@ func TestTrackedAppIdentityIsUniqueWithoutGithubRepo(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if _, err := CreateTrackedApp(ctx, database, 1, "app", strPtr("example/app:latest"), nil, "docker", nil, nil); err != nil {
+	if _, err := CreateTrackedApp(ctx, database, 1, "app", strPtr("example/app:latest"), nil, "docker", nil, nil, nil); err != nil {
 		t.Fatalf("first insert: %v", err)
 	}
-	_, err = CreateTrackedApp(ctx, database, 1, "app again", strPtr("example/app:latest"), nil, "docker", nil, nil)
+	_, err = CreateTrackedApp(ctx, database, 1, "app again", strPtr("example/app:latest"), nil, "docker", nil, nil, nil)
 	if !errors.Is(err, ErrTrackedAppExists) {
 		t.Fatalf("second insert of the same image: err = %v, want ErrTrackedAppExists", err)
 	}
@@ -290,10 +290,10 @@ func TestTrackedAppIdentityIsUniqueWithoutGithubRepo(t *testing.T) {
 
 	// Apps tracked without an image have no image identity and must still be
 	// able to coexist.
-	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-a", nil, strPtr("owner/a"), "github", nil, nil); err != nil {
+	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-a", nil, strPtr("owner/a"), "github", nil, nil, nil); err != nil {
 		t.Fatalf("repo-only insert a: %v", err)
 	}
-	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-b", nil, strPtr("owner/b"), "github", nil, nil); err != nil {
+	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-b", nil, strPtr("owner/b"), "github", nil, nil, nil); err != nil {
 		t.Fatalf("repo-only insert b: %v", err)
 	}
 }

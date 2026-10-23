@@ -602,27 +602,50 @@ func readinessCheck(ctx context.Context, rr db.RunnerRow, details map[string]any
 // either.
 const lockReleaseTimeout = 10 * time.Second
 
+// lockNameOf is the lock identity for a container name. Docker inspect and the
+// runner container list report names with a leading slash while the containers
+// table does not, so every form is normalized to the same key. Both the writer
+// and the reader of a name-keyed map must use this.
+func lockNameOf(name string) string {
+	return strings.TrimPrefix(name, "/")
+}
+
+// depLockName is lockNameOf for a discovered dependent.
+func depLockName(d depAfter) string {
+	return lockNameOf(d.Name)
+}
+
+// errDependentDown marks collateral damage: this pipeline stopped a container
+// it does not own and then could not start it again. The upgraded container is
+// fine, but the stack is now degraded, and swallowing the error reported a
+// clean success over a service that is down.
+var errDependentDown = errors.New("was stopped but could not be started")
+
 // acquireUpgradeLockSet atomically acquires upgrade locks for a set of
-// container IDs (lock keys are sorted for deterministic ordering). When
-// requireAll is true, any contended ID releases the whole set and returns an
-// error; when false, contended IDs are simply omitted from the returned map,
-// which is keyed by container ID. The returned release function frees every
-// held lock and stops the heartbeat.
-func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.RunnerRow, owner string, ids []string, requireAll bool) (map[string]bool, func(), error) {
-	idByKey := make(map[string]string, len(ids))
-	for _, id := range ids {
-		key := containerTargetKey(id, &rr.ID)
-		if _, dup := idByKey[key]; !dup {
-			idByKey[key] = id
+// container NAMES (lock keys are sorted for deterministic ordering). When
+// requireAll is true, any contended name releases the whole set and returns an
+// error; when false, contended names are simply omitted from the returned map,
+// which is keyed by name. The returned release function frees every held lock
+// and stops the heartbeat.
+func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.RunnerRow, owner string, names []string, requireAll bool) (map[string]bool, func(), error) {
+	nameByKey := make(map[string]string, len(names))
+	for _, name := range names {
+		key := upgradeLockKey(&rr.ID, name)
+		if _, dup := nameByKey[key]; !dup {
+			nameByKey[key] = name
 		}
 	}
-	keys := make([]string, 0, len(idByKey))
-	for k := range idByKey {
+	keys := make([]string, 0, len(nameByKey))
+	for k := range nameByKey {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
 	held := make(map[string]bool, len(keys))
+	// heldKeys tracks the DB keys actually acquired, kept separate from the
+	// name-keyed map the callers read: releasing by name would delete nothing
+	// and strand every lock in the set until its lease expires.
+	heldKeys := make([]string, 0, len(keys))
 	for _, key := range keys {
 		locked, err := db.AcquireUpgradeLock(ctx, r.DB, key, owner)
 		if err != nil || !locked {
@@ -631,25 +654,26 @@ func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.Runn
 				// canceled request context would leave the locks we already
 				// took stranded until they expire, blocking the containers for
 				// the whole lock TTL.
-				for k := range held {
+				for _, k := range heldKeys {
 					rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
-					_ = db.ReleaseUpgradeLock(rctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+					_ = db.ReleaseUpgradeLock(rctx, r.DB, k, owner)
 					cancel()
 				}
 				if err == nil {
 					err = fmt.Errorf("lock already held by another operation")
 				}
-				return nil, nil, fmt.Errorf("container %q is being modified by another operation: %w", key, err)
+				return nil, nil, fmt.Errorf("container %q is being modified by another operation: %w", nameByKey[key], err)
 			}
 			continue
 		}
-		held[idByKey[key]] = true
+		held[nameByKey[key]] = true
+		heldKeys = append(heldKeys, key)
 	}
 	if len(held) == 0 {
 		return held, func() {}, nil
 	}
 
-	stopHB := r.startDepLockHeartbeat(keys, owner)
+	stopHB := r.startDepLockHeartbeat(heldKeys, owner)
 	release := func() {
 		stopHB()
 		// Detached for the same reason as the rollback path above: release
@@ -658,8 +682,8 @@ func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.Runn
 		// for the full TTL.
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
 		defer cancel()
-		for k := range held {
-			_ = db.ReleaseUpgradeLock(rctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+		for _, k := range heldKeys {
+			_ = db.ReleaseUpgradeLock(rctx, r.DB, k, owner)
 		}
 	}
 	return held, release, nil
@@ -774,6 +798,49 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 		}
 	}
 	return deps, nil
+}
+
+// refreshDependentSnapshots re-reads each dependent once the upgrade locks are
+// held. The snapshot that recreation replays was taken before the lock was
+// acquired, so a concurrent operation that replaced a dependent in that window
+// would be removed by a stale id (leaving the live replacement running) and
+// then put back from a config that no longer described it.
+func refreshDependentSnapshots(ctx context.Context, rr db.RunnerRow, deps []depContainer) []depContainer {
+	if len(deps) == 0 {
+		return deps
+	}
+	list, err := runner.FetchContainers(ctx, rr)
+	if err != nil {
+		// Keep the originals: a failed re-check is no reason to leave a
+		// dependent un-restored, and the snapshot is at least a real config.
+		slog.Warn("upgrade: could not re-check dependents under lock", "error", err)
+		return deps
+	}
+	current := make(map[string]string, len(list))
+	for _, c := range list {
+		current[lockNameOf(c.Name)] = c.ID
+	}
+	out := make([]depContainer, 0, len(deps))
+	for _, d := range deps {
+		id, ok := current[lockNameOf(d.Name)]
+		if !ok {
+			slog.Warn("upgrade: dependent removed before its lock was used", "container", d.Name)
+			continue
+		}
+		if id == d.ID {
+			out = append(out, d)
+			continue
+		}
+		insp, err := runner.InspectContainer(ctx, rr, id)
+		if err != nil {
+			slog.Warn("upgrade: re-inspect of replaced dependent failed", "container", d.Name, "error", err)
+			continue
+		}
+		slog.Info("upgrade: dependent was replaced before the lock was taken, using the live config",
+			"container", d.Name, "oldId", d.ID, "newId", id)
+		out = append(out, depContainer{ID: id, Name: d.Name, Details: insp, Running: restartStatus(insp) == "running"})
+	}
+	return out
 }
 
 // stopAndRemoveDependentContainers removes (not just stops) dependents so
@@ -1349,13 +1416,13 @@ func (r *mutationResolver) handleNetworkModeContainers(ctx context.Context, rr d
 	// authorized upgrade of one of them cannot interleave with our
 	// remove+recreate. Contended dependents are left untouched.
 	lockOwner := fmt.Sprintf("pipeline-sweep-%d-%d", time.Now().UnixNano(), rand.Int63())
-	lockIDs := make([]string, 0, len(deps))
+	lockNames := make([]string, 0, len(deps))
 	for _, d := range deps {
 		if _, ok := detailsMap[d.ID]; ok {
-			lockIDs = append(lockIDs, d.ID)
+			lockNames = append(lockNames, depLockName(d))
 		}
 	}
-	locked, releaseLocks, _ := r.acquireUpgradeLockSet(ctx, rr, lockOwner, lockIDs, false)
+	locked, releaseLocks, _ := r.acquireUpgradeLockSet(ctx, rr, lockOwner, lockNames, false)
 	defer releaseLocks()
 
 	for _, d := range deps {
@@ -1365,7 +1432,7 @@ func (r *mutationResolver) handleNetworkModeContainers(ctx context.Context, rr d
 			// over a transient inspect failure. Leave it alone.
 			continue
 		}
-		if !locked[d.ID] {
+		if !locked[depLockName(d)] {
 			log.Printf("upgrade: dependent %s is part of another upgrade, leaving it alone", d.Name)
 			continue
 		}
@@ -1381,7 +1448,7 @@ func (r *mutationResolver) handleNetworkModeContainers(ctx context.Context, rr d
 			log.Printf("upgrade: no details stored for dependent %s, skipping recreation", d.Name)
 			continue
 		}
-		if !locked[d.ID] {
+		if !locked[depLockName(d)] {
 			continue
 		}
 		if err := recreateNetworkModeContainer(ctx, rr, d, details, newID, oldID); err != nil {
@@ -1401,10 +1468,13 @@ func restartSingleContainer(ctx context.Context, rr db.RunnerRow, d depAfter) er
 		return nil
 	}
 	if err := runner.StopContainer(ctx, rr, d.ID); err != nil {
-		return err
+		return fmt.Errorf("stop dependent %s: %w", d.Name, err)
 	}
 	time.Sleep(1 * time.Second)
-	return runner.StartContainer(ctx, rr, d.ID)
+	if err := runner.StartContainer(ctx, rr, d.ID); err != nil {
+		return fmt.Errorf("dependent %s %w: %w", d.Name, errDependentDown, err)
+	}
+	return nil
 }
 
 // restartDependentContainers is the post-upgrade dependent restart entry
@@ -1434,7 +1504,7 @@ func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db
 
 	var netDeps, otherDeps []depAfter
 	for _, d := range deps {
-		if preRestored[strings.TrimPrefix(d.Name, "/")] {
+		if preRestored[lockNameOf(d.Name)] {
 			continue
 		}
 		if d.Reason == "network_mode" {
@@ -1463,40 +1533,45 @@ func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db
 		// anything busy alone. `owned` are the dependents this pipeline
 		// already locked up front: those are ours to restart, and re-claiming
 		// them under a new owner would only make them look busy.
-		ids := make([]string, 0, len(otherDeps))
+		names := make([]string, 0, len(otherDeps))
 		for _, d := range otherDeps {
-			if !owned[d.ID] {
-				ids = append(ids, d.ID)
+			if !owned[depLockName(d)] {
+				names = append(names, depLockName(d))
 			}
 		}
-		held, release := r.claimRestartLocks(ctx, rr, ids)
+		held, release := r.claimRestartLocks(ctx, rr, names)
 		if release != nil {
 			defer release()
 		}
 		for _, d := range otherDeps {
-			if !owned[d.ID] && !held[d.ID] {
+			if !owned[depLockName(d)] && !held[depLockName(d)] {
 				log.Printf("upgrade: dependent %s is part of another upgrade, leaving it alone", d.Name)
 				continue
 			}
 			// Stack dependents were never removed by us (compose owns their
-			// lifecycle): a failed restart is logged, not fatal.
+			// lifecycle), so a failed STOP leaves them running and is only
+			// worth a log. A failed START after our own stop leaves the
+			// service DOWN, which is damage we caused: report it.
 			if err := restartSingleContainer(ctx, rr, d); err != nil {
 				log.Printf("upgrade: failed to restart dependent %s: %v", d.Name, err)
+				if errors.Is(err, errDependentDown) {
+					errs = append(errs, err)
+				}
 			}
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// claimRestartLocks locks the given containers for this pipeline's exclusive
-// use and returns the subset it holds plus the release func. Containers another
-// operation already locked are omitted.
-func (r *mutationResolver) claimRestartLocks(ctx context.Context, rr db.RunnerRow, ids []string) (map[string]bool, func()) {
-	if len(ids) == 0 {
+// claimRestartLocks locks the given container names for this pipeline's
+// exclusive use and returns the subset it holds plus the release func.
+// Containers another operation already locked are omitted.
+func (r *mutationResolver) claimRestartLocks(ctx context.Context, rr db.RunnerRow, names []string) (map[string]bool, func()) {
+	if len(names) == 0 {
 		return map[string]bool{}, nil
 	}
 	owner := fmt.Sprintf("pipeline-restart-%d-%d", time.Now().UnixNano(), rand.Int63())
-	held, release, err := r.acquireUpgradeLockSet(ctx, rr, owner, ids, false)
+	held, release, err := r.acquireUpgradeLockSet(ctx, rr, owner, names, false)
 	if err != nil {
 		log.Printf("upgrade: could not claim restart locks: %v", err)
 	}
@@ -1509,16 +1584,18 @@ func (r *mutationResolver) claimRestartLocks(ctx context.Context, rr db.RunnerRo
 // restartSiblingContainers restarts other containers that share the same
 // network provider as the (shared-network-mode) upgraded container. Like the
 // dependent sweep, a sibling that another operation holds an upgrade lock on is
-// left alone rather than stopped mid-operation.
-func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDetails map[string]any, newID string, owned map[string]bool) {
+// left alone rather than stopped mid-operation. A sibling we stopped and then
+// failed to start is returned as an error: it was running before this upgrade
+// and is down after it, so reporting a clean success hid a degraded stack.
+func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDetails map[string]any, newID string, owned map[string]bool) error {
 	provider := networkModeRef(jStr(jObj(originalDetails, "HostConfig"), "NetworkMode"))
 	if provider == "" {
-		return
+		return nil
 	}
 	list, err := runner.FetchContainers(ctx, rr)
 	if err != nil {
 		log.Printf("upgrade: could not list containers for sibling restart: %v", err)
-		return
+		return nil
 	}
 	type sibling struct{ id, name string }
 	var eligible []sibling
@@ -1537,21 +1614,23 @@ func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.R
 		eligible = append(eligible, sibling{id: c.ID, name: c.Name})
 	}
 	if len(eligible) == 0 {
-		return
+		return nil
 	}
 
-	ids := make([]string, 0, len(eligible))
+	names := make([]string, 0, len(eligible))
 	for _, s := range eligible {
-		if !owned[s.id] {
-			ids = append(ids, s.id)
+		if !owned[lockNameOf(s.name)] {
+			names = append(names, lockNameOf(s.name))
 		}
 	}
-	held, release := r.claimRestartLocks(ctx, rr, ids)
+	held, release := r.claimRestartLocks(ctx, rr, names)
 	if release != nil {
 		defer release()
 	}
+	var errs []error
 	for _, s := range eligible {
-		if !owned[s.id] && !held[s.id] {
+		lockName := lockNameOf(s.name)
+		if !owned[lockName] && !held[lockName] {
 			log.Printf("upgrade: sibling %s is part of another upgrade, leaving it alone", s.name)
 			continue
 		}
@@ -1562,8 +1641,10 @@ func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.R
 		time.Sleep(1 * time.Second)
 		if err := runner.StartContainer(ctx, rr, s.id); err != nil {
 			log.Printf("upgrade: failed to start sibling %s: %v", s.name, err)
+			errs = append(errs, fmt.Errorf("sibling %s %w: %w", s.name, errDependentDown, err))
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // ── Blocklist ───────────────────────────────────────────────────────────────
@@ -1674,16 +1755,20 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		return fmt.Errorf("aborting upgrade of %s: %w", cleanName, depErr)
 	}
 	if len(deps) > 0 {
-		depIDs := make([]string, 0, len(deps))
+		depNames := make([]string, 0, len(deps))
 		for _, d := range deps {
-			depIDs = append(depIDs, d.ID)
+			depNames = append(depNames, lockNameOf(d.Name))
 		}
 		depLockOwner := fmt.Sprintf("pipeline-%d-%d", time.Now().UnixNano(), rand.Int63())
-		_, releaseDepLocks, lockErr := r.acquireUpgradeLockSet(ctx, *rr, depLockOwner, depIDs, true)
+		_, releaseDepLocks, lockErr := r.acquireUpgradeLockSet(ctx, *rr, depLockOwner, depNames, true)
 		if lockErr != nil {
 			return fmt.Errorf("acquire upgrade locks for dependent containers: %w", lockErr)
 		}
 		defer releaseDepLocks()
+		// The snapshot above predates the lock. Now that the dependents are
+		// locked, re-read them so a dependent that was replaced in that gap is
+		// removed by its live id and restored from its live config.
+		deps = refreshDependentSnapshots(ctx, *rr, deps)
 		stopAndRemoveDependentContainers(ctx, *rr, deps)
 	}
 	// From here the dependents are already gone: any failure below must put
@@ -1805,8 +1890,12 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 			return fmt.Errorf("provider %s upgraded, but dependent restore failed: %w", cleanName, err)
 		}
 		for _, d := range deps {
-			preRestored[d.Name] = true
-			owned[d.ID] = true
+			// Both maps are name-keyed and read back through lockNameOf: the
+			// pre-stop names and the post-upgrade names come from different
+			// listings, so unnormalized keys silently miss and the sweep
+			// remove+recreates a dependent the success path already restored.
+			preRestored[lockNameOf(d.Name)] = true
+			owned[lockNameOf(d.Name)] = true
 		}
 	}
 	if err := r.restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored, owned); err != nil {
@@ -1814,7 +1903,14 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		return fmt.Errorf("provider %s upgraded, but dependent recovery failed: %w", cleanName, err)
 	}
 	if shared {
-		r.restartSiblingContainers(ctx, *rr, details, newID, owned)
+		// A sibling we stopped and failed to start is a service that was up
+		// before this upgrade and is down after it. Swallowing it reported a
+		// clean upgrade over a degraded stack, matching how dependent
+		// recovery failures are already surfaced above.
+		if err := r.restartSiblingContainers(ctx, *rr, details, newID, owned); err != nil {
+			log.Printf("upgrade %s: sibling restart failed: %v", cleanName, err)
+			return fmt.Errorf("provider %s upgraded, but sibling restart failed: %w", cleanName, err)
+		}
 	}
 	return nil
 }

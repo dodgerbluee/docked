@@ -145,3 +145,72 @@ func wantEvalTime(t *testing.T, iso string) time.Time {
 	}
 	return parsed
 }
+
+// TestIntentFilterEmptyListContract pins the intent filter write contract that
+// schema.graphql documents. The intent form sends [] for every dimension the
+// user did not pick, and switching match types relies on [] CLEARING the
+// previously active dimension: if [] were stored as-is the intent would match
+// nothing at all. The one exception is a row that already holds "[]" from the
+// Node era, which must keep reading as "matches nothing" so it can never
+// silently widen into "matches everything".
+func TestIntentFilterEmptyListContract(t *testing.T) {
+	ctx := context.Background()
+	database := testDB(t)
+	migrate(t, database)
+
+	const uid = 1
+	if _, err := database.Exec(
+		`INSERT INTO users (id, username, password_hash, role, instance_admin)
+		 VALUES (?, 'u1', 'x', 'Administrator', 1)`, uid); err != nil {
+		t.Fatal(err)
+	}
+
+	create := func(name string, matchContainers []string) *IntentRow {
+		t.Helper()
+		id, err := CreateIntent(ctx, database, uid, name, nil, true,
+			matchContainers, nil, nil, nil, nil, nil, nil, nil, nil,
+			"scheduled", nil, nil, 1, false, 0)
+		if err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		row, err := GetIntentByID(ctx, database, id, uid)
+		if err != nil || row == nil {
+			t.Fatalf("reload %s: %v", name, err)
+		}
+		return row
+	}
+
+	// Omitted dimension: NULL, and reads back as nil.
+	if row := create("unset", nil); row.MatchContainers.Valid {
+		t.Errorf("omitted dimension stored %q, want NULL", row.MatchContainers.String)
+	} else if got := UnmarshalStringArr(row.MatchContainers); got != nil {
+		t.Errorf("omitted dimension decodes to %v, want nil", got)
+	}
+
+	// Explicit []: cleared to NULL, so the dimension contributes no filter.
+	// This is what the intent form relies on when the user switches match
+	// types: the dimension they left behind has to stop filtering.
+	if row := create("cleared", []string{}); row.MatchContainers.Valid {
+		t.Errorf("explicit [] stored %q, want the dimension cleared to NULL", row.MatchContainers.String)
+	} else if got := UnmarshalStringArr(row.MatchContainers); got != nil {
+		t.Errorf("explicit [] must decode as inactive, got %v", got)
+	}
+
+	// Non-empty: round-trips.
+	row := create("picked", []string{"radarr*", "sonarr*"})
+	if got := UnmarshalStringArr(row.MatchContainers); len(got) != 2 || got[0] != "radarr*" {
+		t.Errorf("non-empty dimension decodes to %v", got)
+	}
+
+	// Legacy "[]" row: still decodes as an explicitly empty slice, which the
+	// matcher reads as "matches nothing".
+	legacy := sql.NullString{String: `[]`, Valid: true}
+	if got := UnmarshalStringArr(legacy); got == nil {
+		t.Error(`stored "[]" must decode as explicitly empty, not unset`)
+	} else if len(got) != 0 {
+		t.Errorf(`stored "[]" decoded to %v`, got)
+	}
+	if got := UnmarshalStringArr(sql.NullString{}); got != nil {
+		t.Errorf("NULL must decode to nil, got %v", got)
+	}
+}

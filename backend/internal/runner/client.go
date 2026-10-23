@@ -56,14 +56,22 @@ func FetchContainers(ctx context.Context, runner db.RunnerRow) ([]domain.Contain
 	}
 
 	var payload struct {
-		Containers []dockhandContainer `json:"containers"`
+		Containers *[]dockhandContainer `json:"containers"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
+	// A 200 with no "containers" key is not an empty inventory. Treating it as
+	// one would reconcile the runner against nothing and delete every cached
+	// container it hosts, so an error envelope or a truncated payload becomes a
+	// failed scan instead.
+	if payload.Containers == nil {
+		return nil, fmt.Errorf("runner inventory response has no \"containers\" array")
+	}
 
-	out := make([]domain.Container, 0, len(payload.Containers))
-	for _, dockhandCtr := range payload.Containers {
+	containers := *payload.Containers
+	out := make([]domain.Container, 0, len(containers))
+	for _, dockhandCtr := range containers {
 		out = append(out, normalize(dockhandCtr, runner))
 	}
 

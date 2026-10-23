@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/99designs/gqlgen/complexity"
@@ -91,6 +92,19 @@ type Server struct {
 	// Intents is the scheduled/immediate intent evaluator. The caller owns
 	// its lifecycle: go Server.Intents.Start(ctx).
 	Intents *intents.Evaluator
+
+	// upgrades counts fire-and-forget upgrade goroutines started through the
+	// GraphQL layer; the resolver holds a pointer to it.
+	upgrades *sync.WaitGroup
+}
+
+// WaitUpgrade blocks until upgrade work started through the GraphQL layer has
+// settled. Shutdown calls it: an upgrade is a remove-then-recreate, and
+// exiting between the two is what leaves a container gone.
+func (s *Server) WaitUpgrade() {
+	if s.upgrades != nil {
+		s.upgrades.Wait()
+	}
 }
 
 // NewServer builds the chi router with all middleware and routes registered.
@@ -129,8 +143,9 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// the JWT in connectionParams, which is the only place a token can ride
 	// on a WS handshake. The returned context flows into every subscription
 	// operation on that connection.
+	var upgrades sync.WaitGroup
 	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub, Sync: syncSvc,
-		OAuth: oauth.NewRegistry(database, cfg.OAuth)}
+		OAuth: oauth.NewRegistry(database, cfg.OAuth), BG: &upgrades}
 	// Intent engine: one shared executor (resolver-bound upgrade/publish/
 	// notify) adopted by the evaluator AND the manual trigger resolvers, so
 	// all execution paths use the same live matcher and lock semantics. The
@@ -536,7 +551,7 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	}
 
 	slog.Info("GraphQL server ready", "endpoint", "/graphql", "playground", "/playground")
-	return &Server{Handler: r, Intents: intentEval}
+	return &Server{Handler: r, Intents: intentEval, upgrades: &upgrades}
 }
 
 // isLocalKey matches Node's globalLimiter skip list (localhost in dev).

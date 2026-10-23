@@ -88,31 +88,43 @@ func TestNormalizeImageName(t *testing.T) {
 
 func TestCreateDedupKey(t *testing.T) {
 	// Digest wins when present.
-	key := createDedupKey(1, "nginx", "docker.io/library/nginx:latest", "abc123", "1.26")
-	if key != "1:nginx:library/nginx:abc123" {
+	key := createDedupKey(1, "nginx", "docker.io/library/nginx:latest", "abc123", "1.26", sql.NullInt64{Int64: 7, Valid: true})
+	if key != "1:src:7:nginx:library/nginx:abc123" {
 		t.Errorf("dedup key = %q", key)
 	}
 	// Empty digest falls back to normalized version.
-	key = createDedupKey(1, "nginx", "nginx:latest", "  ", "V1.26")
-	if key != "1:nginx:nginx:v1.26" {
+	key = createDedupKey(1, "nginx", "nginx:latest", "  ", "V1.26", sql.NullInt64{Int64: 7, Valid: true})
+	if key != "1:src:7:nginx:nginx:v1.26" {
 		t.Errorf("dedup key = %q", key)
 	}
 	// "Unknown" version yields empty key segment.
-	key = createDedupKey(1, "nginx", "nginx:latest", "", "Unknown")
-	if key != "1:nginx:nginx:" {
+	key = createDedupKey(1, "nginx", "nginx:latest", "", "Unknown", sql.NullInt64{Int64: 7, Valid: true})
+	if key != "1:src:7:nginx:nginx:" {
 		t.Errorf("dedup key = %q", key)
+	}
+	// Same name and image on two runners must not dedup against each other.
+	a := createDedupKey(1, "postgres", "postgres:16", "deadbeef", "16.2", sql.NullInt64{Int64: 16, Valid: true})
+	b := createDedupKey(1, "postgres", "postgres:16", "deadbeef", "16.2", sql.NullInt64{Int64: 17, Valid: true})
+	if a == b {
+		t.Errorf("hostless dedup key collision: %q", a)
 	}
 }
 
 func TestPrevKey(t *testing.T) {
 	// JS template literals render null as "null".
-	got := prevKey("nginx", sql.NullString{}, sql.NullInt64{})
-	if got != "nginx-null-null" {
-		t.Errorf("prevKey = %q, want nginx-null-null", got)
+	got := prevKey("nginx", sql.NullString{}, sql.NullInt64{}, sql.NullInt64{})
+	if got != "nginx-null-null-null" {
+		t.Errorf("prevKey = %q, want nginx-null-null-null", got)
 	}
-	got = prevKey("nginx", ns("http://portainer:9000"), sql.NullInt64{Int64: 2, Valid: true})
-	if got != "nginx-http://portainer:9000-2" {
+	got = prevKey("nginx", ns("http://portainer:9000"), sql.NullInt64{Int64: 2, Valid: true}, sql.NullInt64{})
+	if got != "nginx-http://portainer:9000-2-null" {
 		t.Errorf("prevKey = %q", got)
+	}
+	// Same name on two runners must stay distinct.
+	a := prevKey("postgres", sql.NullString{}, sql.NullInt64{}, sql.NullInt64{Int64: 16, Valid: true})
+	b := prevKey("postgres", sql.NullString{}, sql.NullInt64{}, sql.NullInt64{Int64: 17, Valid: true})
+	if a == b {
+		t.Errorf("hostless previous key collision: %q", a)
 	}
 }
 

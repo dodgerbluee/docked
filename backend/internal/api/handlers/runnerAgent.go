@@ -185,17 +185,25 @@ func HeartbeatRunner(database *sql.DB, poller *runnerpkg.VersionPoller) http.Han
 					"Version changed: "+rn.Version.String+" → "+body.Version, string(details))
 			}
 
-			// Fire-and-forget: persist reported version plus the latest known
-			// dockhand release (cached lookup, mirrors Node's then-chain).
+			// Persist the version the runner reports on the request itself.
+			// The write used to happen only after a GitHub release lookup, so
+			// while that lookup was slow or failing the stored version lagged
+			// behind reality and the "runner update available" badge stayed
+			// wrong (or a rolled-back runner read as still on the old build).
+			version := body.Version
+			if err := db.UpdateRunnerVersion(r.Context(), database, rn.ID, rn.UserID, &version, nil, body.DockerOk); err != nil {
+				slog.Warn("heartbeat version persist failed", "error", err.Error())
+			}
+
+			// Fire-and-forget: refresh the latest known dockhand release
+			// (cached lookup, mirrors Node's then-chain).
 			go func() {
 				latest, ok := runnerpkg.LatestReleaseTag(context.Background(), runnerpkg.DockhandRepo, false)
-				var latestPtr *string
-				if ok {
-					latestPtr = &latest
+				if !ok {
+					return
 				}
-				version := body.Version
-				if err := db.UpdateRunnerVersion(context.Background(), database, rn.ID, rn.UserID, &version, latestPtr, body.DockerOk); err != nil {
-					slog.Warn("heartbeat version persist failed", "error", err.Error())
+				if err := db.UpdateRunnerLatestVersion(context.Background(), database, rn.ID, rn.UserID, latest); err != nil {
+					slog.Warn("heartbeat latest version persist failed", "error", err.Error())
 				}
 			}()
 		}

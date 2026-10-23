@@ -251,8 +251,26 @@ func lockOwnerLabel(token string) string {
 	return token
 }
 
+// upgradeLockName resolves the stable name an upgrade lock is keyed on. The
+// upgrade recreates the container under the same name with a NEW Docker id, so
+// an id-keyed lock stops guarding the container halfway through the operation.
+// A container with no persisted row is resolved live from the runner, matching
+// the GraphQL upgrade path's fallback; if that fails too the id is used, so the
+// guard still exists, just not across a recreate.
+func upgradeLockName(ctx context.Context, database *sql.DB, userID int64, rr *db.RunnerRow, containerID string) string {
+	if row, err := db.GetContainerByDockerID(ctx, database, userID, containerID, &rr.ID); err == nil && row != nil && row.ContainerName != "" {
+		return row.ContainerName
+	}
+	if details, err := runnerpkg.InspectContainer(ctx, *rr, containerID); err == nil {
+		if name, ok := details["Name"].(string); ok && name != "" {
+			return name
+		}
+	}
+	return containerID
+}
+
 // RunnerUpgradeStream proxies the runner's upgrade SSE stream while holding
-// the shared cross-process upgrade lock (key runner:<runnerId>:<containerId>,
+// the shared cross-process upgrade lock (key runner:<runnerId>:name:<name>,
 // owner token runner-sse:<uuid>) so it cannot race intent-driven, batch, or
 // GraphQL-pipeline upgrades.
 func RunnerUpgradeStream(database *sql.DB) http.HandlerFunc {
@@ -262,7 +280,7 @@ func RunnerUpgradeStream(database *sql.DB) http.HandlerFunc {
 			return
 		}
 		containerID := chi.URLParam(r, "containerId")
-		targetKey := "runner:" + strconv.FormatInt(rr.ID, 10) + ":" + containerID
+		targetKey := db.UpgradeLockKey(rr.ID, upgradeLockName(r.Context(), database, auth.UserIDFromContext(r.Context()), rr, containerID))
 		lockToken := "runner-sse:" + uuid.NewString()
 
 		locked, err := db.AcquireUpgradeLock(r.Context(), database, targetKey, lockToken)

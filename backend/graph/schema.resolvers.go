@@ -30,6 +30,29 @@ import (
 	runnerclient "github.com/dockedapp/backend/internal/runner"
 )
 
+// Source is the resolver for the source field.
+// Source is the resolver for the Container.source field. The parent query
+// seeds obj.Source with only the host's id and name; the container row cannot
+// answer the rest of Runner, so a projected partial would report every host as
+// disabled since the epoch.
+func (r *containerResolver) Source(ctx context.Context, obj *model.Container) (model.ContainerSource, error) {
+	var id *string
+	if obj.Source != nil {
+		seed := obj.Source.GetID()
+		id = &seed
+	}
+	runner, err := hydrateRunner(ctx, r.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	if runner == nil {
+		// Retired source-backed inventory: the row survives for history but
+		// there is no host left to name.
+		return nil, nil
+	}
+	return runner, nil
+}
+
 // UpgradeHistory is the resolver for the upgradeHistory field.
 func (r *containerResolver) UpgradeHistory(ctx context.Context, obj *model.Container, first *int, after *string) (*model.UpgradeRecordConnection, error) {
 	uid, err := requireUser(ctx)
@@ -38,7 +61,22 @@ func (r *containerResolver) UpgradeHistory(ctx context.Context, obj *model.Conta
 	}
 	limit, offset := pageArgs(first, after, 50)
 
-	rows, total, err := db.GetUpgradeHistoryBy(ctx, r.DB, uid, limit, offset, "container_id", obj.DockerContainerID)
+	// Match on host + name, not the live Docker id: the upgrade that wrote the
+	// newest row removed the container that row describes and recreated it
+	// under the same name with a new id, so filtering by obj.DockerContainerID
+	// reports an empty history for exactly the containers that were upgraded.
+	var runnerID, endpointID *int64
+	if src := obj.Source; src != nil {
+		if id, cerr := strconv.ParseInt(src.GetID(), 10, 64); cerr == nil {
+			runnerID = &id
+		}
+	} else if obj.EndpointID != nil {
+		if id, cerr := strconv.ParseInt(*obj.EndpointID, 10, 64); cerr == nil {
+			endpointID = &id
+		}
+	}
+
+	rows, total, err := db.GetUpgradeHistoryForContainer(ctx, r.DB, uid, limit, offset, runnerID, endpointID, obj.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +151,11 @@ func (r *intentResolver) Executions(ctx context.Context, obj *model.Intent, firs
 	}, nil
 }
 
+// Intent is the resolver for the IntentExecution.intent field.
+func (r *intentExecutionResolver) Intent(ctx context.Context, obj *model.IntentExecution) (*model.Intent, error) {
+	return hydrateIntent(ctx, r.DB, &obj.IntentID)
+}
+
 // Containers is the resolver for the containers field.
 func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.IntentExecution, first *int, after *string) (*model.IntentExecutionContainerConnection, error) {
 	if _, err := requireUser(ctx); err != nil {
@@ -161,6 +204,11 @@ func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.Int
 		TotalCount: total,
 		PageInfo:   buildPageInfo(len(items), total, limit, offset),
 	}, nil
+}
+
+// Runner is the resolver for the IntentExecutionContainer.runner field.
+func (r *intentExecutionContainerResolver) Runner(ctx context.Context, obj *model.IntentExecutionContainer) (*model.Runner, error) {
+	return hydrateRunner(ctx, r.DB, obj.RunnerID)
 }
 
 // Login is the resolver for the login field.
@@ -682,8 +730,17 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		}
 		runnerURL = runner.URL
 	}
+	if runnerURL == "" {
+		// A container with no runner backend (a retired source-instance row)
+		// has nothing that can carry out a recreate. Proceeding used to record
+		// a SUCCESS history row for an upgrade that never happened.
+		return nil, fmt.Errorf("container %s has no runner backend and cannot be upgraded", container.ContainerName)
+	}
 	opID := "upgrade-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
-	targetKey := containerTargetKey(container.ContainerID, runnerID)
+	// Name-scoped, not id-scoped: the pipeline recreates this container under
+	// the same name with a NEW Docker id, so an id-keyed lock stops guarding
+	// the container halfway through and the release frees an id that is gone.
+	targetKey := upgradeLockKey(runnerID, container.ContainerName)
 	locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, opID)
 	if err != nil {
 		return nil, fmt.Errorf("acquire upgrade lock: %w", err)
@@ -701,7 +758,9 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 	// Node's upgradeSingleContainer). Node also writes an upgrade_history row
 	// for every attempt; mirror that so the upgradeHistory query sees
 	// Go-initiated upgrades.
+	doneUpgrade := r.trackWork()
 	go func() {
+		defer doneUpgrade()
 		defer db.ReleaseUpgradeLock(context.Background(), r.DB, targetKey, opID)
 		stopHB := r.startLockHeartbeat(targetKey, opID)
 		defer stopHB()
@@ -716,7 +775,7 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 			}
 		}
 		r.recordUpgradeHistory(context.Background(), uid, container, runner,
-			input.ImageName, status, errMsg, time.Since(start).Milliseconds())
+			input.ImageName, status, errMsg, time.Since(start).Milliseconds(), nil)
 		phase := model.UpgradePhaseCompleted
 		if status == "failed" {
 			phase = model.UpgradePhaseFailed
@@ -769,13 +828,16 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		return nil, fmt.Errorf("create batch run: %w", err)
 	}
 
+	doneBatch := r.trackWork()
 	// Fire-and-forget: iterate containers and upgrade each via runner
 	go func() {
+		defer doneBatch()
 		ctx := context.Background()
 		containers, err := db.GetContainers(ctx, r.DB, uid)
 		if err != nil {
 			// Record the failure instead of silently marking the run completed.
 			db.CompleteBatchRun(ctx, r.DB, batchID, "failed", 0, 0, strPtr(err.Error()))
+			r.publishBatchRun(ctx, uid, batchID)
 			return
 		}
 		upgraded, attempted := 0, 0
@@ -784,19 +846,34 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		// Map target keys to their input entries so each upgrade can use the
 		// image reference the client actually selected (the DB row's image_name
 		// can be stale) and so unmatched targets can be resolved live below.
-		targets := make(map[string]*model.UpgradeContainerInput)
+		//
+		// Keyed by the INPUT's own dockerContainerID string, not a re-parsed
+		// one: the live fallback below compares these keys against a key built
+		// from the live full id, so a short id in the input would otherwise
+		// never match and the container would be reported missing after it had
+		// already been upgraded.
+		type batchTarget struct {
+			input   *model.UpgradeContainerInput
+			matched bool
+		}
+		var targets []*batchTarget
 		if input.Containers != nil {
 			for _, target := range input.Containers {
-				var runnerID *int64
-				if target.RunnerID != nil {
-					if parsed, err := strconv.ParseInt(*target.RunnerID, 10, 64); err == nil {
-						runnerID = &parsed
-					}
-				}
-				targets[containerTargetKey(target.DockerContainerID, runnerID)] = target
+				targets = append(targets, &batchTarget{input: target})
 			}
 		}
-		matched := make(map[string]bool)
+		// targetMatches resolves one input entry against a candidate container
+		// id with the same lenient short-id rule the live lookup uses.
+		targetMatches := func(t *batchTarget, runnerID *int64, candidateID string) bool {
+			if t.input.RunnerID == nil || runnerID == nil {
+				return false
+			}
+			parsed, err := strconv.ParseInt(*t.input.RunnerID, 10, 64)
+			if err != nil || parsed != *runnerID {
+				return false
+			}
+			return dockerIDMatches(candidateID, t.input.DockerContainerID)
+		}
 
 		// upgradeOne locks, upgrades, heartbeats, records history, and counts
 		// a single container; shared by the DB-row pass and the live pass.
@@ -806,7 +883,9 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			if c.RunnerID.Valid {
 				rowRunnerID = &c.RunnerID.Int64
 			}
-			targetKey := containerTargetKey(c.ContainerID, rowRunnerID)
+			// Lock by name for the same reason as the single-container path:
+			// the Docker id changes when the pipeline recreates the container.
+			targetKey := upgradeLockKey(rowRunnerID, c.ContainerName)
 			owner := "batch:" + strconv.FormatInt(batchID, 10)
 			locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
 			if err != nil || !locked {
@@ -837,7 +916,7 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			}
 			row := *c
 			r.recordUpgradeHistory(ctx, uid, &row, run, imageName,
-				upStatus, upErr, time.Since(upStart).Milliseconds())
+				upStatus, upErr, time.Since(upStart).Milliseconds(), nil)
 		}
 
 		for _, c := range containers {
@@ -845,25 +924,36 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			if c.RunnerID.Valid {
 				rowRunnerID = &c.RunnerID.Int64
 			}
-			key := containerTargetKey(c.ContainerID, rowRunnerID)
+			var t *batchTarget
+			for _, cand := range targets {
+				if targetMatches(cand, rowRunnerID, c.ContainerID) {
+					t = cand
+					break
+				}
+			}
 			if len(targets) > 0 {
-				if _, ok := targets[key]; !ok {
+				if t == nil {
 					continue
 				}
-				matched[key] = true
 			}
 			var run *db.RunnerRow
 			if c.RunnerID.Valid {
 				run, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
 			}
 			// A container with no reachable runner is skipped, not counted as
-			// an attempt, so it does not skew the success/failure ratio.
+			// an attempt, so it does not skew the success/failure ratio. It is
+			// also left unmatched: the live pass below gets a chance to resolve
+			// it, and if that fails too the run reports it as not found rather
+			// than quietly dropping a container the user named.
 			if run == nil || run.URL == "" {
 				continue
 			}
+			if t != nil {
+				t.matched = true
+			}
 			imageName := nullStrDefault(c.ImageName)
-			if t := targets[key]; t != nil && t.ImageName != "" {
-				imageName = t.ImageName
+			if t != nil && t.input.ImageName != "" {
+				imageName = t.input.ImageName
 			}
 			upgradeOne(&c, run, imageName)
 		}
@@ -872,15 +962,15 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		// upgraded, so a never-upgraded runner container has no DB row. Fall
 		// back to resolving leftover targets live from their runner, mirroring
 		// UpgradeContainer's fallback, instead of silently skipping them.
-		for key, t := range targets {
-			if matched[key] || t.RunnerID == nil {
+		for _, t := range targets {
+			if t.matched || t.input.RunnerID == nil {
 				continue
 			}
-			rid, err := strconv.ParseInt(*t.RunnerID, 10, 64)
+			rid, err := strconv.ParseInt(*t.input.RunnerID, 10, 64)
 			if err != nil {
 				continue
 			}
-			c := r.liveRunnerContainer(ctx, uid, rid, t.DockerContainerID)
+			c := r.liveRunnerContainer(ctx, uid, rid, t.input.DockerContainerID)
 			if c == nil {
 				continue
 			}
@@ -888,7 +978,10 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			if run == nil || run.URL == "" {
 				continue
 			}
-			imageName := t.ImageName
+			// Marked against the live id: the input may carry a short id, and
+			// the missing report below is built from these same entries.
+			t.matched = true
+			imageName := t.input.ImageName
 			if imageName == "" {
 				imageName = nullStrDefault(c.ImageName)
 			}
@@ -899,9 +992,9 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		// named these containers, and a clean "completed" with fewer attempts
 		// than they asked for reads like success. Report what was never found.
 		var missing []string
-		for key, t := range targets {
-			if !matched[key] {
-				missing = append(missing, t.DockerContainerID)
+		for _, t := range targets {
+			if !t.matched {
+				missing = append(missing, t.input.DockerContainerID)
 			}
 		}
 		sort.Strings(missing)
@@ -1307,7 +1400,12 @@ func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.Cre
 		}
 	}
 
-	id, err := db.CreateTrackedApp(ctx, r.DB, uid, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
+	tokenID, _, err := resolveRepositoryTokenID(ctx, r.DB, uid, input.RepositoryTokenID)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := db.CreateTrackedApp(ctx, r.DB, uid, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion, tokenID)
 	if err != nil {
 		if errors.Is(err, db.ErrTrackedAppExists) {
 			return nil, fmt.Errorf("an app with this image name is already being tracked")
@@ -1371,12 +1469,17 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 		gitlabToken = &v
 	}
 
+	tokenID, clearToken, err := resolveRepositoryTokenID(ctx, r.DB, uid, input.RepositoryTokenID)
+	if err != nil {
+		return nil, err
+	}
+
 	if name == nil && imageName == nil && githubRepo == nil && sourceType == nil &&
-		gitlabToken == nil && input.CurrentVersion == nil {
+		gitlabToken == nil && input.CurrentVersion == nil && tokenID == nil && !clearToken {
 		return nil, fmt.Errorf("at least one field (name, imageName, or currentVersion) must be provided")
 	}
 
-	if err := db.UpdateTrackedApp(ctx, r.DB, tid, uid, name, imageName, githubRepo, sourceType, gitlabToken); err != nil {
+	if err := db.UpdateTrackedApp(ctx, r.DB, tid, uid, name, imageName, githubRepo, sourceType, gitlabToken, tokenID, clearToken); err != nil {
 		return nil, err
 	}
 
@@ -1775,7 +1878,9 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 	exec := r.intentsExecutor()
 	execIDA := execID
 	intentCopy := *intent
+	doneIntent := r.trackWork()
 	go func() {
+		defer doneIntent()
 		runCtx := context.Background()
 		if _, err := exec.ExecuteIntent(runCtx, &intentCopy, uid, intents.ExecOptions{
 			TriggerType: "manual",
@@ -3656,9 +3761,18 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	}
 
 	var totalContainers, totalRunners, totalTrackedApps int
-	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM containers WHERE user_id = ?", uid).Scan(&totalContainers)
-	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners)
-	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
+	// Every count is checked: a failed read used to leave its variable at the
+	// zero value, so a database hiccup rendered a plausible-looking dashboard
+	// of nothing tracked, nothing installed and nothing to update.
+	if err := r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM containers WHERE user_id = ?", uid).Scan(&totalContainers); err != nil {
+		return nil, fmt.Errorf("count containers: %w", err)
+	}
+	if err := r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners); err != nil {
+		return nil, fmt.Errorf("count runners: %w", err)
+	}
+	if err := r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps); err != nil {
+		return nil, fmt.Errorf("count tracked apps: %w", err)
+	}
 
 	// containersWithUpdates must agree with the per-container flags the UI
 	// shows (tab badge, update lists): count through the SAME pipeline the
@@ -3668,22 +3782,26 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	// image is re-pulled) with a stricter repo/tag join, and inflated the
 	// number ~10x on real data (110 vs 10 on prod).
 	withUpdates := 0
-	if rows, err := db.GetContainers(ctx, r.DB, uid); err == nil {
-		rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
-		rows = dedupeContainerRows(rows)
-		// totalContainers reflects the same live-merged inventory the
-		// containers connection reports, not just persisted rows.
-		totalContainers = len(rows)
-		for i := range rows {
-			if db.ContainerHasUpdate(rows[i]) {
-				withUpdates++
-			}
+	rows, err := db.GetContainers(ctx, r.DB, uid)
+	if err != nil {
+		return nil, fmt.Errorf("container inventory: %w", err)
+	}
+	rows = r.mergeLiveRunnerContainers(ctx, uid, rows)
+	rows = dedupeContainerRows(rows)
+	// totalContainers reflects the same live-merged inventory the
+	// containers connection reports, not just persisted rows.
+	totalContainers = len(rows)
+	for i := range rows {
+		if db.ContainerHasUpdate(rows[i]) {
+			withUpdates++
 		}
 	}
 
 	// trackedAppsWithUpdates
 	var trackedWithUpdates int
-	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ? AND has_update = 1", uid).Scan(&trackedWithUpdates)
+	if err := r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ? AND has_update = 1", uid).Scan(&trackedWithUpdates); err != nil {
+		return nil, fmt.Errorf("count tracked apps with updates: %w", err)
+	}
 
 	// unusedImagesCount
 	unusedImages, unusedErr := db.GetUnusedImages(ctx, r.DB, uid)
@@ -3785,6 +3903,25 @@ func (r *runnerResolver) Apps(ctx context.Context, obj *model.Runner) ([]*model.
 	return fetchRunnerApps(ctx, *rr), nil
 }
 
+// Source is the resolver for the source field.
+// Source is the resolver for the StackGroup.source field, hydrated the same
+// way Container.source is.
+func (r *stackGroupResolver) Source(ctx context.Context, obj *model.StackGroup) (model.ContainerSource, error) {
+	var id *string
+	if obj.Source != nil {
+		seed := obj.Source.GetID()
+		id = &seed
+	}
+	runner, err := hydrateRunner(ctx, r.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	if runner == nil {
+		return nil, nil
+	}
+	return runner, nil
+}
+
 // Containers is the resolver for the containers field.
 // Containers is the resolver for the stackGroup.containers field: the parent
 // pre-builds the full connection, so the field resolver only applies
@@ -3879,6 +4016,28 @@ func (r *trackedAppResolver) UpgradeHistory(ctx context.Context, obj *model.Trac
 		TotalCount: total,
 		PageInfo:   buildPageInfo(len(items), total, limit, offset),
 	}, nil
+}
+
+// Source is the resolver for the UpgradeRecord.source field.
+func (r *upgradeRecordResolver) Source(ctx context.Context, obj *model.UpgradeRecord) (model.ContainerSource, error) {
+	var id *string
+	if obj.Source != nil {
+		seed := obj.Source.GetID()
+		id = &seed
+	}
+	runner, err := hydrateRunner(ctx, r.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	if runner == nil {
+		return nil, nil
+	}
+	return runner, nil
+}
+
+// Intent is the resolver for the UpgradeRecord.intent field.
+func (r *upgradeRecordResolver) Intent(ctx context.Context, obj *model.UpgradeRecord) (*model.Intent, error) {
+	return hydrateIntent(ctx, r.DB, obj.IntentID)
 }
 
 // Containers is the resolver for the containers field.
@@ -4019,6 +4178,11 @@ func (r *Resolver) Intent() IntentResolver { return &intentResolver{r} }
 // IntentExecution returns IntentExecutionResolver implementation.
 func (r *Resolver) IntentExecution() IntentExecutionResolver { return &intentExecutionResolver{r} }
 
+// IntentExecutionContainer returns IntentExecutionContainerResolver implementation.
+func (r *Resolver) IntentExecutionContainer() IntentExecutionContainerResolver {
+	return &intentExecutionContainerResolver{r}
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
@@ -4042,20 +4206,25 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // TrackedApp returns TrackedAppResolver implementation.
 func (r *Resolver) TrackedApp() TrackedAppResolver { return &trackedAppResolver{r} }
 
+// UpgradeRecord returns UpgradeRecordResolver implementation.
+func (r *Resolver) UpgradeRecord() UpgradeRecordResolver { return &upgradeRecordResolver{r} }
+
 // User returns UserResolver implementation.
 func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type (
-	containerResolver             struct{ *Resolver }
-	containerGroupResolver        struct{ *Resolver }
-	intentResolver                struct{ *Resolver }
-	intentExecutionResolver       struct{ *Resolver }
-	mutationResolver              struct{ *Resolver }
-	queryResolver                 struct{ *Resolver }
-	repositoryAccessTokenResolver struct{ *Resolver }
-	runnerResolver                struct{ *Resolver }
-	stackGroupResolver            struct{ *Resolver }
-	subscriptionResolver          struct{ *Resolver }
-	trackedAppResolver            struct{ *Resolver }
-	userResolver                  struct{ *Resolver }
+	containerResolver                struct{ *Resolver }
+	containerGroupResolver           struct{ *Resolver }
+	intentResolver                   struct{ *Resolver }
+	intentExecutionResolver          struct{ *Resolver }
+	intentExecutionContainerResolver struct{ *Resolver }
+	mutationResolver                 struct{ *Resolver }
+	queryResolver                    struct{ *Resolver }
+	repositoryAccessTokenResolver    struct{ *Resolver }
+	runnerResolver                   struct{ *Resolver }
+	stackGroupResolver               struct{ *Resolver }
+	subscriptionResolver             struct{ *Resolver }
+	trackedAppResolver               struct{ *Resolver }
+	upgradeRecordResolver            struct{ *Resolver }
+	userResolver                     struct{ *Resolver }
 )

@@ -27,7 +27,16 @@ type Evaluator struct {
 
 	mu         sync.Mutex
 	inProgress map[int64]bool
+
+	// running counts dispatched executions so shutdown can wait for them (see
+	// Wait).
+	running sync.WaitGroup
 }
+
+// Wait blocks until every dispatched intent execution has settled. An
+// execution can be sitting between a container removal and its recreate, and
+// exiting there is what leaves that container gone.
+func (ev *Evaluator) Wait() { ev.running.Wait() }
 
 func NewEvaluator(database *sql.DB, exec *Executor) *Evaluator {
 	return &Evaluator{DB: database, Exec: exec, inProgress: map[int64]bool{}}
@@ -164,7 +173,9 @@ func (ev *Evaluator) dispatch(ctx context.Context, intent *db.IntentRow, userID 
 	}
 	exec := ev.Exec
 	intentCopy := *intent
+	ev.running.Add(1)
 	go func() {
+		defer ev.running.Done()
 		defer ev.inProgressClear(intentCopy.ID)
 		defer func() {
 			if rec := recover(); rec != nil {

@@ -691,7 +691,7 @@ func TestExportUserConfig(t *testing.T) {
 		strPtr("Guild"), strPtr("general"), strPtr("Hook"), nil, nil, nil, true); err != nil {
 		t.Fatalf("create webhook: %v", err)
 	}
-	appID, err := db.CreateTrackedApp(ctx, database, userID, "app", strPtr("img"), nil, "docker", nil, nil)
+	appID, err := db.CreateTrackedApp(ctx, database, userID, "app", strPtr("img"), nil, "docker", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
@@ -878,7 +878,7 @@ func TestExportAndImportCarriesLatestPublishDate(t *testing.T) {
 	userID := seedUser(t, database, "alice", "password123", 1)
 
 	ctx := context.Background()
-	appID, err := db.CreateTrackedApp(ctx, database, userID, "app", strPtr("img"), nil, "docker", nil, nil)
+	appID, err := db.CreateTrackedApp(ctx, database, userID, "app", strPtr("img"), nil, "docker", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
@@ -956,7 +956,7 @@ func TestExportUsers(t *testing.T) {
 		t.Fatalf("create webhook: %v", err)
 	}
 	appID, err := db.CreateTrackedApp(ctx, database, memberID, "app", strPtr("img"), nil, "docker",
-		strPtr("glpat-secret"), nil)
+		strPtr("glpat-secret"), nil, nil)
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}

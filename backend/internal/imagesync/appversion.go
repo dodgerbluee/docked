@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/dockedapp/backend/internal/db"
@@ -158,14 +159,18 @@ func (s *Service) scanRunnerApps(ctx context.Context, userID int64, rr db.Runner
 	for _, app := range updatedApps {
 		latest := derefStr(app.LatestVersion)
 		s.notifier.queueTrackedNotification(ctx, trackedNotification{
-			Name:                     app.Name,
-			ImageName:                app.Name,
-			GithubRepo:               app.GithubRepo,
-			SourceType:               jsFallback(app.SourceType, "app"),
-			CurrentVersion:           jsFallback(app.CurrentVersion, "unknown"),
-			LatestVersion:            jsFallback(latest, "unknown"),
+			Name:       app.Name,
+			ImageName:  app.Name,
+			GithubRepo: app.GithubRepo,
+			SourceType: jsFallback(app.SourceType, "app"),
+			// Raw versions: the formatter already renders an empty version as
+			// "Unknown", and putting that word in the dedup key would make the
+			// key the same for every version-less update of this app.
+			CurrentVersion:           app.CurrentVersion,
+			LatestVersion:            latest,
 			LatestVersionPublishDate: app.LatestVersionPublishDate,
 			ReleaseURL:               app.ReleaseURL,
+			Host:                     strconv.FormatInt(rr.ID, 10),
 		}, userID)
 	}
 
@@ -221,7 +226,11 @@ func appHasUpdate(a *runnerApp) bool {
 		return false
 	}
 	latest := derefStr(a.LatestVersion)
-	if latest != "" && a.CurrentVersion != "" && latest != a.CurrentVersion {
+	// Compare normalized versions: GitHub tags are usually "v1.2.3" while the
+	// runner reports the app's own "1.2.3", and a raw compare calls every one
+	// of those an available update.
+	if latest != "" && a.CurrentVersion != "" &&
+		normalizeVersion(latest) != normalizeVersion(a.CurrentVersion) {
 		return true
 	}
 	return a.SystemUpdatesAvailable != nil && *a.SystemUpdatesAvailable

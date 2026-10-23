@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/url"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/dockedapp/backend/internal/db"
@@ -29,6 +28,11 @@ type trackedNotification struct {
 	LatestDigest             *string
 	LatestVersionPublishDate *string
 	ReleaseURL               *string
+	// Host qualifies a runner-reported app: the same application can be
+	// installed on several runners, and without this the second one is
+	// deduped against the first. Empty for user-scoped tracked apps, which
+	// belong to no single host.
+	Host string
 }
 
 // createTrackedImageKey ports createTrackedImageKey + extractNotificationValues:
@@ -49,7 +53,11 @@ func createTrackedImageKey(userID int64, d trackedNotification) string {
 	if key == "" {
 		key = d.LatestVersion
 	}
-	return fmt.Sprintf("%d:%s:%s", userID, identifier, key)
+	host := ""
+	if d.Host != "" {
+		host = "host:" + d.Host + ":"
+	}
+	return fmt.Sprintf("%d:%s%s:%s", userID, host, identifier, key)
 }
 
 var ghRepoRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$`)
@@ -69,6 +77,15 @@ func formatTrackedAppNotification(d trackedNotification) map[string]any {
 		}
 	case d.SourceType == "github":
 		sourceDisplay = "GitHub: Unknown"
+	case d.SourceType == "gitlab":
+		// The gitlab check carries its repository in the same field the github
+		// check uses, so without this branch a GitLab app was announced with a
+		// "Docker: Unknown" source.
+		if d.GithubRepo == "" {
+			sourceDisplay = "GitLab: Unknown"
+		} else {
+			sourceDisplay = "GitLab: " + d.GithubRepo
+		}
 	default:
 		imageDisplay := d.ImageName
 		if imageDisplay == "" {
@@ -91,16 +108,14 @@ func formatTrackedAppNotification(d trackedNotification) map[string]any {
 	}
 
 	// GitHub: hyperlink the latest version to the release page.
-	if d.SourceType == "github" && d.ReleaseURL != nil && *d.ReleaseURL != "" && d.LatestVersion != "" {
+	// GitHub is the only source whose release page is reachable at a known
+	// host, so it is pinned to github.com; GitLab installs are commonly
+	// self-hosted, so any https host is accepted there.
+	if (d.SourceType == "github" || d.SourceType == "gitlab") && d.ReleaseURL != nil && *d.ReleaseURL != "" && d.LatestVersion != "" {
 		ru := *d.ReleaseURL
-		if strings.HasPrefix(ru, "https://github.com/") {
-			if u, err := url.Parse(ru); err == nil && u.Scheme == "https" && u.Hostname() == "github.com" {
-				latestDisplay = fmt.Sprintf("[%s](%s)", d.LatestVersion, ru)
-			} else {
-				latestDisplay = d.LatestVersion
-			}
-		} else {
-			latestDisplay = d.LatestVersion
+		if u, err := url.Parse(ru); err == nil && u.Scheme == "https" &&
+			(d.SourceType == "gitlab" || u.Hostname() == "github.com") {
+			latestDisplay = fmt.Sprintf("[%s](%s)", d.LatestVersion, ru)
 		}
 	}
 

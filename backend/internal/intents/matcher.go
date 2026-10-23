@@ -58,13 +58,17 @@ func FindMatchingContainers(ctx context.Context, database *sql.DB, intent *db.In
 		return nil, err
 	}
 
-	live := fetchLiveRunnerContainers(ctx, database, userID, runners)
+	live, reached := fetchLiveRunnerContainers(ctx, database, userID, runners)
 
 	// Runner-backed DB rows are superseded by the live fetch (they are
-	// persisted during scans and would duplicate/stale-out the live data).
+	// persisted during scans and would duplicate/stale-out the live data) -
+	// but only for runners the fetch actually reached. Dropping every
+	// runner-backed row meant a runner that was briefly unreachable vanished
+	// from the policy entirely, so its containers were neither upgraded nor
+	// reported. Stale beats missing, like the container-list merge does.
 	all := make([]db.ContainerRow, 0, len(dbContainers)+len(live))
 	for _, c := range dbContainers {
-		if c.RunnerID.Valid {
+		if c.RunnerID.Valid && reached[c.RunnerID.Int64] {
 			continue
 		}
 		all = append(all, c)
@@ -75,13 +79,24 @@ func FindMatchingContainers(ctx context.Context, database *sql.DB, intent *db.In
 	for _, inst := range sourceInstances {
 		sourceURLs[inst.ID] = inst.URL
 	}
-	knownRunners := make(map[int64]bool, len(runners))
+	enabledRunners := make(map[int64]bool, len(runners))
 	for _, rr := range runners {
-		knownRunners[rr.ID] = true
+		// Only an enabled runner can carry out an upgrade. A container on a
+		// disabled runner used to match, get counted in the execution, and
+		// then fail for a reason the policy could have seen up front.
+		if rr.Enabled {
+			enabledRunners[rr.ID] = true
+		}
 	}
 
 	out := &MatchOutcome{}
 	for _, c := range all {
+		// Source-backed (retired Portainer) rows survive only for history:
+		// nothing can upgrade them any more, so matching one guaranteed a
+		// failed container in every run.
+		if c.SourceInstanceID.Valid {
+			continue
+		}
 		if requireUpdate && !db.ContainerHasUpdate(c) {
 			continue
 		}
@@ -90,12 +105,12 @@ func FindMatchingContainers(ctx context.Context, database *sql.DB, intent *db.In
 		}
 		reason := db.IntentExclusionReason(c, exC, exI, exSt, exR)
 		if reason != "" {
-			if trackExcluded && enrichHasSource(c, sourceURLs, knownRunners) {
+			if trackExcluded && enrichHasSource(c, sourceURLs, enabledRunners) {
 				out.Excluded = append(out.Excluded, ExcludedMatch{Container: c, Reason: reason})
 			}
 			continue
 		}
-		if !enrichHasSource(c, sourceURLs, knownRunners) {
+		if !enrichHasSource(c, sourceURLs, enabledRunners) {
 			continue
 		}
 		out.Matched = append(out.Matched, c)
@@ -138,10 +153,13 @@ func enrichHasSource(c db.ContainerRow, sourceURLs map[int64]string, knownRunner
 
 // fetchLiveRunnerContainers mirrors getContainersFromRunners: only enabled
 // runners are fetched, individual failures are non-fatal, and each container
-// is converted to the DB-row shape with registry data joined.
-func fetchLiveRunnerContainers(ctx context.Context, database *sql.DB, userID int64, runners []db.RunnerRow) []db.ContainerRow {
+// is converted to the DB-row shape with registry data joined. It also reports
+// which runners were reached, so the caller can tell "no such container" from
+// "could not look".
+func fetchLiveRunnerContainers(ctx context.Context, database *sql.DB, userID int64, runners []db.RunnerRow) ([]db.ContainerRow, map[int64]bool) {
 	var mu sync.Mutex
 	var out []db.ContainerRow
+	reached := make(map[int64]bool)
 	var wg sync.WaitGroup
 	for _, rr := range runners {
 		if !rr.Enabled {
@@ -158,10 +176,11 @@ func fetchLiveRunnerContainers(ctx context.Context, database *sql.DB, userID int
 			}
 			fetched := runner.FetchContainerRows(ctx, database, userID, rr, ctrs)
 			mu.Lock()
+			reached[rr.ID] = true
 			out = append(out, fetched...)
 			mu.Unlock()
 		}(rr)
 	}
 	wg.Wait()
-	return out
+	return out, reached
 }

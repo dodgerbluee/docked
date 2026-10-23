@@ -140,7 +140,33 @@ func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int
 	if err != nil || run == nil {
 		return
 	}
-	r.Hub.PublishBatchJob(uid, *batchRunToModel(run))
+	m := batchRunToModel(run)
+	r.Hub.PublishBatchJob(uid, *m)
+	// operationProgress shares this call site because every batch job IS an
+	// operation (the mutation returns one). Without this publish, the
+	// subscription never delivered anything at all: a client that opened it
+	// hung until its transport idle-timeout instead of learning the job ended.
+	r.Hub.PublishOperation(uid, *operationFromBatchRun(m))
+}
+
+// operationFromBatchRun projects a batch run onto the Operation shape the
+// operationProgress subscription carries.
+func operationFromBatchRun(b *model.BatchRun) *model.Operation {
+	op := &model.Operation{
+		ID:          "batch-" + b.ID,
+		Type:        operationTypeForJob(string(b.JobType)),
+		QueuedAt:    b.QueuedAt,
+		StartedAt:   b.StartedAt,
+		CompletedAt: b.CompletedAt,
+		Message:     b.ErrorMessage,
+	}
+	switch b.Status {
+	case model.BatchRunStatusRunning:
+		op.Status = model.OperationStatusRunning
+	default:
+		op.Status = model.OperationStatusCompleted
+	}
+	return op
 }
 
 // publishIntentExecution re-reads an execution row and fans it out to
@@ -206,11 +232,24 @@ func parseIntCursor(after *string) int {
 	return n
 }
 
+// containerTargetKey identifies a container for MATCHING a client-supplied
+// target against a DB row. The client only knows Docker ids, so this stays
+// id-based. Never use it for a lock: see upgradeLockKey.
 func containerTargetKey(containerID string, runnerID *int64) string {
 	if runnerID != nil {
 		return "runner:" + strconv.FormatInt(*runnerID, 10) + ":" + containerID
 	}
 	return "unknown:" + containerID
+}
+
+// upgradeLockKey is the identity an upgrade lock is held against. See
+// db.UpgradeLockKey: the name (not the Docker id) is what survives the
+// recreate the upgrade pipeline performs.
+func upgradeLockKey(runnerID *int64, name string) string {
+	if runnerID != nil {
+		return db.UpgradeLockKey(*runnerID, name)
+	}
+	return "unknown:name:" + strings.TrimPrefix(name, "/")
 }
 
 func claimIdempotency(ctx context.Context, database *sql.DB, userID int64, operationType string, key *string) error {
@@ -289,7 +328,7 @@ func dbEnumValue(s string) string {
 func batchRunToOperation(run *db.BatchRunRow) *model.Operation {
 	op := &model.Operation{
 		ID:       "batch-" + strconv.FormatInt(run.ID, 10),
-		Type:     model.OperationTypeBatchUpgrade,
+		Type:     operationTypeForJob(run.JobType),
 		Status:   model.OperationStatus(enumConst(run.Status)),
 		QueuedAt: parseTime(run.StartedAt),
 	}
@@ -305,6 +344,22 @@ func batchRunToOperation(run *db.BatchRunRow) *model.Operation {
 		op.Message = strPtr(run.ErrorMessage.String)
 	}
 	return op
+}
+
+// operationTypeForJob maps a persisted batch_runs.job_type onto the
+// OperationType enum. Every run used to project as BATCH_UPGRADE, so a client
+// polling a registry pull was told, in so many words, that containers were
+// being upgraded.
+func operationTypeForJob(jobType string) model.OperationType {
+	switch jobType {
+	case "upgrade-containers":
+		return model.OperationTypeBatchUpgrade
+	case "docker-hub-pull":
+		return model.OperationTypePullContainers
+	default:
+		// tracked-apps-check, app-version-scan and any job type added later.
+		return model.OperationTypeBatchJob
+	}
 }
 func userRowToModel(u *db.UserRow) *model.User {
 	if u == nil {
@@ -408,12 +463,10 @@ func intentExecutionToModel(row db.IntentExecutionRow) *model.IntentExecution {
 		CompletedAt:        nullTimePtr(row.CompletedAt),
 		DurationMs:         nullInt64Ptr(row.DurationMs),
 	}
-	if row.IntentName.Valid {
-		m.Intent = &model.Intent{
-			ID:   strconv.FormatInt(row.IntentID, 10),
-			Name: row.IntentName.String,
-		}
-	}
+	// The intent relation is loaded by its field resolver: the denormalized
+	// name on the execution row cannot answer the rest of the Intent type, so
+	// projecting a partial Intent here would answer its non-null fields with
+	// zero values.
 	return m
 }
 
@@ -470,6 +523,35 @@ func runnerToModel(r *db.RunnerRow) *model.Runner {
 		HasAPIKey:         r.APIKey != "",
 	}
 }
+
+// resolveRepositoryTokenID turns the repositoryTokenId scalar on a tracked-app
+// input into a stored id. The token must belong to the caller: the column is
+// later used to authenticate private GitLab release checks, so accepting an
+// arbitrary id would let one user borrow another's credential.
+// Returns (id, clearRequested, error) - a nil id with clearRequested set means
+// "drop the stored link", a nil id with clearRequested unset means "leave it".
+func resolveRepositoryTokenID(ctx context.Context, database *sql.DB, userID int64, raw *string) (*int64, bool, error) {
+	if raw == nil {
+		return nil, false, nil
+	}
+	v := strings.TrimSpace(*raw)
+	if v == "" {
+		return nil, true, nil
+	}
+	id, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid repository token id")
+	}
+	tok, err := db.GetRepositoryTokenByID(ctx, database, userID, id)
+	if err != nil {
+		return nil, false, err
+	}
+	if tok == nil {
+		return nil, false, fmt.Errorf("repository token not found")
+	}
+	return &id, false, nil
+}
+
 func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
 	if t == nil {
 		return nil
@@ -498,6 +580,7 @@ func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
 		LastChecked:               nullTimePtr(t.LastChecked),
 		CreatedAt:                 parseTime(t.CreatedAt),
 		UpdatedAt:                 parseTime(t.UpdatedAt),
+		RepositoryTokenID:         nullInt64StrPtr(t.RepositoryTokenID),
 	}
 }
 
@@ -606,9 +689,13 @@ func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
 		CreatedAt:         parseTime(u.CreatedAt),
 	}
 	if u.RunnerID.Valid {
+		// Identity carrier only: the source field resolver loads the whole
+		// runner. Type is set here so a row whose runner has since been
+		// deleted still answers the non-null enum instead of the empty string.
 		rec.Source = &model.Runner{
 			ID:   strconv.FormatInt(u.RunnerID.Int64, 10),
 			Name: nullStrDefault(u.RunnerName),
+			Type: model.SourceTypeRunner,
 		}
 	}
 	return rec
@@ -1171,7 +1258,7 @@ func runnerPost(baseURL, apiKey, path string, payload any) error {
 // recordUpgradeHistory writes the upgrade_history row that Node's
 // upgradeSingleContainer records for every upgrade attempt, so the
 // upgradeHistory query shows Go-initiated upgrades too.
-func (r *Resolver) recordUpgradeHistory(ctx context.Context, uid int64, c *db.ContainerRow, runner *db.RunnerRow, newImage, status, errMsg string, durMs int64) {
+func (r *Resolver) recordUpgradeHistory(ctx context.Context, uid int64, c *db.ContainerRow, runner *db.RunnerRow, newImage, status, errMsg string, durMs int64, intentID *int64) {
 	oldImage := nullStrDefault(c.ImageName)
 	if newImage == "" {
 		newImage = oldImage
@@ -1185,6 +1272,7 @@ func (r *Resolver) recordUpgradeHistory(ctx context.Context, uid int64, c *db.Co
 		Status:            status,
 		ErrorMessage:      errMsg,
 		UpgradeDurationMs: &durMs,
+		IntentID:          intentID,
 	}
 	if c.RunnerID.Valid {
 		rid := c.RunnerID.Int64

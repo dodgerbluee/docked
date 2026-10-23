@@ -78,7 +78,14 @@ func (r *Resolver) IntentUpgrade(ctx context.Context, userID int64, c *db.Contai
 	if err != nil {
 		status, errMsg = "failed", err.Error()
 	}
-	r.recordUpgradeHistory(ctx, userID, c, rr, imageName, status, errMsg, duration)
+	// Attribute the history row to the policy that triggered it. The executor
+	// tags the context; a manual upgrade carries nothing and leaves the column
+	// NULL, which is correct.
+	var intentID *int64
+	if id, ok := intents.IntentIDFromContext(ctx); ok {
+		intentID = &id
+	}
+	r.recordUpgradeHistory(ctx, userID, c, rr, imageName, status, errMsg, duration, intentID)
 	return err
 }
 

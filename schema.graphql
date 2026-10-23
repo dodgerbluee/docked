@@ -259,8 +259,10 @@ type Container {
   createdAt: DateTime!
   updatedAt: DateTime!
 
-  # Source — exactly one, enforced via interface
-  source: ContainerSource!
+  # Source — the runner that hosts this container. Nullable because inventories
+  # migrated from the retired Portainer sources keep their rows for history but
+  # no longer have a host that can be named.
+  source: ContainerSource
 
   # Image update info (resolved from deployed_images / registry_image_versions)
   imageInfo: ImageVersionInfo
@@ -337,6 +339,9 @@ type TrackedApp {
   createdAt: DateTime!
   updatedAt: DateTime!
 
+  # Repository access token used to authenticate private GitLab release checks.
+  repositoryTokenId: ID
+
   upgradeHistory(first: Int, after: String): TrackedAppUpgradeRecordConnection!
 }
 
@@ -363,10 +368,15 @@ type TrackedAppUpgradeRecord {
 # -----------------------------------------------------------------------------
 # Intents (Declarative Auto-Upgrade Policies)
 # -----------------------------------------------------------------------------
-# Match semantics:
-#   - null/omitted = no filter (matches all)
-#   - [] (empty array) = matches nothing
+# Match semantics (this is the write contract; db.marshalJSONArr and the
+# UpdateIntent resolver both follow it):
+#   - omitted / null on write = leave the stored dimension untouched
+#   - [] (empty array) on write = clear the dimension, i.e. make it inactive
+#   - stored null = dimension inactive (contributes no filter)
 #   - non-empty array = OR within field, AND across fields
+#   - A row stored as "[]" predates this contract (Node-era data). The matcher
+#     still reads it as "matches nothing" so such a row can never silently
+#     widen into "matches everything".
 #   - exclusions are applied after inclusions
 #   - matchSources uses typed IDs: "runner:<id>" (legacy "portainer:<id>" entries are inert)
 #   - scheduleCron uses the intent's scheduleTimezone (IANA), defaults to server TZ
@@ -702,7 +712,8 @@ type DisallowedContainersResult {
 type DockerImage {
   id: String!
   repoTags: [String!]!
-  size: Int!
+  # Byte counts exceed the 32-bit GraphQL Int range for images over 2 GiB.
+  size: BigInt!
   created: String!
   sourceUrl: String!
   endpointId: Int
@@ -781,7 +792,7 @@ type ContainerGroup {
 type StackGroup {
   id: ID!
   name: String!
-  source: ContainerSource!
+  source: ContainerSource
   endpointId: String
   containers(first: Int, after: String): ContainerConnection!
 }
@@ -893,6 +904,7 @@ input CreateTrackedAppInput {
   sourceType: TrackedAppSourceType!
   gitlabToken: String
   currentVersion: String
+  repositoryTokenId: ID
 }
 
 input UpdateTrackedAppInput {
@@ -904,6 +916,7 @@ input UpdateTrackedAppInput {
   gitlabToken: String
   currentVersion: String
   isUpgrade: Boolean
+  repositoryTokenId: ID
 }
 
 input CreateIntentInput {

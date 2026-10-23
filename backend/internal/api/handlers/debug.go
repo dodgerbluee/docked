@@ -13,6 +13,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -480,8 +482,13 @@ func debugRunnerProxy(database *sql.DB) http.HandlerFunc {
 			var m map[string]any
 			dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 			if err := dec.Decode(&m); err != nil {
-				runnerFail(w, http.StatusBadRequest, "Invalid request body")
-				return
+				// An absent body is not a malformed one: Node sent {} for every
+				// method that allowed a payload, so a bare POST/DELETE reached
+				// the runner with an empty object. Only real JSON errors 400.
+				if !errors.Is(err, io.EOF) {
+					runnerFail(w, http.StatusBadRequest, "Invalid request body")
+					return
+				}
 			}
 			if m == nil {
 				m = map[string]any{}

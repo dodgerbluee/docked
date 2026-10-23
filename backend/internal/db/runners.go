@@ -227,6 +227,19 @@ func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64
 	return err
 }
 
+// UpdateRunnerLatestVersion records the newest dockhand release seen for a
+// runner without touching the version the runner itself reports. Split out so
+// the reported version can be persisted on the heartbeat request while the
+// release lookup that fills this column runs off-request.
+func UpdateRunnerLatestVersion(ctx context.Context, database *sql.DB, id, userID int64, latestVersion string) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE runners
+		    SET latest_version = ?, version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		  WHERE id = ? AND user_id = ?`,
+		latestVersion, id, userID)
+	return err
+}
+
 // GetRunnerByName looks up a runner case-insensitively across all users
 // (re-enrollment does not know the owning user). Parity with Node's
 // db/runners.getRunnerByName.

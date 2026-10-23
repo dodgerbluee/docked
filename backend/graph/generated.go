@@ -33,6 +33,7 @@ type ResolverRoot interface {
 	ContainerGroup() ContainerGroupResolver
 	Intent() IntentResolver
 	IntentExecution() IntentExecutionResolver
+	IntentExecutionContainer() IntentExecutionContainerResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 	RepositoryAccessToken() RepositoryAccessTokenResolver
@@ -40,6 +41,7 @@ type ResolverRoot interface {
 	StackGroup() StackGroupResolver
 	Subscription() SubscriptionResolver
 	TrackedApp() TrackedAppResolver
+	UpgradeRecord() UpgradeRecordResolver
 	User() UserResolver
 }
 
@@ -674,6 +676,7 @@ type ComplexityRoot struct {
 		LatestVersion             func(childComplexity int) int
 		LatestVersionPublishDate  func(childComplexity int) int
 		Name                      func(childComplexity int) int
+		RepositoryTokenID         func(childComplexity int) int
 		SourceType                func(childComplexity int) int
 		UpdatedAt                 func(childComplexity int) int
 		UpgradeHistory            func(childComplexity int, first *int, after *string) int
@@ -830,6 +833,8 @@ type ComplexityRoot struct {
 // region    ************************** generated!.gotpl **************************
 
 type ContainerResolver interface {
+	Source(ctx context.Context, obj *model.Container) (model.ContainerSource, error)
+
 	UpgradeHistory(ctx context.Context, obj *model.Container, first *int, after *string) (*model.UpgradeRecordConnection, error)
 }
 type ContainerGroupResolver interface {
@@ -841,7 +846,12 @@ type IntentResolver interface {
 	Executions(ctx context.Context, obj *model.Intent, first *int, after *string) (*model.IntentExecutionConnection, error)
 }
 type IntentExecutionResolver interface {
+	Intent(ctx context.Context, obj *model.IntentExecution) (*model.Intent, error)
+
 	Containers(ctx context.Context, obj *model.IntentExecution, first *int, after *string) (*model.IntentExecutionContainerConnection, error)
+}
+type IntentExecutionContainerResolver interface {
+	Runner(ctx context.Context, obj *model.IntentExecutionContainer) (*model.Runner, error)
 }
 type MutationResolver interface {
 	Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error)
@@ -967,6 +977,8 @@ type RunnerResolver interface {
 	Apps(ctx context.Context, obj *model.Runner) ([]*model.RunnerApp, error)
 }
 type StackGroupResolver interface {
+	Source(ctx context.Context, obj *model.StackGroup) (model.ContainerSource, error)
+
 	Containers(ctx context.Context, obj *model.StackGroup, first *int, after *string) (*model.ContainerConnection, error)
 }
 type SubscriptionResolver interface {
@@ -979,6 +991,11 @@ type SubscriptionResolver interface {
 }
 type TrackedAppResolver interface {
 	UpgradeHistory(ctx context.Context, obj *model.TrackedApp, first *int, after *string) (*model.TrackedAppUpgradeRecordConnection, error)
+}
+type UpgradeRecordResolver interface {
+	Source(ctx context.Context, obj *model.UpgradeRecord) (model.ContainerSource, error)
+
+	Intent(ctx context.Context, obj *model.UpgradeRecord) (*model.Intent, error)
 }
 type UserResolver interface {
 	Containers(ctx context.Context, obj *model.User, first *int, after *string) (*model.ContainerConnection, error)
@@ -4244,6 +4261,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TrackedApp.Name(childComplexity), true
+	case "TrackedApp.repositoryTokenId":
+		if e.ComplexityRoot.TrackedApp.RepositoryTokenID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedApp.RepositoryTokenID(childComplexity), true
 	case "TrackedApp.sourceType":
 		if e.ComplexityRoot.TrackedApp.SourceType == nil {
 			break
@@ -5310,8 +5333,10 @@ type Container {
   createdAt: DateTime!
   updatedAt: DateTime!
 
-  # Source — exactly one, enforced via interface
-  source: ContainerSource!
+  # Source — the runner that hosts this container. Nullable because inventories
+  # migrated from the retired Portainer sources keep their rows for history but
+  # no longer have a host that can be named.
+  source: ContainerSource
 
   # Image update info (resolved from deployed_images / registry_image_versions)
   imageInfo: ImageVersionInfo
@@ -5388,6 +5413,9 @@ type TrackedApp {
   createdAt: DateTime!
   updatedAt: DateTime!
 
+  # Repository access token used to authenticate private GitLab release checks.
+  repositoryTokenId: ID
+
   upgradeHistory(first: Int, after: String): TrackedAppUpgradeRecordConnection!
 }
 
@@ -5414,10 +5442,15 @@ type TrackedAppUpgradeRecord {
 # -----------------------------------------------------------------------------
 # Intents (Declarative Auto-Upgrade Policies)
 # -----------------------------------------------------------------------------
-# Match semantics:
-#   - null/omitted = no filter (matches all)
-#   - [] (empty array) = matches nothing
+# Match semantics (this is the write contract; db.marshalJSONArr and the
+# UpdateIntent resolver both follow it):
+#   - omitted / null on write = leave the stored dimension untouched
+#   - [] (empty array) on write = clear the dimension, i.e. make it inactive
+#   - stored null = dimension inactive (contributes no filter)
 #   - non-empty array = OR within field, AND across fields
+#   - A row stored as "[]" predates this contract (Node-era data). The matcher
+#     still reads it as "matches nothing" so such a row can never silently
+#     widen into "matches everything".
 #   - exclusions are applied after inclusions
 #   - matchSources uses typed IDs: "runner:<id>" (legacy "portainer:<id>" entries are inert)
 #   - scheduleCron uses the intent's scheduleTimezone (IANA), defaults to server TZ
@@ -5753,7 +5786,8 @@ type DisallowedContainersResult {
 type DockerImage {
   id: String!
   repoTags: [String!]!
-  size: Int!
+  # Byte counts exceed the 32-bit GraphQL Int range for images over 2 GiB.
+  size: BigInt!
   created: String!
   sourceUrl: String!
   endpointId: Int
@@ -5832,7 +5866,7 @@ type ContainerGroup {
 type StackGroup {
   id: ID!
   name: String!
-  source: ContainerSource!
+  source: ContainerSource
   endpointId: String
   containers(first: Int, after: String): ContainerConnection!
 }
@@ -5944,6 +5978,7 @@ input CreateTrackedAppInput {
   sourceType: TrackedAppSourceType!
   gitlabToken: String
   currentVersion: String
+  repositoryTokenId: ID
 }
 
 input UpdateTrackedAppInput {
@@ -5955,6 +5990,7 @@ input UpdateTrackedAppInput {
   gitlabToken: String
   currentVersion: String
   isUpgrade: Boolean
+  repositoryTokenId: ID
 }
 
 input CreateIntentInput {
@@ -7483,6 +7519,8 @@ func (ec *executionContext) childFields_TrackedApp(ctx context.Context, field gr
 		return ec.fieldContext_TrackedApp_createdAt(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_TrackedApp_updatedAt(ctx, field)
+	case "repositoryTokenId":
+		return ec.fieldContext_TrackedApp_repositoryTokenId(ctx, field)
 	case "upgradeHistory":
 		return ec.fieldContext_TrackedApp_upgradeHistory(ctx, field)
 	}
@@ -10834,22 +10872,22 @@ func (ec *executionContext) _Container_source(ctx context.Context, field graphql
 			return ec.fieldContext_Container_source(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Source, nil
+			return ec.Resolvers.Container().Source(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ContainerSource) graphql.Marshaler {
-			return ec.marshalNContainerSource2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerSource(ctx, selections, v)
+			return ec.marshalOContainerSource2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerSource(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_Container_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Container",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("FieldContext.Child cannot be called on type INTERFACE")
 		},
@@ -11958,15 +11996,15 @@ func (ec *executionContext) _DockerImage_size(ctx context.Context, field graphql
 			return obj.Size, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.BigInt) graphql.Marshaler {
+			return ec.marshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_DockerImage_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type Int does not have child fields"))
+	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type BigInt does not have child fields"))
 }
 
 func (ec *executionContext) _DockerImage_created(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
@@ -13296,7 +13334,7 @@ func (ec *executionContext) _IntentExecution_intent(ctx context.Context, field g
 			return ec.fieldContext_IntentExecution_intent(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Intent, nil
+			return ec.Resolvers.IntentExecution().Intent(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Intent) graphql.Marshaler {
@@ -13310,8 +13348,8 @@ func (ec *executionContext) fieldContext_IntentExecution_intent(_ context.Contex
 	fc = &graphql.FieldContext{
 		Object:     "IntentExecution",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Intent(ctx, field)
 		},
@@ -13937,7 +13975,7 @@ func (ec *executionContext) _IntentExecutionContainer_runner(ctx context.Context
 			return ec.fieldContext_IntentExecutionContainer_runner(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Runner, nil
+			return ec.Resolvers.IntentExecutionContainer().Runner(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Runner) graphql.Marshaler {
@@ -13951,8 +13989,8 @@ func (ec *executionContext) fieldContext_IntentExecutionContainer_runner(_ conte
 	fc = &graphql.FieldContext{
 		Object:     "IntentExecutionContainer",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Runner(ctx, field)
 		},
@@ -21787,22 +21825,22 @@ func (ec *executionContext) _StackGroup_source(ctx context.Context, field graphq
 			return ec.fieldContext_StackGroup_source(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Source, nil
+			return ec.Resolvers.StackGroup().Source(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ContainerSource) graphql.Marshaler {
-			return ec.marshalNContainerSource2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerSource(ctx, selections, v)
+			return ec.marshalOContainerSource2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerSource(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_StackGroup_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "StackGroup",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("FieldContext.Child cannot be called on type INTERFACE")
 		},
@@ -22642,6 +22680,29 @@ func (ec *executionContext) _TrackedApp_updatedAt(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_TrackedApp_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackedApp", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedApp_repositoryTokenId(ctx context.Context, field graphql.CollectedField, obj *model.TrackedApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedApp_repositoryTokenId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryTokenID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedApp_repositoryTokenId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedApp", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
 func (ec *executionContext) _TrackedApp_upgradeHistory(ctx context.Context, field graphql.CollectedField, obj *model.TrackedApp) (ret graphql.Marshaler) {
@@ -24012,7 +24073,7 @@ func (ec *executionContext) _UpgradeRecord_source(ctx context.Context, field gra
 			return ec.fieldContext_UpgradeRecord_source(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Source, nil
+			return ec.Resolvers.UpgradeRecord().Source(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ContainerSource) graphql.Marshaler {
@@ -24026,8 +24087,8 @@ func (ec *executionContext) fieldContext_UpgradeRecord_source(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "UpgradeRecord",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("FieldContext.Child cannot be called on type INTERFACE")
 		},
@@ -24389,7 +24450,7 @@ func (ec *executionContext) _UpgradeRecord_intent(ctx context.Context, field gra
 			return ec.fieldContext_UpgradeRecord_intent(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Intent, nil
+			return ec.Resolvers.UpgradeRecord().Intent(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Intent) graphql.Marshaler {
@@ -24403,8 +24464,8 @@ func (ec *executionContext) fieldContext_UpgradeRecord_intent(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "UpgradeRecord",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Intent(ctx, field)
 		},
@@ -26840,7 +26901,7 @@ func (ec *executionContext) unmarshalInputCreateTrackedAppInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion"}
+	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion", "repositoryTokenId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -26896,6 +26957,13 @@ func (ec *executionContext) unmarshalInputCreateTrackedAppInput(ctx context.Cont
 				return it, err
 			}
 			it.CurrentVersion = data
+		case "repositoryTokenId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryTokenId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryTokenID = data
 		}
 	}
 	return it, nil
@@ -27573,7 +27641,7 @@ func (ec *executionContext) unmarshalInputUpdateTrackedAppInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion", "isUpgrade"}
+	fieldsInOrder := [...]string{"name", "imageName", "githubRepo", "gitlabRepo", "sourceType", "gitlabToken", "currentVersion", "isUpgrade", "repositoryTokenId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -27636,6 +27704,13 @@ func (ec *executionContext) unmarshalInputUpdateTrackedAppInput(ctx context.Cont
 				return it, err
 			}
 			it.IsUpgrade = data
+		case "repositoryTokenId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryTokenId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryTokenID = data
 		}
 	}
 	return it, nil
@@ -28500,10 +28575,43 @@ func (ec *executionContext) _Container(ctx context.Context, sel ast.SelectionSet
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "source":
-			out.Values[i] = ec._Container_source(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_source(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "imageInfo":
 			out.Values[i] = ec._Container_imageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -29693,10 +29801,43 @@ func (ec *executionContext) _IntentExecution(ctx context.Context, sel ast.Select
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "intent":
-			out.Values[i] = ec._IntentExecution_intent(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._IntentExecution_intent(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "status":
 			out.Values[i] = ec._IntentExecution_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -29879,87 +30020,120 @@ func (ec *executionContext) _IntentExecutionContainer(ctx context.Context, sel a
 		case "id":
 			out.Values[i] = ec._IntentExecutionContainer_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "executionId":
 			out.Values[i] = ec._IntentExecutionContainer_executionId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "execution":
 			out.Values[i] = ec._IntentExecutionContainer_execution(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "dockerContainerId":
 			out.Values[i] = ec._IntentExecutionContainer_dockerContainerId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "containerName":
 			out.Values[i] = ec._IntentExecutionContainer_containerName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "imageName":
 			out.Values[i] = ec._IntentExecutionContainer_imageName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sourceInstanceId":
 			out.Values[i] = ec._IntentExecutionContainer_sourceInstanceId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "runnerId":
 			out.Values[i] = ec._IntentExecutionContainer_runnerId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "runner":
-			out.Values[i] = ec._IntentExecutionContainer_runner(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._IntentExecutionContainer_runner(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "status":
 			out.Values[i] = ec._IntentExecutionContainer_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "oldImage":
 			out.Values[i] = ec._IntentExecutionContainer_oldImage(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "newImage":
 			out.Values[i] = ec._IntentExecutionContainer_newImage(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "oldDigest":
 			out.Values[i] = ec._IntentExecutionContainer_oldDigest(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "newDigest":
 			out.Values[i] = ec._IntentExecutionContainer_newDigest(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "errorMessage":
 			out.Values[i] = ec._IntentExecutionContainer_errorMessage(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "durationMs":
 			out.Values[i] = ec._IntentExecutionContainer_durationMs(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._IntentExecutionContainer_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -33071,10 +33245,43 @@ func (ec *executionContext) _StackGroup(ctx context.Context, sel ast.SelectionSe
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "source":
-			out.Values[i] = ec._StackGroup_source(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._StackGroup_source(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "endpointId":
 			out.Values[i] = ec._StackGroup_endpointId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -33370,6 +33577,11 @@ func (ec *executionContext) _TrackedApp(ctx context.Context, sel ast.SelectionSe
 		case "updatedAt":
 			out.Values[i] = ec._TrackedApp_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "repositoryTokenId":
+			out.Values[i] = ec._TrackedApp_repositoryTokenId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "upgradeHistory":
@@ -33937,117 +34149,183 @@ func (ec *executionContext) _UpgradeRecord(ctx context.Context, sel ast.Selectio
 		case "id":
 			out.Values[i] = ec._UpgradeRecord_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "dockerContainerId":
 			out.Values[i] = ec._UpgradeRecord_dockerContainerId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "containerName":
 			out.Values[i] = ec._UpgradeRecord_containerName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "endpointId":
 			out.Values[i] = ec._UpgradeRecord_endpointId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "source":
-			out.Values[i] = ec._UpgradeRecord_source(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._UpgradeRecord_source(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "sourceUrl":
 			out.Values[i] = ec._UpgradeRecord_sourceUrl(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "oldImage":
 			out.Values[i] = ec._UpgradeRecord_oldImage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "newImage":
 			out.Values[i] = ec._UpgradeRecord_newImage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "oldDigest":
 			out.Values[i] = ec._UpgradeRecord_oldDigest(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "newDigest":
 			out.Values[i] = ec._UpgradeRecord_newDigest(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "oldVersion":
 			out.Values[i] = ec._UpgradeRecord_oldVersion(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "newVersion":
 			out.Values[i] = ec._UpgradeRecord_newVersion(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "imageRepo":
 			out.Values[i] = ec._UpgradeRecord_imageRepo(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "registry":
 			out.Values[i] = ec._UpgradeRecord_registry(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "namespace":
 			out.Values[i] = ec._UpgradeRecord_namespace(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "repository":
 			out.Values[i] = ec._UpgradeRecord_repository(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._UpgradeRecord_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "errorMessage":
 			out.Values[i] = ec._UpgradeRecord_errorMessage(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "upgradeDurationMs":
 			out.Values[i] = ec._UpgradeRecord_upgradeDurationMs(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "intentId":
 			out.Values[i] = ec._UpgradeRecord_intentId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "intent":
-			out.Values[i] = ec._UpgradeRecord_intent(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._UpgradeRecord_intent(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "performedBy":
 			out.Values[i] = ec._UpgradeRecord_performedBy(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._UpgradeRecord_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -35184,6 +35462,22 @@ func (ec *executionContext) unmarshalNBatchUpgradeInput2githubᚗcomᚋdockedapp
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx context.Context, v any) (model.BigInt, error) {
+	res, err := model.UnmarshalBigInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx context.Context, sel ast.SelectionSet, v model.BigInt) graphql.Marshaler {
+	_ = sel
+	res := model.MarshalBigInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -35264,16 +35558,6 @@ func (ec *executionContext) marshalNContainerGroup2ᚖgithubᚗcomᚋdockedapp�
 		return graphql.Null
 	}
 	return ec._ContainerGroup(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNContainerSource2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerSource(ctx context.Context, sel ast.SelectionSet, v model.ContainerSource) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ContainerSource(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNContainerState2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐContainerState(ctx context.Context, v any) (model.ContainerState, error) {

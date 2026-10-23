@@ -288,13 +288,15 @@ func TestFormatTrackedAppNotification(t *testing.T) {
 		t.Errorf("source = %v", fields[1]["value"])
 	}
 
-	// gitlab apps fall to the Docker-Unknown source branch (faithful to Node).
+	// GitLab apps name their own source. The faithful Node behaviour rendered
+	// them as "Docker: Unknown", which announced a GitLab release as if it
+	// came from an unnamed Docker image.
 	embeds = formatTrackedAppNotification(trackedNotification{
 		Name: "App", GithubRepo: "group/proj", SourceType: "gitlab",
 		CurrentVersion: "1.0", LatestVersion: "2.0",
 	})["embeds"].([]any)[0].(map[string]any)
 	fields = embeds["fields"].([]map[string]any)
-	if fields[1]["value"] != "Docker: Unknown" {
+	if fields[1]["value"] != "GitLab: group/proj" {
 		t.Errorf("gitlab source branch = %v", fields[1]["value"])
 	}
 }

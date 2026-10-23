@@ -113,7 +113,7 @@ type Container struct {
 	LastSeen          time.Time                `json:"lastSeen"`
 	CreatedAt         time.Time                `json:"createdAt"`
 	UpdatedAt         time.Time                `json:"updatedAt"`
-	Source            ContainerSource          `json:"source"`
+	Source            ContainerSource          `json:"source,omitempty"`
 	ImageInfo         *ImageVersionInfo        `json:"imageInfo,omitempty"`
 	UpgradeHistory    *UpgradeRecordConnection `json:"upgradeHistory"`
 }
@@ -207,13 +207,14 @@ type CreateSSOProviderInput struct {
 }
 
 type CreateTrackedAppInput struct {
-	Name           string               `json:"name"`
-	ImageName      *string              `json:"imageName,omitempty"`
-	GithubRepo     *string              `json:"githubRepo,omitempty"`
-	GitlabRepo     *string              `json:"gitlabRepo,omitempty"`
-	SourceType     TrackedAppSourceType `json:"sourceType"`
-	GitlabToken    *string              `json:"gitlabToken,omitempty"`
-	CurrentVersion *string              `json:"currentVersion,omitempty"`
+	Name              string               `json:"name"`
+	ImageName         *string              `json:"imageName,omitempty"`
+	GithubRepo        *string              `json:"githubRepo,omitempty"`
+	GitlabRepo        *string              `json:"gitlabRepo,omitempty"`
+	SourceType        TrackedAppSourceType `json:"sourceType"`
+	GitlabToken       *string              `json:"gitlabToken,omitempty"`
+	CurrentVersion    *string              `json:"currentVersion,omitempty"`
+	RepositoryTokenID *string              `json:"repositoryTokenId,omitempty"`
 }
 
 type DeleteImageInput struct {
@@ -262,7 +263,7 @@ type DiscordWebhookInfo struct {
 type DockerImage struct {
 	ID         string   `json:"id"`
 	RepoTags   []string `json:"repoTags"`
-	Size       int      `json:"size"`
+	Size       BigInt   `json:"size"`
 	Created    string   `json:"created"`
 	SourceURL  string   `json:"sourceUrl"`
 	EndpointID *int     `json:"endpointId,omitempty"`
@@ -607,7 +608,7 @@ type SSOSettings struct {
 type StackGroup struct {
 	ID         string               `json:"id"`
 	Name       string               `json:"name"`
-	Source     ContainerSource      `json:"source"`
+	Source     ContainerSource      `json:"source,omitempty"`
 	EndpointID *string              `json:"endpointId,omitempty"`
 	Containers *ContainerConnection `json:"containers"`
 }
@@ -647,6 +648,7 @@ type TrackedApp struct {
 	LastChecked               *time.Time                         `json:"lastChecked,omitempty"`
 	CreatedAt                 time.Time                          `json:"createdAt"`
 	UpdatedAt                 time.Time                          `json:"updatedAt"`
+	RepositoryTokenID         *string                            `json:"repositoryTokenId,omitempty"`
 	UpgradeHistory            *TrackedAppUpgradeRecordConnection `json:"upgradeHistory"`
 }
 
@@ -766,14 +768,15 @@ type UpdateSSOProviderInput struct {
 }
 
 type UpdateTrackedAppInput struct {
-	Name           *string               `json:"name,omitempty"`
-	ImageName      *string               `json:"imageName,omitempty"`
-	GithubRepo     *string               `json:"githubRepo,omitempty"`
-	GitlabRepo     *string               `json:"gitlabRepo,omitempty"`
-	SourceType     *TrackedAppSourceType `json:"sourceType,omitempty"`
-	GitlabToken    *string               `json:"gitlabToken,omitempty"`
-	CurrentVersion *string               `json:"currentVersion,omitempty"`
-	IsUpgrade      *bool                 `json:"isUpgrade,omitempty"`
+	Name              *string               `json:"name,omitempty"`
+	ImageName         *string               `json:"imageName,omitempty"`
+	GithubRepo        *string               `json:"githubRepo,omitempty"`
+	GitlabRepo        *string               `json:"gitlabRepo,omitempty"`
+	SourceType        *TrackedAppSourceType `json:"sourceType,omitempty"`
+	GitlabToken       *string               `json:"gitlabToken,omitempty"`
+	CurrentVersion    *string               `json:"currentVersion,omitempty"`
+	IsUpgrade         *bool                 `json:"isUpgrade,omitempty"`
+	RepositoryTokenID *string               `json:"repositoryTokenId,omitempty"`
 }
 
 type UpdateUserPreferencesInput struct {

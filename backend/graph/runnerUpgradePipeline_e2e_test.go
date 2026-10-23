@@ -30,7 +30,10 @@ type fakeRunner struct {
 	// failStartNew fails the next N start calls for containers the fake
 	// CREATED (not seeded ones): models a replacement that starts broken.
 	failStartNew int
-	createdIDs   map[string]bool
+	// failStarts fails every start call, including for seeded containers:
+	// models a peer the recovery sweep stops and then cannot bring back up.
+	failStarts bool
+	createdIDs map[string]bool
 	// failCreate maps a create name to how many times it must fail before
 	// succeeding (models a transient engine error mid-pipeline).
 	failCreate map[string]int
@@ -103,6 +106,11 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 	mux.HandleFunc("POST /containers/{id}/start", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		id := r.PathValue("id")
+		if f.failStarts {
+			f.mu.Unlock()
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"message": "start failure"})
+			return
+		}
 		if f.failStartNew > 0 && f.createdIDs[id] {
 			f.failStartNew--
 			f.mu.Unlock()

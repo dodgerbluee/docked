@@ -88,12 +88,13 @@ func parseGitHubRepo(repoInput string) (owner, repo string, ok bool) {
 			}
 		}
 		if len(kept) >= 2 {
-			owner, repo = kept[0], strings.Replace(kept[1], ".git", "", 1)
+			owner, repo = kept[0], strings.TrimSuffix(kept[1], ".git")
 		}
 	case strings.HasPrefix(trimmed, "git@github.com:"):
-		// Faithful: Node strips ".git" from the whole remainder BEFORE
-		// splitting (first occurrence anywhere), not from the repo part.
-		rest := strings.Replace(strings.Replace(trimmed, "git@github.com:", "", 1), ".git", "", 1)
+		// Strip only a trailing ".git": Node removed the first ".git" anywhere
+		// in the remainder, which rewrites a repository whose real name
+		// contains it (app.gitops) into a different repository.
+		rest := strings.TrimSuffix(strings.Replace(trimmed, "git@github.com:", "", 1), ".git")
 		parts := strings.Split(rest, "/")
 		if len(parts) >= 2 {
 			owner, repo = parts[0], parts[1]

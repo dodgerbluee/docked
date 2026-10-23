@@ -85,12 +85,12 @@ func GetTrackedAppByID(ctx context.Context, database *sql.DB, id, userID int64) 
 }
 
 func CreateTrackedApp(ctx context.Context, database *sql.DB, userID int64, name string,
-	imageName, githubRepo *string, sourceType string, gitlabToken, currentVersion *string) (int64, error) {
+	imageName, githubRepo *string, sourceType string, gitlabToken, currentVersion *string, repositoryTokenID *int64) (int64, error) {
 
 	result, err := database.ExecContext(ctx,
-		`INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token, current_version)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		userID, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion)
+		`INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token, current_version, repository_token_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, name, imageName, githubRepo, sourceType, gitlabToken, currentVersion, repositoryTokenID)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return 0, fmt.Errorf("create tracked app: %w: %w", ErrTrackedAppExists, err)
@@ -116,7 +116,7 @@ func GetTrackedAppByImageName(ctx context.Context, database *sql.DB, userID int6
 }
 
 func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
-	name, imageName, githubRepo, sourceType, gitlabToken *string) error {
+	name, imageName, githubRepo, sourceType, gitlabToken *string, repositoryTokenID *int64, clearRepositoryToken bool) error {
 
 	setClauses := []string{}
 	args := []any{}
@@ -136,6 +136,12 @@ func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
 	if sourceType != nil {
 		setClauses = append(setClauses, "source_type = ?")
 		args = append(args, *sourceType)
+	}
+	if clearRepositoryToken {
+		setClauses = append(setClauses, "repository_token_id = NULL")
+	} else if repositoryTokenID != nil {
+		setClauses = append(setClauses, "repository_token_id = ?")
+		args = append(args, *repositoryTokenID)
 	}
 	if gitlabToken != nil {
 		// Empty string clears the token (mirrors Node semantics).

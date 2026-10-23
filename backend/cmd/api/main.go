@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -95,12 +96,23 @@ func main() {
 
 	// Mark intent executions interrupted by a restart as failed (Node's
 	// cleanupStaleIntentExecutions in BatchManager.start). Runs before the
-	// evaluator starts so stale rows never shadow fresh executions.
-	if n, err := db.CleanupStaleIntentExecutions(ctx, database, db.IntentExecutionStaleSeconds); err != nil {
-		slog.Error("failed to clean up stale intent executions", "error", err)
-	} else if n > 0 {
-		slog.Info("marked interrupted intent executions as failed", "count", n)
-	}
+	// evaluator starts so stale rows never shadow fresh executions, and keeps
+	// running on a timer: a run whose terminal write failed (or whose
+	// goroutine died) otherwise left its row reading 'running' until the next
+	// process start.
+	sweepStaleIntentExecutions(ctx, database)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sweepStaleIntentExecutions(ctx, database)
+			}
+		}
+	}()
 
 	// Intent evaluator: 60s scheduled sweep + immediate-intent hook (wired
 	// into syncSvc by NewServer). Node's evaluator is opted out while Go owns it.
@@ -131,5 +143,38 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("forced shutdown", "error", err)
+	}
+
+	// HTTP is closed, so no new upgrade can start. Give the ones already
+	// running a bounded window to finish: an upgrade removes a container and
+	// recreates it, and exiting between the two is what leaves the container
+	// gone with nothing to restart.
+	settle, cancelSettle := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancelSettle()
+	settled := make(chan struct{})
+	go func() {
+		apiServer.Intents.Wait()
+		apiServer.WaitUpgrade()
+		close(settled)
+	}()
+	select {
+	case <-settled:
+		slog.Info("in-flight upgrade work settled")
+	case <-settle.Done():
+		slog.Warn("shutdown deadline reached with upgrade work still running")
+	}
+}
+
+// sweepStaleIntentExecutions marks intent executions that stopped reporting as
+// failed, so a run that died without writing its outcome does not stay
+// 'running' forever and block the intent behind its in-progress guard.
+func sweepStaleIntentExecutions(ctx context.Context, database *sql.DB) {
+	n, err := db.CleanupStaleIntentExecutions(ctx, database, db.IntentExecutionStaleSeconds)
+	if err != nil {
+		slog.Error("failed to clean up stale intent executions", "error", err)
+		return
+	}
+	if n > 0 {
+		slog.Info("marked interrupted intent executions as failed", "count", n)
 	}
 }
