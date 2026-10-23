@@ -13,6 +13,7 @@ let cachedStacks = null;
 let cachedUnusedImages = null;
 let cachedUnusedImagesCount = null;
 let cachedDataFetched = false;
+let cachedRunners = null;
 
 /** Clear module-level cache (call on logout to prevent cross-user data leaks) */
 export function clearContainersDataCache() {
@@ -21,6 +22,7 @@ export function clearContainersDataCache() {
   cachedUnusedImages = null;
   cachedUnusedImagesCount = null;
   cachedDataFetched = false;
+  cachedRunners = null;
 }
 registerCacheClear(clearContainersDataCache);
 
@@ -41,6 +43,9 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
     const saved = localStorage.getItem("dockerHubDataPulled");
     return saved ? JSON.parse(saved) : false;
   });
+  // Runner rows from containerGroup: the source picker needs them even when a
+  // runner currently reports no containers (its unused images still exist).
+  const [runners, setRunners] = useState(cachedRunners || []);
   const lastImageDeleteTimeRef = useRef(0);
   const containersCountRef = useRef(0);
   const dataFetchedRef = useRef(false);
@@ -67,6 +72,10 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
   useEffect(() => {
     cachedUnusedImagesCount = unusedImagesCount;
   }, [unusedImagesCount]);
+
+  useEffect(() => {
+    cachedRunners = runners;
+  }, [runners]);
 
   const fetchUnusedImages = useCallback(async () => {
     try {
@@ -115,7 +124,11 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
         // merged server-side (replacing stale DB runner rows), so the legacy
         // portainerOnly/instanceUrl scoping params are no longer needed —
         // callers may still pass them and they are ignored.
-        const { containers: apiContainers, stacks: apiStacks } = await fetchContainersGraphql();
+        const {
+          containers: apiContainers,
+          stacks: apiStacks,
+          runners: apiRunners,
+        } = await fetchContainersGraphql();
 
         // A logout (or user switch) happened mid-flight: this response
         // belongs to the dead session and must not repopulate state —
@@ -130,6 +143,7 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
 
         setContainers(updatedContainers);
         setStacks(apiStacks);
+        setRunners(apiRunners);
 
         // Check if this data includes registry (Docker Hub) information
         const hasRegistryData = apiContainers.some(
@@ -173,6 +187,7 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
     // State
     containers,
     stacks,
+    runners,
     loading,
     error,
     unusedImages,

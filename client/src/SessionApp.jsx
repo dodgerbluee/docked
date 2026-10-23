@@ -131,6 +131,7 @@ function SessionApp({
   const {
     containers,
     stacks,
+    runners,
     loading,
     error,
     unusedImages,
@@ -266,7 +267,7 @@ function SessionApp({
   const { trackedAppsBehind } = trackedAppsStats;
 
   // Source instances management - using custom hook
-  const { sourceInstances, containersBySource } = useSourceInstances({ containers });
+  const { sourceInstances, containersBySource } = useSourceInstances({ containers, runners });
 
   // Safety check: If activeTab is a source instance name but that instance doesn't exist,
   // switch back to summary to avoid broken state

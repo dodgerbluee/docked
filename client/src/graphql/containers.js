@@ -111,5 +111,13 @@ export async function fetchContainersGraphql() {
     ...(group.stacks || []).flatMap((stack) => stack.containers?.items || []),
   ];
   const containers = items.map(mapGqlContainer);
-  return { containers, stacks: deriveStacks(containers) };
+  // Runner ids are Strings in GraphQL; the UI keys sources as "runner:<numeric id>".
+  const runners = (group.runners || []).map((r) => ({
+    id: Number(r.id),
+    name: r.name ?? null,
+    url: r.url ?? null,
+    enabled: r.enabled ?? true,
+    healthStatus: r.healthStatus ?? null,
+  }));
+  return { containers, stacks: deriveStacks(containers), runners };
 }

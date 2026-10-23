@@ -3,30 +3,52 @@ import { buildContainersBySource } from "../utils/containerHelpers";
 
 /**
  * Custom hook for managing sources
- * Derives per-source container groupings and the synthetic runner instance
- * list from the flat container list.
+ * Builds the runner instance list from the runner rows and attaches the
+ * per-runner container groupings to them.
  *
  * @param {Object} params - Hook parameters
  * @param {Array} params.containers - Array of containers to group by source
+ * @param {Array} params.runners - Runner rows (id/name/url) from containerGroup
  * @returns {Object} Hook return value
  * @returns {Array} return.sourceInstances - Runner instances sorted by name
  * @returns {Object} return.containersBySource - Containers grouped by source URL
  *
  * @example
  * const { sourceInstances, containersBySource } = useSourceInstances({
- *   containers: allContainers
+ *   containers: allContainers,
+ *   runners: allRunners,
  * });
  */
-export const useSourceInstances = ({ containers }) => {
+export const useSourceInstances = ({ containers, runners = [] }) => {
   // Build containersBySource map for rendering (always needed)
   // Use URL as the key instead of name, since URL is stable and doesn't change when renamed
   const containersBySource = useMemo(() => buildContainersBySource(containers), [containers]);
 
-  // Synthetic runner instances derived from the container groupings.
+  // Runner instances come from the runner rows, not from the container
+  // groupings: a runner that currently reports no containers still has unused
+  // images to manage and still belongs in the source picker. The groupings
+  // then fill in each source's container buckets.
   const sourceInstances = useMemo(() => {
-    const runnerInstances = Object.entries(containersBySource)
-      .filter(([key]) => key.startsWith("runner:"))
-      .map(([key, data]) => ({
+    const byKey = new Map();
+
+    for (const runner of runners) {
+      const runnerId = Number(runner?.id);
+      if (!Number.isFinite(runnerId)) continue;
+      const key = `runner:${runnerId}`;
+      byKey.set(key, {
+        name: runner.name || "Runner",
+        url: key,
+        isRunner: true,
+        runnerId,
+        containers: [],
+        withUpdates: [],
+        upToDate: [],
+      });
+    }
+
+    for (const [key, data] of Object.entries(containersBySource)) {
+      if (!key.startsWith("runner:")) continue;
+      byKey.set(key, {
         name: data.name,
         url: key,
         isRunner: true,
@@ -34,14 +56,15 @@ export const useSourceInstances = ({ containers }) => {
         containers: data.containers || [],
         withUpdates: data.withUpdates || [],
         upToDate: data.upToDate || [],
-      }));
+      });
+    }
 
-    return runnerInstances.sort((a, b) => {
+    return Array.from(byKey.values()).sort((a, b) => {
       const nameA = (a.name || "").toLowerCase();
       const nameB = (b.name || "").toLowerCase();
       return nameA.localeCompare(nameB);
     });
-  }, [containersBySource]);
+  }, [runners, containersBySource]);
 
   return {
     sourceInstances,
