@@ -108,6 +108,19 @@ function IntentCard({ intent, onToggle, onExecute, onDryRun, onViewHistory, onVi
     <div
       className={`${styles.card} ${!intent.enabled ? styles.disabled : ""}`}
       onClick={handleViewDetails}
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for intent ${intent.name}`}
+      onKeyDown={(e) => {
+        // The card is the only way to open an intent, so it has to be reachable
+        // without a mouse. Guard on currentTarget so Space/Enter pressed on one
+        // of the buttons inside the card does not also open the detail modal.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          handleViewDetails();
+        }
+      }}
     >
       <div className={styles.cardHeader}>
         <div className={styles.headerLeft}>

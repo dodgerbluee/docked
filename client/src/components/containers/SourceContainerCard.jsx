@@ -102,6 +102,18 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
             className={styles.containerName}
             title={container.name}
             onClick={handleContainerNameClick}
+            // The name is the keyboard-reachable way to open the upgrade
+            // confirm popup; the card body itself is role="article".
+            role="button"
+            tabIndex={0}
+            aria-label={`Open upgrade details for ${container.name}`}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                e.preventDefault();
+                handleContainerNameClick(e);
+              }
+            }}
           >
             {container.name}
           </h3>
@@ -129,6 +141,18 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
               className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ""}`}
               title={imageNameWithoutVersion}
               onClick={handleImageClick}
+              // The image name is the only way to open the upstream repository,
+              // so it has to be reachable and operable without a pointer.
+              role="button"
+              tabIndex={0}
+              aria-label={`Open the upstream page for ${imageNameWithoutVersion}`}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                  e.preventDefault();
+                  handleImageClick(e);
+                }
+              }}
             >
               {imageNameWithoutVersion}
             </h4>

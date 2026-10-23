@@ -29,7 +29,23 @@ const ContainerVersionDisplay = ({
         <div className={styles.versionRow}>
           <p className={styles.metaItem}>
             <strong>Version:</strong>{" "}
-            <span className={styles.versionText} title={imageVersion} onClick={onVersionClick}>
+            <span
+              className={styles.versionText}
+              title={imageVersion}
+              onClick={onVersionClick}
+              // Clicking the version opens the image detail, so it has to be
+              // reachable and operable from the keyboard.
+              role="button"
+              tabIndex={0}
+              aria-label={`View image details for ${imageVersion}`}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                  e.preventDefault();
+                  onVersionClick();
+                }
+              }}
+            >
               {imageVersion}
             </span>
           </p>
@@ -58,7 +74,23 @@ const ContainerVersionDisplay = ({
     <div className={styles.versionRow}>
       <p className={styles.metaItem}>
         <strong>Version:</strong>{" "}
-        <span className={styles.versionText} title={imageVersion} onClick={onVersionClick}>
+        <span
+          className={styles.versionText}
+          title={imageVersion}
+          onClick={onVersionClick}
+          // Clicking the version opens the image detail, so it has to be
+          // reachable and operable from the keyboard.
+          role="button"
+          tabIndex={0}
+          aria-label={`View image details for ${imageVersion}`}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+              e.preventDefault();
+              onVersionClick();
+            }
+          }}
+        >
           {imageVersion}
         </span>
       </p>

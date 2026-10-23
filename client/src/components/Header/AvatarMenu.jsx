@@ -62,6 +62,21 @@ const AvatarMenu = ({
               onToggleAvatarMenu(!showAvatarMenu);
             }
           }}
+          // The visible username is what most people click to open the menu, so
+          // it has to be reachable and operable without a pointer.
+          role="button"
+          tabIndex={0}
+          aria-label="Open account menu"
+          aria-expanded={!!showAvatarMenu}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+              e.preventDefault();
+              if (typeof onToggleAvatarMenu === "function") {
+                onToggleAvatarMenu(!showAvatarMenu);
+              }
+            }
+          }}
           className="username-role-container"
         >
           <span className="username-text">{username}</span>

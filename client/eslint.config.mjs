@@ -81,6 +81,14 @@ export default [
       "jsx-a11y/label-has-associated-control": "off",
       "jsx-a11y/no-autofocus": "off",
       "jsx-a11y/no-noninteractive-element-interactions": "off",
+      // The container card reuses its headings (container name, image name) as
+      // the inline affordances that open the upgrade popup and the upstream
+      // repository. They carry role="button" so those actions stay reachable
+      // without a pointer, which is the whole point of the change.
+      "jsx-a11y/no-noninteractive-element-to-interactive-role": [
+        "error",
+        { h3: ["button"], h4: ["button"] },
+      ],
     },
   },
   // react-hooks flat config (ESLint 9 compatible; v7+)

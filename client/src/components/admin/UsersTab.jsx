@@ -140,6 +140,18 @@ const UsersTab = React.memo(function UsersTab() {
                   key={user.id}
                   className={styles.clickableRow}
                   onClick={() => handleUserClick(user)}
+                  // The row is the only way to open a user's details, so it has
+                  // to be reachable and operable without a pointer.
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${user.username}`}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                      e.preventDefault();
+                      handleUserClick(user);
+                    }
+                  }}
                 >
                   <td className={styles.username}>{user.username}</td>
                   <td className={styles.role}>

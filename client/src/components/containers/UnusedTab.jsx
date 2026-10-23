@@ -148,6 +148,19 @@ const UnusedTab = React.memo(function UnusedTab({
                       handleDeleteClick(image);
                     }
                   }}
+                  // The card is the entry point to the delete confirmation, so
+                  // it has to be reachable and operable without a pointer.
+                  role={deletingImages ? undefined : "button"}
+                  tabIndex={deletingImages ? -1 : 0}
+                  aria-label={`Delete unused image ${getDisplayName(image)}`}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (deletingImages) return;
+                    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                      e.preventDefault();
+                      handleDeleteClick(image);
+                    }
+                  }}
                 >
                   <div className={styles.cardHeader}>
                     <div className={styles.headerLeft}>
@@ -192,6 +205,16 @@ const UnusedTab = React.memo(function UnusedTab({
                             className={`${styles.deleteIcon} ${deletingImages ? styles.disabled : ""}`}
                             title={deletingImages ? "Deleting..." : "Delete Image"}
                             aria-label={deletingImages ? "Deleting..." : "Delete Image"}
+                            role="button"
+                            tabIndex={deletingImages ? -1 : 0}
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return;
+                              if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!deletingImages) handleDeleteClick(image);
+                              }
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (!deletingImages) {

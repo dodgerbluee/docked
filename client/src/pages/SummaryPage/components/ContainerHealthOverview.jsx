@@ -14,6 +14,16 @@ const ContainerHealthOverview = ({
   shouldShowEmptyState,
   onStatClick,
 }) => {
+  // Both stat boxes below are navigation controls, so each one has to respond
+  // to Enter/Space as well as to a pointer.
+  const onActivate = (fn) => (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      fn();
+    }
+  };
+
   const healthData = useMemo(() => {
     const total = shouldShowEmptyState ? 0 : summaryStats.totalContainers;
     const withUpdates = shouldShowEmptyState ? 0 : summaryStats.containersWithUpdates;
@@ -94,6 +104,12 @@ const ContainerHealthOverview = ({
               onClick={() =>
                 !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)
               }
+              role="button"
+              tabIndex={shouldShowEmptyState ? -1 : 0}
+              aria-label={`${healthData.withUpdates} containers with updates`}
+              onKeyDown={onActivate(
+                () => !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)
+              )}
             >
               <div className={styles.statIcon}>
                 <TrendingUp size={18} />
@@ -110,6 +126,12 @@ const ContainerHealthOverview = ({
               onClick={() =>
                 !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)
               }
+              role="button"
+              tabIndex={shouldShowEmptyState ? -1 : 0}
+              aria-label={`${healthData.upToDate} containers up to date`}
+              onKeyDown={onActivate(
+                () => !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)
+              )}
             >
               <div className={styles.statIcon}>
                 <CheckCircle2 size={18} />

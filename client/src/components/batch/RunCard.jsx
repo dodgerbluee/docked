@@ -61,6 +61,17 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
               className={styles.errorIconContainer}
               onClick={handleErrorIconClick}
               title={run.error_message || "Failed"}
+              // Opens the failure detail, so it has to work without a pointer.
+              role="button"
+              tabIndex={0}
+              aria-label="Show failure details"
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                  e.preventDefault();
+                  handleErrorIconClick();
+                }
+              }}
             >
               <XCircle size={18} className={styles.errorIcon} />
             </div>
