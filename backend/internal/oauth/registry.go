@@ -43,6 +43,10 @@ type Registry struct {
 	providers  map[string]*Provider
 	settings   map[string]Settings
 	lastLoaded time.Time
+	// loaded records whether at least one refresh has succeeded. Until then the
+	// provider set is unknown rather than empty, and the login gates must not
+	// read "empty" as "SSO is off".
+	loaded bool
 }
 
 func NewRegistry(database *sql.DB, cfg config.OAuthConfig) *Registry {
@@ -57,6 +61,12 @@ func NewRegistry(database *sql.DB, cfg config.OAuthConfig) *Registry {
 // reloadTimeout bounds a registry refresh so a wedged DB can neither pin the
 // reload mutex nor leave a login request waiting on it.
 const reloadTimeout = 5 * time.Second
+
+// unknownRetryTTL is how long to wait before retrying a refresh that has never
+// succeeded. It is much shorter than reloadTTL because until the first success
+// the provider set is unknown, and every minute spent "unknown" is a minute the
+// login gates are guessing.
+const unknownRetryTTL = 2 * time.Second
 
 // EnsureFresh reloads the registry when it is older than the TTL.
 func (r *Registry) EnsureFresh(ctx context.Context) {
@@ -82,11 +92,20 @@ func (r *Registry) reloadLocked(ctx context.Context) {
 		// Keep serving the last good set and wait out the TTL before retrying,
 		// so a broken DB cannot turn into an SSO-bypass window or a reload storm.
 		slog.Warn("Could not refresh OAuth providers, keeping the previous provider set", "error", err.Error())
-		r.lastLoaded = time.Now()
+		if r.loaded {
+			r.lastLoaded = time.Now()
+		} else {
+			// Nothing has ever loaded successfully, so there is no last good set
+			// to fall back on and Enabled() would report "no providers" from
+			// ignorance. Retry promptly instead of pinning that guess for a full
+			// TTL; Known() lets the login gates fail closed in the meantime.
+			r.lastLoaded = time.Now().Add(-reloadTTL + unknownRetryTTL)
+		}
 		return
 	}
 	r.providers, r.settings = providers, settings
 	r.lastLoaded = time.Now()
+	r.loaded = true
 	if len(r.providers) == 0 {
 		slog.Info("No OAuth providers configured (DB or env vars)")
 	}
@@ -221,11 +240,23 @@ func (r *Registry) ConfiguredProviders() []PublicInfo {
 	return out
 }
 
-// Enabled reports whether any provider is configured.
+// Enabled reports whether any provider is configured. It is only meaningful
+// once Known() is true; before the first successful refresh it reports the
+// zero value, not the absence of providers.
 func (r *Registry) Enabled() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.providers) > 0
+}
+
+// Known reports whether the provider set has been read from storage at least
+// once. Gates that decide whether local login is allowed must fail closed while
+// this is false, otherwise a transient storage failure opens the local-login
+// door for an entire TTL.
+func (r *Registry) Known() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.loaded
 }
 
 // ProviderSettings falls back to the env-var config for unknown names,

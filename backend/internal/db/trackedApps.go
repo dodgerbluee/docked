@@ -194,10 +194,30 @@ func UpdateTrackedApp(ctx context.Context, database *sql.DB, id, userID int64,
 	return err
 }
 
+// DeleteTrackedApp removes the app and detaches its upgrade history in one
+// transaction. The schema declares tracked_app_upgrade_history.tracked_app_id
+// as ON DELETE SET NULL, but foreign keys are deliberately not enabled on this
+// database (Node parity), so that clause never fires: without the explicit
+// detach, history rows keep pointing at an app id that no longer exists and
+// later joins on tracked_app_id resolve nothing. app_name and repository are
+// denormalized onto the history row, so the audit trail stays readable.
 func DeleteTrackedApp(ctx context.Context, database *sql.DB, id, userID int64) error {
-	_, err := database.ExecContext(ctx,
-		"DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", id, userID)
-	return err
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // best-effort after commit
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE tracked_app_upgrade_history SET tracked_app_id = NULL WHERE tracked_app_id = ? AND user_id = ?",
+		id, userID); err != nil {
+		return fmt.Errorf("detach tracked app history: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", id, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // TrackedAppSnapshot carries the columns the check pipeline read before

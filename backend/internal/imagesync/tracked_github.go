@@ -303,11 +303,11 @@ func ghGetReleaseByTag(ctx context.Context, repoInput, tagName string) (*ghRelea
 
 	status, body, err := githubGetWithRetry(ctx, fmt.Sprintf("%s/repos/%s/%s/releases/tags/%s", githubAPIBase, owner, repo, tagName))
 	if err != nil {
-		// handleReleaseByTagError: 404 -> null (unreachable here), 403 -> throw.
-		if strings.Contains(err.Error(), "status 403") {
-			return nil, fmt.Errorf("GitHub API rate limit or access restriction. Consider checking your GITHUB_TOKEN.")
-		}
-		return nil, nil
+		// githubGetWithRetry only returns err for transport failures (status
+		// codes arrive with err == nil), so this is an outage, not an answer.
+		// Returning (nil, nil) here let ghFindReleaseByTag negative-cache a
+		// GitHub outage as "this tag has no release".
+		return nil, handleGitHubError(err, owner, repo)
 	}
 	if status == 200 && len(body) > 0 {
 		var rel ghRelease

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 )
 
@@ -910,7 +911,7 @@ func migrateRestoreContainersUnique(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-// migrateRunnerHealthTracking (0015).
+// migrateIntentScheduleTimezone (0016).
 func migrateIntentScheduleTimezone(ctx context.Context, tx *sql.Tx) error {
 	// The GraphQL schema has always advertised intent scheduleTimezone; the
 	// resolvers had no column to put it in and rejected every write.
@@ -922,6 +923,7 @@ func migrateIntentScheduleTimezone(ctx context.Context, tx *sql.Tx) error {
 	return txAddColumn(ctx, tx, "intents", "schedule_timezone", "TEXT")
 }
 
+// migrateRunnerHealthTracking (0015).
 func migrateRunnerHealthTracking(ctx context.Context, tx *sql.Tx) error {
 	if err := txAddColumn(ctx, tx, "runners", "last_seen", "TEXT"); err != nil {
 		return err
@@ -970,4 +972,78 @@ func migrateRunnerHealthTracking(ctx context.Context, tx *sql.Tx) error {
       WHERE docker_status IS NULL OR docker_status = 'unknown'
     `)
 	return err
+}
+
+// migrateTrackedAppsNullSafeUnique (0017): the table-level
+// UNIQUE(user_id, image_name, github_repo) never fires when github_repo is
+// NULL, because SQLite treats NULLs as distinct in unique constraints. Re-adding
+// the same image therefore inserted a second row every time instead of hitting
+// the duplicate error, and the update path then wrote to an arbitrary one of
+// them. Deduplicate what already exists and add an expression index that
+// collapses NULL and '' into the same identity.
+//
+// The index is partial on image_name: an app tracked by repository alone has no
+// image identity at all, and those must stay allowed to coexist.
+func migrateTrackedAppsNullSafeUnique(ctx context.Context, tx *sql.Tx) error {
+	if ok, err := txTableExists(ctx, tx, "tracked_apps"); err != nil {
+		return err
+	} else if !ok {
+		return nil
+	}
+
+	var before int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps").Scan(&before); err != nil {
+		return err
+	}
+
+	// Keep the newest row per identity: it carries the most recent check
+	// results. History rows are re-pointed at the survivor before the losers
+	// go, so no upgrade history is orphaned by the dedupe.
+	if _, err := tx.ExecContext(ctx, `
+      WITH app_identity AS (
+        SELECT id, MAX(id) OVER (
+                 PARTITION BY user_id, image_name, COALESCE(github_repo, '')
+               ) AS keep_id
+          FROM tracked_apps
+         WHERE image_name IS NOT NULL AND image_name <> ''
+      )
+      UPDATE tracked_app_upgrade_history
+         SET tracked_app_id = (
+           SELECT ai.keep_id FROM app_identity ai WHERE ai.id = tracked_app_upgrade_history.tracked_app_id
+         )
+       WHERE tracked_app_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM app_identity ai
+            WHERE ai.id = tracked_app_upgrade_history.tracked_app_id AND ai.id <> ai.keep_id
+         )
+    `); err != nil {
+		return fmt.Errorf("re-point tracked app history: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+      DELETE FROM tracked_apps
+       WHERE image_name IS NOT NULL AND image_name <> ''
+         AND id NOT IN (
+           SELECT MAX(id) FROM tracked_apps
+            WHERE image_name IS NOT NULL AND image_name <> ''
+            GROUP BY user_id, image_name, COALESCE(github_repo, '')
+         )
+    `); err != nil {
+		return fmt.Errorf("deduplicate tracked_apps: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tracked_apps_identity_unique
+        ON tracked_apps(user_id, image_name, COALESCE(github_repo, ''))
+       WHERE image_name IS NOT NULL AND image_name <> ''
+    `); err != nil {
+		return fmt.Errorf("create tracked_apps identity index: %w", err)
+	}
+
+	var after int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps").Scan(&after); err != nil {
+		return err
+	}
+	slog.Info("migrate 17: tracked_apps deduplicated", "before", before, "after", after)
+	return nil
 }

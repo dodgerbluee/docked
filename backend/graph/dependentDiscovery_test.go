@@ -45,8 +45,43 @@ func TestFindDependentContainersMatchesByID(t *testing.T) {
 	defer srv.Close()
 
 	rr := db.RunnerRow{URL: srv.URL, APIKey: "k"}
-	deps := findDependentContainers(context.Background(), rr, providerID, "gluetun")
+	deps, err := findDependentContainers(context.Background(), rr, providerID, "gluetun")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(deps) != 1 || deps[0].ID != depID {
 		t.Fatalf("ID-referencing dependent not discovered, got %+v", deps)
+	}
+}
+
+// Discovery must fail loudly rather than return a partial snapshot: the caller
+// stops and removes what it found, so a dependent that was merely not
+// inspectable would be left wired to a provider ID that is about to be deleted.
+func TestFindDependentContainersFailsOnUninspectableContainer(t *testing.T) {
+	providerID := strings.Repeat("a", 64)
+	depID := strings.Repeat("b", 64)
+
+	mux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/containers":
+			_ = json.NewEncoder(w).Encode(map[string]any{"containers": []map[string]any{
+				{"id": providerID, "name": "/gluetun", "image": "qmcgaw/gluetun", "state": "running"},
+				{"id": depID, "name": "/vpn-app", "image": "containrrr/watchtower", "state": "running"},
+			}})
+		default:
+			// Every inspect fails.
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	rr := db.RunnerRow{URL: srv.URL, APIKey: "k"}
+	deps, err := findDependentContainers(context.Background(), rr, providerID, "gluetun")
+	if err == nil {
+		t.Fatalf("expected an error for an uninspectable container, got deps=%+v", deps)
+	}
+	if deps != nil {
+		t.Fatalf("expected no deps alongside the error, got %+v", deps)
 	}
 }

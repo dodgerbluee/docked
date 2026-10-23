@@ -428,7 +428,7 @@ func recordIntentExecContainer(ctx context.Context, database *sql.DB, execID int
 	if c.RunnerID.Valid {
 		rID = &c.RunnerID.Int64
 	}
-	_ = db.InsertIntentExecutionContainer(ctx, database, db.IntentExecContainerInsert{
+	if err := db.InsertIntentExecutionContainer(ctx, database, db.IntentExecContainerInsert{
 		ExecutionID:      execID,
 		ContainerID:      c.ContainerID,
 		ContainerName:    c.ContainerName,
@@ -439,7 +439,14 @@ func recordIntentExecContainer(ctx context.Context, database *sql.DB, execID int
 		OldImage:         nullStrPtr(c.ImageName),
 		ErrorMessage:     errMsg,
 		DurationMs:       durationMs,
-	})
+	}); err != nil {
+		// Bookkeeping only: the container action itself has already happened, so
+		// failing the mutation here would be worse than losing the row. Logged
+		// because a silently missing row makes the execution report understate
+		// what ran.
+		slog.Error("could not record intent execution container row",
+			"executionId", execID, "containerId", c.ContainerID, "status", status, "error", err)
+	}
 }
 func runnerToModel(r *db.RunnerRow) *model.Runner {
 	if r == nil {

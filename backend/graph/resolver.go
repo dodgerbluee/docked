@@ -38,6 +38,11 @@ func (r *Resolver) localLoginAllowed(ctx context.Context) bool {
 		return true
 	}
 	r.OAuth.EnsureFresh(ctx)
+	if !r.OAuth.Known() {
+		// Unknown provider set: fail closed rather than treating a storage
+		// failure as "no SSO configured", which would reopen password login.
+		return false
+	}
 	if !r.OAuth.Enabled() {
 		return true
 	}

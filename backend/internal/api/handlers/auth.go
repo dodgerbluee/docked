@@ -117,6 +117,15 @@ func Login(database *sql.DB, registry *oauth.Registry) http.HandlerFunc {
 		// form hint: refuse password login here too when SSO-only mode is on.
 		if registry != nil {
 			registry.EnsureFresh(r.Context())
+			// Fail closed while the provider set is unknown: a storage failure
+			// must not read as "SSO is off" and reopen the local-login door for
+			// a whole TTL. Password login could not succeed against broken
+			// storage anyway, so refusing here costs nothing.
+			if !registry.Known() {
+				runnerFail(w, http.StatusServiceUnavailable,
+					"Authentication is temporarily unavailable. Please try again.")
+				return
+			}
 			if registry.Enabled() {
 				allow := registry.AllowLocalLoginDefault()
 				if v, err := db.GetSystemSetting(r.Context(), database, "oauth_allow_local_login"); err == nil && v != nil {

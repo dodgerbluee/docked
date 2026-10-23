@@ -553,6 +553,7 @@ var migrations = []migration{
 	{14, "Restore containers UNIQUE constraint and deduplicate rows", migrateRestoreContainersUnique},
 	{15, "Add runner health tracking", migrateRunnerHealthTracking},
 	{16, "Add intent schedule timezone", migrateIntentScheduleTimezone},
+	{17, "Deduplicate tracked_apps and add null-safe identity index", migrateTrackedAppsNullSafeUnique},
 }
 
 // runMigrations ports db/migrations/index.js: create the tracking table,

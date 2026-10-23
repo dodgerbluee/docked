@@ -62,13 +62,17 @@ func (m *Manager) GetProvider(imageRepo string) Provider {
 // processProviderResult mirrors _processProviderResult: a nil provider result
 // still yields a non-nil result with a null digest.
 func processProviderResult(result *DigestResult, provider Provider, tag string) *DigestResult {
-	if result != nil {
-		if result.Provider == "" {
-			result.Provider = provider.Name()
-		}
-		return result
+	if result == nil {
+		return &DigestResult{Tag: tag, Provider: provider.Name()}
 	}
-	return &DigestResult{Tag: tag, Provider: provider.Name()}
+	// Always copy: providers hand out pointers they have already published into
+	// the shared digest cache, so annotating one in place is a data race against
+	// every other consumer of that cache entry.
+	out := *result
+	if out.Provider == "" {
+		out.Provider = provider.Name()
+	}
+	return &out
 }
 
 // GetLatestDigest resolves the latest digest for imageRepo:tag with the
@@ -116,9 +120,12 @@ func (m *Manager) tryFallback(ctx context.Context, imageRepo, tag string, opts O
 	if result == nil {
 		return nil, nil
 	}
-	result.Provider = m.fallback.Name()
-	result.IsFallback = true
-	return result, nil
+	// Copy for the same reason as processProviderResult: this result may be a
+	// live entry in the shared digest cache.
+	out := *result
+	out.Provider = m.fallback.Name()
+	out.IsFallback = true
+	return &out, nil
 }
 
 // GetTagPublishDate mirrors getTagPublishDate: ask the selected provider,

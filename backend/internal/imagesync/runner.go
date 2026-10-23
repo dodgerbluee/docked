@@ -185,8 +185,10 @@ func (s *Service) acquireRun(ctx context.Context, running map[int64]bool, userID
 }
 
 // ExecuteAndComplete performs the scan and finalizes the batch_run row
-// created by Acquire. It always releases the in-process flag.
-func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64) error {
+// created by Acquire. It always releases the in-process flag. Optional
+// runnerIDs restrict the scan to specific runners; callers that want the
+// whole user's fleet pass none.
+func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64, runnerIDs ...int64) error {
 	defer func() {
 		s.mu.Lock()
 		delete(s.running, userID)
@@ -198,7 +200,7 @@ func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64) e
 	stopHeartbeat := s.heartbeatRun(ctx, runID)
 	defer stopHeartbeat()
 
-	checked, updated, runErr := s.RunDockerHubPull(ctx, userID)
+	checked, updated, runErr := s.RunDockerHubPull(ctx, userID, runnerIDs...)
 
 	doneCtx := context.WithoutCancel(ctx)
 	if runErr != nil {
@@ -359,23 +361,16 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 			stackPtr = &stackName
 		}
 
-		// Recalculate hasUpdate using repoDigests when available, to avoid
-		// false positives on multi-arch images (same as Node). The raw list
-		// form is "repo@sha256:...", so it must be normalized before compare.
-		hasUpdate := info.HasUpdate
-		cleanRepoDigests := cleanDigests(ctr.RepoDigests)
-		if len(cleanRepoDigests) > 0 && info.LatestDigestFull != nil {
-			latestHash := strings.TrimPrefix(*info.LatestDigestFull, "sha256:")
-			hasUpdate = true
-			for _, rd := range cleanRepoDigests {
-				if strings.TrimPrefix(rd, "sha256:") == latestHash {
-					hasUpdate = false
-					break
-				}
-			}
-		}
+		// hasUpdate is NOT computed here. The authoritative rule lives in
+		// db.ContainerHasUpdate and is evaluated against the row that was just
+		// persisted; an independent local calculation drifted from it (it
+		// ignored the github-releases provider branch and the current-digest
+		// fallback), so a container could be stored as updatable while the scan
+		// reported it as current and suppressed its intent.
 
 		currentDigest := pickCurrentDigest(info, ctr)
+
+		cleanRepoDigests := cleanDigests(ctr.RepoDigests)
 
 		data := &db.ContainerVersionUpsert{
 			ContainerID:     ctr.ID,
@@ -410,9 +405,6 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 		}
 
 		checked++
-		if hasUpdate {
-			updated++
-		}
 	}
 
 	// The snapshot is authoritative for this runner: anything stored that the
@@ -420,6 +412,22 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 	// failed to process are still in the snapshot, so they survive.
 	if _, err := db.ReconcileRunnerSnapshot(ctx, s.DB, userID, rr.ID, snapshotIDs); err != nil {
 		slog.Warn("failed to reconcile runner container inventory", "runnerId", rr.ID, "error", err)
+	}
+
+	// Count updates from the rows we just persisted, using the one authoritative
+	// helper the GraphQL layer also uses. Counting from the scan's own inputs
+	// under-reported updates, which suppressed the intents that fire on
+	// "containers became updatable".
+	rows, err := db.GetContainersByRunner(ctx, s.DB, userID, rr.ID)
+	if err != nil {
+		slog.Warn("could not re-read containers to count updates", "runnerId", rr.ID, "error", err.Error())
+	} else {
+		updated = 0
+		for i := range rows {
+			if db.ContainerHasUpdate(rows[i]) {
+				updated++
+			}
+		}
 	}
 
 	slog.Info("runner image scan complete", "runnerId", rr.ID, "runnerName", rr.Name,
@@ -430,7 +438,9 @@ func (s *Service) ScanRunnerContainers(ctx context.Context, rr db.RunnerRow, use
 // RunDockerHubPull ports DockerHubPullHandler.execute for the runner-only
 // world: snapshot containers, scan every docker-enabled runner, re-read,
 // send Discord notifications, and fan out a ContainersUpdated event.
-func (s *Service) RunDockerHubPull(ctx context.Context, userID int64) (int, int, error) {
+// Optional runnerIDs restrict the scan to specific runners — a request that
+// names one runner must not pay for (or rewrite) the whole fleet.
+func (s *Service) RunDockerHubPull(ctx context.Context, userID int64, runnerIDs ...int64) (int, int, error) {
 	previous, err := db.GetContainers(ctx, s.DB, userID)
 	if err != nil {
 		return 0, 0, err
@@ -441,9 +451,20 @@ func (s *Service) RunDockerHubPull(ctx context.Context, userID int64) (int, int,
 		return 0, 0, err
 	}
 
+	var only map[int64]bool
+	if len(runnerIDs) > 0 {
+		only = make(map[int64]bool, len(runnerIDs))
+		for _, id := range runnerIDs {
+			only[id] = true
+		}
+	}
+
 	checked, updated := 0, 0
 	for _, rr := range runners {
 		if rr.DockerEnabled.Int64 != 1 {
+			continue
+		}
+		if only != nil && !only[rr.ID] {
 			continue
 		}
 		c, u := s.ScanRunnerContainers(ctx, rr, userID)

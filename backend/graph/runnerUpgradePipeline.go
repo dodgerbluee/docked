@@ -596,6 +596,12 @@ func readinessCheck(ctx context.Context, rr db.RunnerRow, details map[string]any
 	return false, nil
 }
 
+// lockReleaseTimeout bounds a lock release that runs on a detached context.
+// Release is routinely called after the owning operation has already been
+// canceled or timed out, so it cannot reuse that context — but it must not hang
+// either.
+const lockReleaseTimeout = 10 * time.Second
+
 // acquireUpgradeLockSet atomically acquires upgrade locks for a set of
 // container IDs (lock keys are sorted for deterministic ordering). When
 // requireAll is true, any contended ID releases the whole set and returns an
@@ -621,8 +627,14 @@ func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.Runn
 		locked, err := db.AcquireUpgradeLock(ctx, r.DB, key, owner)
 		if err != nil || !locked {
 			if requireAll {
+				// Rollback must not inherit the caller's cancellation: a
+				// canceled request context would leave the locks we already
+				// took stranded until they expire, blocking the containers for
+				// the whole lock TTL.
 				for k := range held {
-					_ = db.ReleaseUpgradeLock(ctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+					rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+					_ = db.ReleaseUpgradeLock(rctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+					cancel()
 				}
 				if err == nil {
 					err = fmt.Errorf("lock already held by another operation")
@@ -640,8 +652,14 @@ func (r *mutationResolver) acquireUpgradeLockSet(ctx context.Context, rr db.Runn
 	stopHB := r.startDepLockHeartbeat(keys, owner)
 	release := func() {
 		stopHB()
+		// Detached for the same reason as the rollback path above: release
+		// routinely runs after the pipeline has timed out or the client has
+		// hung up, and a lock that fails to release here pins the container
+		// for the full TTL.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+		defer cancel()
 		for k := range held {
-			_ = db.ReleaseUpgradeLock(ctx, r.DB, containerTargetKey(k, &rr.ID), owner)
+			_ = db.ReleaseUpgradeLock(rctx, r.DB, containerTargetKey(k, &rr.ID), owner)
 		}
 	}
 	return held, release, nil
@@ -718,11 +736,17 @@ type depContainer struct {
 // target by name or full ID. Running AND stopped dependents are captured:
 // a stopped dependent's network_mode reference dies with the provider too,
 // so it must be recreated (but left stopped).
-func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cleanName string) []depContainer {
+//
+// Discovery is all-or-nothing on purpose. The caller stops and removes these
+// containers before recreating the provider, so a partial snapshot is worse
+// than no snapshot: an unlisted dependent is left wired to a container ID that
+// is about to be deleted, and rollback never sees it. Any listing or inspect
+// failure is therefore returned as an error so the caller can abort before the
+// first destructive call.
+func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cleanName string) ([]depContainer, error) {
 	list, err := runner.FetchContainers(ctx, rr)
 	if err != nil {
-		log.Printf("upgrade: could not check for dependent containers before stopping, proceeding anyway: %v", err)
-		return nil
+		return nil, fmt.Errorf("list containers to find dependents of %s: %w", cleanName, err)
 	}
 	var deps []depContainer
 	for _, c := range list {
@@ -731,7 +755,7 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 		}
 		details, err := runner.InspectContainer(ctx, rr, c.ID)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("inspect container %s while finding dependents of %s: %w", c.Name, cleanName, err)
 		}
 		nm := jStr(jObj(details, "HostConfig"), "NetworkMode")
 		// Match by name OR full container ID: dependents created by compose
@@ -749,7 +773,7 @@ func findDependentContainers(ctx context.Context, rr db.RunnerRow, targetID, cle
 			})
 		}
 	}
-	return deps
+	return deps, nil
 }
 
 // stopAndRemoveDependentContainers removes (not just stops) dependents so
@@ -882,6 +906,11 @@ func findDependentContainersAfterUpgrade(ctx context.Context, rr db.RunnerRow, n
 		}
 		details, err := runner.InspectContainer(ctx, rr, c.ID)
 		if err != nil {
+			// Not fatal: the upgrade has already succeeded, and aborting here
+			// would take the service down over a bookkeeping gap. Logged so a
+			// dependent that silently missed its restart is at least traceable.
+			slog.Warn("post-upgrade dependent scan: inspect failed, container skipped",
+				"container", c.Name, "id", c.ID, "error", err.Error())
 			continue
 		}
 		status := restartStatus(details)
@@ -1638,7 +1667,12 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	// another upgrade) could stop or remove a dependent while we recreate it,
 	// leaving the dependency permanently broken. The target container's own
 	// lock is already held by the caller.
-	deps := findDependentContainers(ctx, *rr, container.ContainerID, cleanName)
+	deps, depErr := findDependentContainers(ctx, *rr, container.ContainerID, cleanName)
+	if depErr != nil {
+		// Nothing has been stopped or removed yet, so refusing to proceed is
+		// safe; proceeding is not.
+		return fmt.Errorf("aborting upgrade of %s: %w", cleanName, depErr)
+	}
 	if len(deps) > 0 {
 		depIDs := make([]string, 0, len(deps))
 		for _, d := range deps {

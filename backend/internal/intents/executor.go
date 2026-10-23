@@ -116,6 +116,16 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 			return failExec(err)
 		}
 		e.publish(ctx, userID, execID)
+	} else {
+		// Adopted execution: the caller created it as 'pending'. Move it to
+		// 'running' now, otherwise it reads as queued for the whole run and a
+		// client polling for status cannot tell waiting from working.
+		if err := db.MarkIntentExecutionRunning(ctx, e.DB, execID); err != nil {
+			slog.Warn("could not mark adopted intent execution running",
+				"executionId", execID, "intentId", intent.ID, "error", err.Error())
+		} else {
+			e.publish(ctx, userID, execID)
+		}
 	}
 
 	// No matches — complete immediately.
@@ -132,10 +142,11 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	// Dry run — record matches, upgrade nothing.
 	if isDryRun {
 		results := make([]ContainerResult, 0, len(out.Matched))
+		var bookkeepingErr error
 		for i := range out.Matched {
 			c := out.Matched[i]
 			oldImg := c.ImageName.String
-			_ = db.InsertIntentExecutionContainer(ctx, e.DB, db.IntentExecContainerInsert{
+			if err := db.InsertIntentExecutionContainer(ctx, e.DB, db.IntentExecContainerInsert{
 				ExecutionID:      execID,
 				ContainerID:      c.ContainerID,
 				ContainerName:    c.ContainerName,
@@ -144,14 +155,29 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 				RunnerID:         nullInt64Ptr(c.RunnerID),
 				Status:           "dry_run",
 				OldImage:         &oldImg,
-			})
+			}); err != nil {
+				// The per-container rows ARE the dry-run report: nothing else
+				// carries which containers matched. Dropping the error made a
+				// failed write look like "no containers matched". Record the
+				// first failure and surface it on the execution row.
+				slog.Error("failed to record dry-run match",
+					"executionId", execID, "containerId", c.ContainerID, "error", err)
+				if bookkeepingErr == nil {
+					bookkeepingErr = err
+				}
+			}
 			results = append(results, ContainerResult{
 				ContainerID: c.ContainerID, ContainerName: c.ContainerName,
 				ImageName: c.ImageName.String, Status: "dry_run", OldImage: &oldImg,
 			})
 		}
 		matched := len(out.Matched)
-		if err := db.UpdateIntentExecution(ctx, e.DB, execID, "completed", matched, 0, 0, matched, nil); err != nil {
+		var bookkeepingMsg *string
+		if bookkeepingErr != nil {
+			msg := "completed, but some container results could not be recorded: " + bookkeepingErr.Error()
+			bookkeepingMsg = &msg
+		}
+		if err := db.UpdateIntentExecution(ctx, e.DB, execID, "completed", matched, 0, 0, matched, bookkeepingMsg); err != nil {
 			return failExec(err)
 		}
 		e.publish(ctx, userID, execID)
@@ -215,10 +241,13 @@ func (e *Executor) ExecuteIntent(ctx context.Context, intent *db.IntentRow, user
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrent)
 	for _, g := range groups {
+		// Take the slot BEFORE spawning: starting one goroutine per group and
+		// then blocking on the semaphore creates every group's worker up front,
+		// which defeats the point of max_concurrent on a large fleet.
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(g *group) {
 			defer wg.Done()
-			sem <- struct{}{}
 			defer func() { <-sem }()
 			for i := range g.containers {
 				res, err := e.upgradeContainer(ctx, &g.containers[i], userID, execID, intent.ID)

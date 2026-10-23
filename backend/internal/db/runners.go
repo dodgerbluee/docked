@@ -206,7 +206,10 @@ func DeleteRunner(ctx context.Context, database *sql.DB, id, userID int64) error
 
 // UpdateRunnerVersion persists the runner's reported version and the latest
 // known release (parity with Node's db/runners.updateRunnerVersion). A nil
-// dockerEnabled keeps the stored docker_enabled value (COALESCE).
+// dockerEnabled keeps the stored docker_enabled value (COALESCE), and so does a
+// nil latestVersion: a failed release lookup is not an observation that the
+// runner has no known latest version, and overwriting with NULL erased the
+// value a previous successful lookup stored.
 func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64, version, latestVersion *string, dockerEnabled *bool) error {
 	var dockerEnabledValue any
 	if dockerEnabled != nil {
@@ -218,7 +221,7 @@ func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64
 	}
 	_, err := database.ExecContext(ctx,
 		`UPDATE runners
-		    SET version = ?, latest_version = ?, docker_enabled = COALESCE(?, docker_enabled), version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		    SET version = ?, latest_version = COALESCE(?, latest_version), docker_enabled = COALESCE(?, docker_enabled), version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 		  WHERE id = ? AND user_id = ?`,
 		version, latestVersion, dockerEnabledValue, id, userID)
 	return err

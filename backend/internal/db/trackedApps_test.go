@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 )
 
@@ -252,5 +253,96 @@ func TestUpdateTrackedAppFieldsMatchesEmptySourceType(t *testing.T) {
 	}
 	if !applied {
 		t.Errorf("write rejected for a row whose source_type is the empty string")
+	}
+}
+
+// The table-level UNIQUE(user_id, image_name, github_repo) never fires while
+// github_repo is NULL (SQLite treats NULLs as distinct), so re-adding the same
+// image used to insert a second row instead of reporting a duplicate. Migration
+// 17 adds a null-safe expression index; this is the regression guard.
+func TestTrackedAppIdentityIsUniqueWithoutGithubRepo(t *testing.T) {
+	database, err := Open(t.TempDir() + "/ta.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	if err := Migrate(ctx, database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	if _, err := CreateTrackedApp(ctx, database, 1, "app", strPtr("example/app:latest"), nil, "docker", nil, nil); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	_, err = CreateTrackedApp(ctx, database, 1, "app again", strPtr("example/app:latest"), nil, "docker", nil, nil)
+	if !errors.Is(err, ErrTrackedAppExists) {
+		t.Fatalf("second insert of the same image: err = %v, want ErrTrackedAppExists", err)
+	}
+
+	var count int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tracked_apps WHERE user_id = 1").Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("tracked_apps rows = %d, want 1", count)
+	}
+
+	// Apps tracked without an image have no image identity and must still be
+	// able to coexist.
+	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-a", nil, strPtr("owner/a"), "github", nil, nil); err != nil {
+		t.Fatalf("repo-only insert a: %v", err)
+	}
+	if _, err := CreateTrackedApp(ctx, database, 1, "repo-only-b", nil, strPtr("owner/b"), "github", nil, nil); err != nil {
+		t.Fatalf("repo-only insert b: %v", err)
+	}
+}
+
+// Foreign keys are not enforced on this database, so the ON DELETE SET NULL on
+// tracked_app_upgrade_history never fires. DeleteTrackedApp has to detach the
+// history itself, or the rows keep pointing at an app id that no longer exists.
+func TestDeleteTrackedAppDetachesHistory(t *testing.T) {
+	database, err := Open(t.TempDir() + "/ta.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	if err := Migrate(ctx, database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	var appID int64
+	if err := database.QueryRowContext(ctx,
+		`INSERT INTO tracked_apps (user_id, name, image_name, source_type)
+		 VALUES (1, 'app', 'example/app:latest', 'docker') RETURNING id`).Scan(&appID); err != nil {
+		t.Fatalf("seed app: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO tracked_app_upgrade_history
+		 (user_id, tracked_app_id, app_name, provider, repository, old_version, new_version)
+		 VALUES (1, ?, 'app', 'docker', 'example/app', 'v1', 'v2')`, appID); err != nil {
+		t.Fatalf("seed history: %v", err)
+	}
+
+	if err := DeleteTrackedApp(ctx, database, appID, 1); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	var refs int
+	var dangling int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tracked_app_upgrade_history WHERE tracked_app_id = ?", appID).Scan(&refs); err != nil {
+		t.Fatalf("count refs: %v", err)
+	}
+	if refs != 0 {
+		t.Fatalf("history rows still pointing at the deleted app: %d", refs)
+	}
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tracked_app_upgrade_history WHERE app_name = 'app'").Scan(&dangling); err != nil {
+		t.Fatalf("count history: %v", err)
+	}
+	if dangling != 1 {
+		t.Fatalf("history rows preserved = %d, want 1 (the audit trail must survive)", dangling)
 	}
 }

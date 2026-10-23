@@ -121,6 +121,20 @@ func CreateIntentExecutionStatus(ctx context.Context, database *sql.DB, intentID
 	return res.LastInsertId()
 }
 
+// MarkIntentExecutionRunning transitions an adopted ('pending') execution to
+// 'running'. The executor is often handed an execution row the caller created
+// up front; without this transition the row sits at 'pending' for the entire
+// run, so pollers cannot tell a queued run from one actually in flight. The
+// status='pending' predicate keeps it from clobbering a row another process has
+// already moved on, and completed_at IS NULL keeps it from resurrecting a
+// finalized one.
+func MarkIntentExecutionRunning(ctx context.Context, database *sql.DB, id int64) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE intent_executions SET status='running'
+		  WHERE id=? AND status='pending' AND completed_at IS NULL`, id)
+	return err
+}
+
 // MarkIntentExecutionFailed records only status/error/duration, preserving
 // any partial counters already on the row (Node's updateIntentExecution
 // COALESCEs the counts). The completed_at IS NULL guard makes completion

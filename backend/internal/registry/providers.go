@@ -161,6 +161,12 @@ func (p *GHCRProvider) GetLatestDigest(ctx context.Context, imageRepo, tag strin
 	// crane/skopeo equivalent: anonymous/default-keychain fetch of the full ref.
 	digest, err := fetchIndexDigest(ctx, imageRepo+":"+tag, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	if err != nil {
+		// A throttled registry is not a missing image: falling through to the
+		// GitHub Releases fallback would turn a rate limit into a definitive
+		// "no update" answer and clear the caller's stored state.
+		if IsRateLimitError(err) {
+			return nil, err
+		}
 		slog.Debug("ghcr digest fetch failed, trying github releases fallback",
 			"repo", imageRepo, "tag", tag, "error", err)
 	}

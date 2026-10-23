@@ -334,13 +334,19 @@ func (s *Service) checkDockerTrackedApp(ctx context.Context, app *db.TrackedAppR
 	if currentVersionPublishDate != nil && *currentVersionPublishDate != "" {
 		updateData["current_version_publish_date"] = *currentVersionPublishDate
 	}
+	// Every write to latest_version_publish_date is observation-derived, so all
+	// of it is gated on `observed`: a failed lookup reports hasUpdate=false, and
+	// clearing on that path would erase a real publish date that a previous
+	// successful check stored.
 	if latestPublishDate != nil && *latestPublishDate != "" {
-		if hasUpdate {
+		if !observed {
+			// Nothing to record from a lookup that did not actually observe.
+		} else if hasUpdate {
 			updateData["latest_version_publish_date"] = *latestPublishDate
 		} else if app.LatestVersionPublishDate.Valid && app.LatestVersionPublishDate.String != "" {
 			updateData["latest_version_publish_date"] = nil
 		}
-	} else if !hasUpdate && app.LatestVersionPublishDate.Valid && app.LatestVersionPublishDate.String != "" {
+	} else if observed && !hasUpdate && app.LatestVersionPublishDate.Valid && app.LatestVersionPublishDate.String != "" {
 		updateData["latest_version_publish_date"] = nil
 	}
 

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -587,8 +588,15 @@ func (r *mutationResolver) PullContainers(ctx context.Context, runnerID *string)
 	}
 
 	// Runner-scoped sync; nil runnerID means all runners (global sync).
+	// The parsed id is carried through to the scan: validating the runner and
+	// then scanning the whole fleet both wastes work and rewrites inventory
+	// the caller never asked about.
+	var scopedRunner *int64
 	if runnerID != nil && *runnerID != "" {
-		rid, _ := strconv.ParseInt(*runnerID, 10, 64)
+		rid, err := strconv.ParseInt(*runnerID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid runner id %q", *runnerID)
+		}
 		runnerRow, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
 		if err != nil || runnerRow == nil {
 			return nil, fmt.Errorf("runner not found")
@@ -596,6 +604,7 @@ func (r *mutationResolver) PullContainers(ctx context.Context, runnerID *string)
 		if runnerRow.DockerEnabled.Int64 != 1 {
 			return nil, fmt.Errorf("docker is not enabled for runner %q", runnerRow.Name)
 		}
+		scopedRunner = &rid
 	}
 
 	// Async like Node's manual batch trigger, but the 'running' batch_run row
@@ -607,8 +616,12 @@ func (r *mutationResolver) PullContainers(ctx context.Context, runnerID *string)
 	if err != nil {
 		return nil, err
 	}
+	var runnerArgs []int64
+	if scopedRunner != nil {
+		runnerArgs = []int64{*scopedRunner}
+	}
 	go func() {
-		if err := r.Sync.ExecuteAndComplete(context.WithoutCancel(ctx), uid, runID); err != nil {
+		if err := r.Sync.ExecuteAndComplete(context.WithoutCancel(ctx), uid, runID, runnerArgs...); err != nil {
 			slog.Error("manual container sync failed", "userId", uid, "runId", runID, "error", err)
 		}
 	}()
@@ -882,6 +895,17 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			upgradeOne(c, run, imageName)
 		}
 
+		// A target that resolved in neither pass is a silent no-op: the user
+		// named these containers, and a clean "completed" with fewer attempts
+		// than they asked for reads like success. Report what was never found.
+		var missing []string
+		for key, t := range targets {
+			if !matched[key] {
+				missing = append(missing, t.DockerContainerID)
+			}
+		}
+		sort.Strings(missing)
+
 		// Report an honest terminal status instead of always "completed":
 		//   - nothing attempted  -> completed (nothing to do)
 		//   - every attempt fails -> failed
@@ -901,6 +925,20 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			msg = strPtr(fmt.Sprintf("all %d upgrades failed: %s", attempted, firstErr))
 		default:
 			msg = strPtr(fmt.Sprintf("partial: %d of %d upgrades failed: %s", failed, attempted, firstErr))
+		}
+		if len(missing) > 0 {
+			note := fmt.Sprintf("%d requested container(s) could not be found: %s",
+				len(missing), strings.Join(missing, ", "))
+			if msg != nil {
+				msg = strPtr(*msg + "; " + note)
+			} else {
+				msg = strPtr(note)
+			}
+			// Nothing the caller asked for was touched: that is a failure, not
+			// a successful no-op.
+			if attempted == 0 {
+				status = "failed"
+			}
 		}
 		db.CompleteBatchRun(ctx, r.DB, batchID, status, attempted, upgraded, msg)
 		r.publishBatchRun(ctx, uid, batchID)

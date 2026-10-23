@@ -61,6 +61,18 @@ func requestHost(r *http.Request) string {
 func GetOAuthProviders(registry *oauth.Registry, database *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		registry.EnsureFresh(r.Context())
+		if !registry.Known() {
+			// Unknown is not the same as empty: advertising allowLocalLogin:true
+			// here would tell the login page there is a working password door
+			// when storage simply could not be read.
+			writeRunnerJSON(w, http.StatusOK, map[string]any{
+				"success":         false,
+				"error":           "Authentication providers are temporarily unavailable",
+				"providers":       []any{},
+				"allowLocalLogin": false,
+			})
+			return
+		}
 		if !registry.Enabled() {
 			writeRunnerJSON(w, http.StatusOK, map[string]any{
 				"success":         true,
@@ -96,6 +108,10 @@ func GetOAuthProviders(registry *oauth.Registry, database *sql.DB) http.HandlerF
 func OAuthLogin(registry *oauth.Registry, cfg config.OAuthConfig, database *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		registry.EnsureFresh(r.Context())
+		if !registry.Known() {
+			runnerFail(w, http.StatusServiceUnavailable, "Authentication is temporarily unavailable")
+			return
+		}
 		if !registry.Enabled() {
 			runnerFail(w, http.StatusBadRequest, "No OAuth providers are configured")
 			return

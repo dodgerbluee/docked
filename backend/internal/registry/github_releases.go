@@ -57,6 +57,12 @@ func (p *GCRProvider) GetLatestDigest(ctx context.Context, imageRepo, tag string
 		return fetchIndexDigest(ctx, "gcr.io/"+normalized+":"+tag, remote.WithAuth(authn.Anonymous))
 	})
 	if err != nil {
+		// A throttled GCR must not be answered with the Docker Hub fallback and
+		// then reported as a definitive result: propagate so the caller keeps
+		// its stored state instead of clearing it.
+		if IsRateLimitError(err) {
+			return nil, err
+		}
 		slog.Debug("gcr digest fetch failed, trying docker hub fallback",
 			"repo", imageRepo, "tag", tag, "error", err)
 	}
@@ -69,6 +75,12 @@ func (p *GCRProvider) GetLatestDigest(ctx context.Context, imageRepo, tag string
 
 	// Docker Hub fallback: mirrored images keep provider "gcr" but flag fallback.
 	hubResult, hubErr := p.dockerHub.GetLatestDigest(ctx, normalized, tag, opts)
+	if hubErr != nil {
+		if IsRateLimitError(hubErr) {
+			return nil, hubErr
+		}
+		slog.Debug("gcr docker hub fallback failed", "repo", imageRepo, "tag", tag, "error", hubErr)
+	}
 	if hubErr == nil && hubResult != nil && hubResult.Digest != nil {
 		result := &DigestResult{Digest: hubResult.Digest, Tag: tag, Provider: "gcr", IsFallback: true}
 		p.cache.Set(cacheKey, result)
