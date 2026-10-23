@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import Modal from "./Modal";
@@ -8,6 +8,11 @@ import styles from "./ConfirmDialog.module.css";
 /**
  * ConfirmDialog Component
  * Reusable confirmation dialog to replace window.confirm
+ *
+ * If `onConfirm` returns a promise, the dialog waits for it and only closes
+ * when it settles successfully. Closing first discarded the dialog along with
+ * whatever the user was about to destroy, so a rejected delete looked like it
+ * had happened.
  */
 const ConfirmDialog = React.memo(function ConfirmDialog({
   isOpen,
@@ -20,15 +25,38 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
   variant = "danger", // "danger" | "primary" | "success"
   ...props
 }) {
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // A reopened dialog must not still be showing the previous attempt's failure.
+  useEffect(() => {
+    if (isOpen) {
+      setBusy(false);
+      setError("");
+    }
+  }, [isOpen]);
+
+  const handleConfirm = async () => {
+    setError("");
+    setBusy(true);
+    let failed = false;
+    try {
+      const result = onConfirm();
+      if (result && typeof result.then === "function") await result;
+    } catch (err) {
+      failed = true;
+      setError(err?.message || "The action could not be completed");
+    } finally {
+      setBusy(false);
+    }
+    // Synchronous callers resolve immediately and close exactly as before.
+    if (!failed) onClose();
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       title={variant !== "success" ? title : undefined}
       size="sm"
       zIndex={4000}
@@ -44,16 +72,27 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
           </>
         )}
         <p className={styles.message}>{message}</p>
+        {error && (
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
+        )}
         <div className={styles.actions}>
-          <Button variant="outline" onClick={onClose} className={styles.cancelButton}>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={busy}
+            className={styles.cancelButton}
+          >
             {cancelText}
           </Button>
           <Button
             variant="outline"
             onClick={handleConfirm}
+            disabled={busy}
             className={variant === "danger" ? styles.dangerConfirmButton : styles.confirmButton}
           >
-            {confirmText}
+            {busy ? "Working..." : confirmText}
           </Button>
         </div>
       </div>

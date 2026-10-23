@@ -174,11 +174,24 @@ export function useOperationTasks() {
               } else if (eventLine === "done") {
                 // Authoritative terminal event.
                 sawDone = true;
-                let exitCode = 0;
+                // A done event we cannot read is not proof of success. The old
+                // fallback to 0 turned a truncated or malformed frame into a
+                // green "completed" for an operation that may have failed.
+                let exitCode = null;
                 try {
-                  exitCode = JSON.parse(dataLine).exitCode ?? 0;
+                  const parsed = JSON.parse(dataLine);
+                  if (Number.isInteger(parsed.exitCode)) exitCode = parsed.exitCode;
                 } catch {
-                  exitCode = 0;
+                  exitCode = null;
+                }
+                if (exitCode === null) {
+                  updateTask(id, (t) => ({
+                    ...t,
+                    status: STATUS.ERROR,
+                    error: t.error || "The operation ended with an unreadable result",
+                    finishedAt: new Date().toISOString(),
+                  }));
+                  continue;
                 }
                 updateTask(id, (t) => ({
                   ...t,

@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/containersPage";
+import { getContainerKey } from "../../utils/containerHelpers";
 import { useContainerImageInfo } from "./ContainerCardDetails/hooks/useContainerImageInfo";
 import ContainerVersionDisplay from "./ContainerCardDetails/components/ContainerVersionDisplay";
 import styles from "./SourceContainerCard.module.css";
@@ -125,7 +126,7 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
               checked={selected}
               onChange={(e) => {
                 e.stopPropagation();
-                onToggleSelect(container.id);
+                onToggleSelect(getContainerKey(container));
               }}
               disabled={upgrading || isPortainer}
               title={isPortainer ? blockedMessage : undefined}

@@ -9,6 +9,7 @@ import { TIMING } from "../../../constants/timing";
 import { upgradeRunnerContainer, getUpgradeOutcome } from "../../../graphql/upgrades";
 import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
 import { pinContainerAsUpdated } from "../../../utils/containerStateHelpers";
+import { getContainerKey } from "../../../utils/containerHelpers";
 
 /** Auto-dismiss completed (success/error) items after this many ms (10 min) */
 const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
@@ -332,15 +333,23 @@ export const useContainerUpgrade = ({
     [closeUpgradeConfirm, startUpgrade]
   );
 
-  const handleBatchUpgrade = useCallback((selectedContainers, aggregatedContainers) => {
+  // `eligibleContainers` is the list the user can actually see: source filter,
+  // search and content tab already applied. Resolving the persistent selection
+  // against the unfiltered aggregate instead queued containers that a filter
+  // had hidden from view, while the toolbar counted them as visible choices.
+  const handleBatchUpgrade = useCallback((selectedContainers, eligibleContainers = []) => {
     if (selectedContainers.size === 0) {
       toast.warning("Please select at least one container to upgrade");
       return null;
     }
 
-    const containersToUpgrade = aggregatedContainers.all.filter((c) =>
-      selectedContainers.has(c.id)
+    const containersToUpgrade = (eligibleContainers || []).filter((c) =>
+      selectedContainers.has(getContainerKey(c))
     );
+    if (containersToUpgrade.length === 0) {
+      toast.warning("None of the selected containers are available in the current view");
+      return null;
+    }
 
     setBatchUpgradeConfirmContainers(containersToUpgrade);
 

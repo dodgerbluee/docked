@@ -488,6 +488,29 @@ body.dark-mode .checkUpdatesBtn:hover:not(:disabled) {
   color: var(--text-error, #ef4444);
 }
 
+.restartError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--text-error, #ef4444);
+}
+
+.eventsError {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 0;
+  font-size: 0.85rem;
+  color: var(--text-error, #ef4444);
+}
+
 /* ==========================================
    Loading / Empty States
    ========================================== */

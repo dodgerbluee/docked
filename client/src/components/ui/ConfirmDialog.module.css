@@ -18,6 +18,17 @@
   font-size: 0.95rem;
 }
 
+.errorText {
+  margin: 0 0 16px 0;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-error, #ef4444);
+}
+
 .actions {
   display: flex;
   gap: 12px;

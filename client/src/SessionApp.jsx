@@ -120,7 +120,13 @@ function SessionApp({
   const { version, isDevBuild } = useVersion();
 
   // Batch config - using custom hook
-  const { batchConfig, setBatchConfig, handleBatchConfigUpdate } = useBatchConfig(true, authToken);
+  const {
+    batchConfig,
+    batchConfigError,
+    setBatchConfig,
+    handleBatchConfigUpdate,
+    refetchBatchConfig,
+  } = useBatchConfig(true, authToken);
 
   // Discord webhooks - using custom hook
   const { discordWebhooks } = useDiscordSettings(true, authToken);
@@ -472,6 +478,8 @@ function SessionApp({
               colorScheme={colorScheme}
               handleColorSchemeChange={handleColorSchemeChange}
               batchConfig={batchConfig}
+              batchConfigError={batchConfigError}
+              refetchBatchConfig={refetchBatchConfig}
               setBatchConfig={setBatchConfig}
               version={version}
               isDevBuild={isDevBuild}

@@ -103,6 +103,8 @@ function HomePage({
   colorScheme,
   handleColorSchemeChange,
   batchConfig,
+  batchConfigError,
+  refetchBatchConfig,
   setBatchConfig,
   version,
   isDevBuild,
@@ -116,9 +118,11 @@ function HomePage({
   const batchConfigContextValue = useMemo(
     () => ({
       batchConfig,
+      batchConfigError,
+      refetchBatchConfig,
       setBatchConfig,
     }),
-    [batchConfig, setBatchConfig]
+    [batchConfig, batchConfigError, refetchBatchConfig, setBatchConfig]
   );
 
   // Memoize filtered containers - compute hasUpdate on-the-fly
@@ -307,6 +311,8 @@ HomePage.propTypes = {
   colorScheme: PropTypes.string.isRequired,
   handleColorSchemeChange: PropTypes.func.isRequired,
   batchConfig: PropTypes.object.isRequired,
+  batchConfigError: PropTypes.string,
+  refetchBatchConfig: PropTypes.func,
   setBatchConfig: PropTypes.func.isRequired,
   version: PropTypes.string.isRequired,
   isDevBuild: PropTypes.bool.isRequired,

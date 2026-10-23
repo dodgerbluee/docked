@@ -7,6 +7,7 @@ import UpdatingCard from "./UpdatingCard";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
 import { DATE_FORMAT_OPTIONS, STACK_NAMES } from "../../constants/containersPage";
+import { getContainerKey } from "../../utils/containerHelpers";
 import styles from "./ContainersTab.module.css";
 
 /**
@@ -141,7 +142,7 @@ const ContainersTab = React.memo(function ContainersTab({
                               key={container.id}
                               container={container}
                               isPortainer={isPortainer}
-                              selected={selectedContainers.has(container.id)}
+                              selected={selectedContainers.has(getContainerKey(container))}
                               upgrading={upgrading[container.id] || false}
                               showUpdates={container.hasUpdate}
                               onToggleSelect={onToggleSelect}
@@ -263,7 +264,7 @@ const ContainersTab = React.memo(function ContainersTab({
                           key={container.id}
                           container={container}
                           isPortainer={isPortainer}
-                          selected={selectedContainers.has(container.id)}
+                          selected={selectedContainers.has(getContainerKey(container))}
                           upgrading={upgrading[container.id] || false}
                           showUpdates={showUpdates}
                           onToggleSelect={onToggleSelect}

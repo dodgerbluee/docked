@@ -136,7 +136,13 @@ function AddTrackedAppModal({
         }
       } else {
         if (usePredefinedDocker && selectedPredefinedImage) {
-          input.imageName = (selectedPredefinedImage.value || "").trim();
+          const base = (selectedPredefinedImage.value || "").trim();
+          // The predefined option carries the bare repository, so editing an
+          // app that was pinned to a tag would drop that tag and silently
+          // widen the pin (nginx:1.25 -> nginx). Re-attach what is stored.
+          const stored = (formData.imageName || "").trim();
+          const tag = stored.startsWith(`${base}:`) ? stored.slice(base.length) : "";
+          input.imageName = `${base}${tag}`;
         } else {
           input.imageName = (formData.imageName || "").trim();
         }

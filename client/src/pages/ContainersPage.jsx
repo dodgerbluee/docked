@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { computeHasUpdate } from "../utils/containerUpdateHelpers";
+import { getContainerKey } from "../utils/containerHelpers";
 import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
@@ -134,10 +135,21 @@ function ContainersPage({
     );
   }, [containersPage, filteredGroupedStacks]);
 
+  // How many of the visible containers are actually selected. The selection
+  // Set persists across search and source-filter changes, so its raw size
+  // counts containers that are not on screen; the button has to report what
+  // the batch will really act on.
+  const selectedVisibleCount = useMemo(
+    () =>
+      containersWithUpdates.filter((c) => containersPage.selectedContainers.has(getContainerKey(c)))
+        .length,
+    [containersWithUpdates, containersPage.selectedContainers]
+  );
+
   // Handle batch upgrade click - now opens modal directly
   const handleBatchUpgradeClick = useCallback(() => {
-    containersPage.handleBatchUpgrade();
-  }, [containersPage]);
+    containersPage.handleBatchUpgrade(containersWithUpdates);
+  }, [containersPage, containersWithUpdates]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -162,6 +174,7 @@ function ContainersPage({
       contentTab={containersPage.contentTab}
       containersWithUpdates={containersWithUpdates}
       selectedContainers={containersPage.selectedContainers}
+      selectedCount={selectedVisibleCount}
       selectedImages={containersPage.selectedImages}
       sourceUnusedImages={containersPage.sourceUnusedImages}
       deletingImages={containersPage.deletingImages}

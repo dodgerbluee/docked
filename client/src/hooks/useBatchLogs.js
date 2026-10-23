@@ -33,5 +33,7 @@ export function useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch) {
     ...triggers,
     hasEnabledJobs,
     batchConfigs,
+    batchConfigError: contextValue?.batchConfigError || "",
+    refetchBatchConfig: contextValue?.refetchBatchConfig,
   };
 }

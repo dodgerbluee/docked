@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { isPortainerContainer } from "../utils/containerHelpers";
+import { isPortainerContainer, getContainerKey } from "../utils/containerHelpers";
 
 /**
  * Custom hook for selection handlers (containers and images)
@@ -30,11 +30,13 @@ export const useSelectionHandlers = ({
   const handleSelectAll = useCallback(
     (containersToSelect) => {
       const selectableContainers = containersToSelect.filter((c) => !isPortainerContainer(c));
-      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
+      const allSelected = selectableContainers.every((c) =>
+        selectedContainers.has(getContainerKey(c))
+      );
       if (allSelected) {
         setSelectedContainers(new Set());
       } else {
-        setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
+        setSelectedContainers(new Set(selectableContainers.map((c) => getContainerKey(c))));
       }
     },
     [selectedContainers, setSelectedContainers]
@@ -48,14 +50,16 @@ export const useSelectionHandlers = ({
       );
       if (selectableContainers.length === 0) return;
 
-      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
+      const allSelected = selectableContainers.every((c) =>
+        selectedContainers.has(getContainerKey(c))
+      );
 
       setSelectedContainers((prev) => {
         const next = new Set(prev);
         if (allSelected) {
-          selectableContainers.forEach((c) => next.delete(c.id));
+          selectableContainers.forEach((c) => next.delete(getContainerKey(c)));
         } else {
-          selectableContainers.forEach((c) => next.add(c.id));
+          selectableContainers.forEach((c) => next.add(getContainerKey(c)));
         }
         return next;
       });

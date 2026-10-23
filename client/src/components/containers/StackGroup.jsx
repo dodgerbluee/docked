@@ -2,6 +2,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import SourceContainerCard from "./SourceContainerCard";
 import { STACK_NAMES } from "../../constants/containersPage";
+import { getContainerKey } from "../../utils/containerHelpers";
 import styles from "./StackGroup.module.css";
 
 /**
@@ -96,7 +97,7 @@ const StackGroup = React.memo(function StackGroup({
                 key={container.id}
                 container={container}
                 isPortainer={isPortainer}
-                selected={selectedContainers.has(container.id)}
+                selected={selectedContainers.has(getContainerKey(container))}
                 upgrading={upgrading[container.id] || false}
                 showUpdates={showUpdates}
                 onToggleSelect={onToggleSelect}

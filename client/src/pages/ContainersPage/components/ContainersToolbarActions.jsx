@@ -7,6 +7,7 @@ import PropTypes from "prop-types";
 import Button from "../../../components/ui/Button";
 import { CONTAINERS_CONTENT_TABS } from "../../../constants/containersPage";
 import { getImageKey } from "../../../utils/imageHelpers";
+import { getContainerKey } from "../../../utils/containerHelpers";
 import styles from "../../ContainersPage.module.css";
 
 /**
@@ -27,6 +28,7 @@ const ContainersToolbarActions = ({
   contentTab,
   containersWithUpdates,
   selectedContainers,
+  selectedCount,
   selectedImages,
   sourceUnusedImages,
   deletingImages,
@@ -41,7 +43,7 @@ const ContainersToolbarActions = ({
       const selectableContainersCount = containersWithUpdates.length;
       const allSelectableSelected =
         selectableContainersCount > 0 &&
-        containersWithUpdates.every((c) => selectedContainers.has(c.id));
+        containersWithUpdates.every((c) => selectedContainers.has(getContainerKey(c)));
 
       return (
         <>
@@ -49,7 +51,7 @@ const ContainersToolbarActions = ({
             variant="outline"
             size="sm"
             onClick={() => {
-              const allIds = containersWithUpdates.map((c) => c.id);
+              const allIds = containersWithUpdates.map((c) => getContainerKey(c));
               const allSelected = allIds.every((id) => selectedContainers.has(id));
               if (allSelected) {
                 allIds.forEach((id) => onToggleSelect(id));
@@ -74,11 +76,9 @@ const ContainersToolbarActions = ({
             variant="outline"
             size="sm"
             onClick={onBatchUpgrade}
-            disabled={selectedContainers.size === 0}
+            disabled={selectedCount === 0}
           >
-            {compactLabels
-              ? `Upgrade (${selectedContainers.size})`
-              : `Upgrade Selected (${selectedContainers.size})`}
+            {compactLabels ? `Upgrade (${selectedCount})` : `Upgrade Selected (${selectedCount})`}
           </Button>
         </>
       );
@@ -139,6 +139,7 @@ const ContainersToolbarActions = ({
     contentTab,
     containersWithUpdates,
     selectedContainers,
+    selectedCount,
     selectedImages,
     sourceUnusedImages,
     deletingImages,
@@ -156,6 +157,7 @@ ContainersToolbarActions.propTypes = {
   contentTab: PropTypes.string.isRequired,
   containersWithUpdates: PropTypes.array.isRequired,
   selectedContainers: PropTypes.instanceOf(Set).isRequired,
+  selectedCount: PropTypes.number.isRequired,
   selectedImages: PropTypes.instanceOf(Set).isRequired,
   sourceUnusedImages: PropTypes.array.isRequired,
   deletingImages: PropTypes.bool.isRequired,

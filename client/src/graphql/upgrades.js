@@ -67,6 +67,7 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
     let settled = false;
     let unsubscribe = null;
     let pollTimer = null;
+    let lastPollError = "";
 
     const finish = (fn, arg) => {
       if (settled) return;
@@ -77,7 +78,16 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
     };
 
     const timeoutTimer = setTimeout(
-      () => finish(reject, new Error("Upgrade did not report completion in time")),
+      () =>
+        finish(
+          reject,
+          new Error(
+            "Upgrade did not report completion in time" +
+              // Without this the real cause (the status read itself was
+              // failing) was thrown away and every failure looked identical.
+              (lastPollError ? ` (status reads failing: ${lastPollError})` : "")
+          )
+        ),
       timeoutMs
     );
     const succeed = () => {
@@ -138,14 +148,23 @@ function waitForUpgradeOutcome({ operationId, container, startedAt, timeoutMs, g
           endSession();
           return;
         }
+        if (r.error) {
+          // urql resolves rather than rejects: an errored read must not be
+          // mistaken for "no terminal row yet".
+          lastPollError = r.error.message;
+          return;
+        }
+        lastPollError = "";
         const rec = r.data?.upgradeHistory?.items?.find(
           (item) => item.dockerContainerId === container.id
         );
         if (!rec) return;
         if (rec.status === "SUCCESS") succeed();
         else if (rec.status === "FAILED") fail(rec.errorMessage);
-      } catch {
-        // Transient query failure — keep polling until the timeout.
+      } catch (err) {
+        // Transient query failure — keep polling until the timeout, but keep
+        // the reason so the timeout is not silent about it.
+        lastPollError = err.message || "unknown error";
       }
     }, POLL_INTERVAL_MS);
   });

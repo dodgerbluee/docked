@@ -36,6 +36,8 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
     nextScheduledRunAppVersionScan,
     hasEnabledJobs,
     batchConfigs,
+    batchConfigError,
+    refetchBatchConfig,
     handleTriggerBatch,
     handleTriggerTrackedAppsBatch,
     handleTriggerAppVersionScanBatch,
@@ -184,6 +186,19 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
                   </tbody>
                 </table>
               </div>
+            ) : batchConfigError ? (
+              // The defaults are all "disabled", so a failed read would
+              // otherwise be announced as "nothing is scheduled" when the
+              // schedules may well exist.
+              <Alert variant="error" role="alert">
+                Batch schedules could not be loaded: {batchConfigError} The list below cannot be
+                trusted until the read succeeds.
+                {refetchBatchConfig && (
+                  <Button type="button" onClick={() => refetchBatchConfig()}>
+                    Retry
+                  </Button>
+                )}
+              </Alert>
             ) : (
               <EmptyState
                 message="No batch jobs are currently scheduled. Enable batch processing in Settings to schedule automatic runs."

@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { getContainerKey } from "../../../utils/containerHelpers";
 
 /**
  * Hook to manage container selection state
@@ -28,11 +29,13 @@ export const useContainerSelection = () => {
   const handleSelectAll = useCallback(
     (containersToSelect, isPortainerContainer) => {
       const selectableContainers = containersToSelect.filter((c) => !isPortainerContainer(c));
-      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
+      const allSelected = selectableContainers.every((c) =>
+        selectedContainers.has(getContainerKey(c))
+      );
       if (allSelected) {
         setSelectedContainers(new Set());
       } else {
-        setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
+        setSelectedContainers(new Set(selectableContainers.map((c) => getContainerKey(c))));
       }
     },
     [selectedContainers]

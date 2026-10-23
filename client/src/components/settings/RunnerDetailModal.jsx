@@ -103,17 +103,20 @@ function RunnerDetailModal({
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsTotal, setEventsTotal] = useState(0);
+  const [eventsError, setEventsError] = useState("");
   const [eventsOffset, setEventsOffset] = useState(0);
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
   const logsEndRef = useRef(null);
   const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState("");
   // Identifies the currently open modal/runner. Requests capture it and discard
   // their response if it changed while they were in flight, so a slow response
   // for one runner can never be shown for another (or after the modal closed).
   const requestTokenRef = useRef(null);
   const requestEpochRef = useRef(0);
+  const restartTimerRef = useRef(null);
 
   const fetchEvents = useCallback(
     async (offset = 0) => {
@@ -127,9 +130,15 @@ function RunnerDetailModal({
           setEvents((prev) => (offset === 0 ? data.events : [...prev, ...data.events]));
           setEventsTotal(data.total);
           setEventsOffset(offset + data.events.length);
+          setEventsError("");
+        } else {
+          // Without this a failed read renders as "No events recorded yet",
+          // which claims the runner did nothing rather than that we cannot tell.
+          setEventsError(data.error || "Failed to load runner events");
         }
-      } catch {
-        // silently fail
+      } catch (err) {
+        if (requestTokenRef.current !== token) return;
+        setEventsError(err.message || "Failed to load runner events");
       } finally {
         if (requestTokenRef.current === token) setEventsLoading(false);
       }
@@ -169,6 +178,7 @@ function RunnerDetailModal({
       setEvents([]);
       setEventsOffset(0);
       setEventsTotal(0);
+      setEventsError("");
       setLogs([]);
       setLogsError(null);
     }
@@ -230,18 +240,31 @@ function RunnerDetailModal({
     );
     if (!confirmed) return;
     setRestarting(true);
+    setRestartError("");
     try {
       await restartRunner(runner.id);
-    } catch {
-      // ignore — runner will go offline momentarily regardless
+    } catch (err) {
+      // A rejected restart is not a restart. The old comment assumed the
+      // runner would go offline regardless, so a refusal (runner already
+      // offline, operation refused) was indistinguishable from success.
+      setRestartError(err.message || "Failed to restart the runner");
     } finally {
-      // Give the runner time to restart before refreshing
-      setTimeout(async () => {
+      // Give the runner time to restart before refreshing. Kept in a ref so
+      // closing the modal cannot fire a refresh against an unmounted tree.
+      restartTimerRef.current = setTimeout(async () => {
+        restartTimerRef.current = null;
         setRestarting(false);
         if (onRefreshRunners) await onRefreshRunners();
       }, 5000);
     }
   }, [runner, onRefreshRunners]);
+
+  useEffect(
+    () => () => {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    },
+    []
+  );
 
   if (!runner) return null;
 
@@ -455,6 +478,11 @@ function RunnerDetailModal({
                 </>
               )}
             </button>
+            {restartError && (
+              <div className={styles.restartError} role="alert">
+                {restartError}
+              </div>
+            )}
           </div>
         )}
 
@@ -465,6 +493,13 @@ function RunnerDetailModal({
               <div className={styles.loadingState}>
                 <Loader size={16} className={styles.spinIcon} />
                 Loading events...
+              </div>
+            ) : eventsError ? (
+              <div className={styles.eventsError} role="alert">
+                {eventsError}
+                <Button variant="outline" size="sm" onClick={() => fetchEvents(eventsOffset)}>
+                  Retry
+                </Button>
               </div>
             ) : events.length === 0 ? (
               <div className={styles.emptyState}>No events recorded yet.</div>

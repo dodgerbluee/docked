@@ -264,10 +264,14 @@ export function useContainersPage({
     [handleSelectAllContainers, isPortainerContainer]
   );
 
-  // Wrapper for handleBatchUpgrade that includes aggregatedContainers
-  const handleBatchUpgrade = useCallback(() => {
-    return upgradeOperations.handleBatchUpgrade(selectedContainers, aggregatedContainers);
-  }, [upgradeOperations, selectedContainers, aggregatedContainers]);
+  // The caller supplies the visible, eligible container list so a batch can
+  // only ever target containers the user is actually looking at.
+  const handleBatchUpgrade = useCallback(
+    (eligibleContainers) => {
+      return upgradeOperations.handleBatchUpgrade(selectedContainers, eligibleContainers);
+    },
+    [upgradeOperations, selectedContainers]
+  );
 
   // Wrapper for handleDeleteImages that includes sourceUnusedImages
   const handleDeleteImages = useCallback(() => {

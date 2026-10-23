@@ -18,6 +18,21 @@ export const isPortainerContainer = (container) => {
 };
 
 /**
+ * Selection identity for a container row.
+ *
+ * The bare Docker container ID is NOT unique across sources: the schema keys
+ * containers on (docker_container_id, runner_id), so the same ID can be
+ * reported by two included runners. Keying selection on the ID alone selected
+ * both rows while the Set counted one, and a batch then acted on a container
+ * the user never selected. Every selection read and write must use this key.
+ *
+ * @param {Object} container - Container row
+ * @returns {string} - Runner-qualified selection key
+ */
+export const getContainerKey = (container) =>
+  `${container?.runnerId ?? container?.endpointId ?? ""}|${container?.id ?? ""}`;
+
+/**
  * Build containersBySource map for rendering
  * @param {Array} containers - Array of container objects
  * @returns {Object} - Map of containers grouped by source (instance URL or runner ID)
