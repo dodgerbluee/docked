@@ -354,6 +354,18 @@ func (s *Service) checkDockerTrackedApp(ctx context.Context, app *db.TrackedAppR
 		// that newer baseline; the next check recomputes from it.
 		slog.Info("tracked-app check skipped: baseline changed during the check",
 			"appId", app.ID, "sourceType", app.SourceType)
+		s.reloadAfterRejectedWrite(ctx, app)
+	}
+	if !applied || !observed {
+		// Nothing this check produced is in the database (either the write was
+		// rejected or the registry lookup failed), so it must not be reported
+		// either: report what the row actually holds.
+		hasUpdate, currentVersionToStore, latestVersion, currentVersionPublishDate = observedStateFromRow(app)
+		latestDigest = nil
+		if app.LatestDigest.Valid && app.LatestDigest.String != "" {
+			d := app.LatestDigest.String
+			latestDigest = &d
+		}
 	}
 
 	// Display values.
@@ -434,6 +446,39 @@ func newlyDetectedDocker(hasUpdate bool, app *db.TrackedAppRow, latestDigest, la
 
 // newlyDetectedVersion ports the GitHub/GitLab isNewlyDetectedUpdate
 // expression (version comparison only).
+// reloadAfterRejectedWrite re-reads the row after the snapshot guard rejected
+// this check's write. Nothing the check computed reached the database, so the
+// caller must neither queue a notification for an update that was never
+// recorded nor return state the row does not hold: the caller recomputes its
+// report from the fresh row instead.
+func (s *Service) reloadAfterRejectedWrite(ctx context.Context, app *db.TrackedAppRow) {
+	fresh, err := db.GetTrackedAppByID(ctx, s.DB, app.ID, app.UserID)
+	if err != nil || fresh == nil {
+		slog.Warn("tracked-app check: could not re-read row after a rejected write",
+			"appId", app.ID, "error", err)
+		return
+	}
+	*app = *fresh
+}
+
+// observedStateFromRow copies the row's stored observation into the local
+// variables a check reports, for the two paths where the check's own conclusion
+// must not be reported: a rejected write (nothing was stored) and a failed
+// upstream lookup (nothing was observed).
+func observedStateFromRow(app *db.TrackedAppRow) (bool, sql.NullString, *string, *string) {
+	hasUpdate := app.HasUpdate == 1
+	var latestVersion, currentPublishDate *string
+	if app.LatestVersion.Valid && app.LatestVersion.String != "" {
+		v := app.LatestVersion.String
+		latestVersion = &v
+	}
+	if app.CurrentVersionPublishDate.Valid && app.CurrentVersionPublishDate.String != "" {
+		v := app.CurrentVersionPublishDate.String
+		currentPublishDate = &v
+	}
+	return hasUpdate, app.CurrentVersion, latestVersion, currentPublishDate
+}
+
 func newlyDetectedVersion(hasUpdate bool, app *db.TrackedAppRow, latestVersion *string) bool {
 	if !hasUpdate {
 		return false

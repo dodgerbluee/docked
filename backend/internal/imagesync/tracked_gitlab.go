@@ -287,6 +287,10 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 	if err != nil && strings.Contains(err.Error(), "rate limit") {
 		return nil, err
 	}
+	// A failed upstream lookup is not an observation: has_update, a cleared
+	// latest_version and a cleared publish date must not overwrite state an
+	// earlier successful check confirmed.
+	observed := err == nil
 	if err != nil {
 		slog.Error("error checking GitLab repo", "repo", gitlabRepo, "error", err)
 	} else {
@@ -342,8 +346,10 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 	}
 
 	updateData := map[string]any{
-		"has_update":   boolToInt(hasUpdate),
 		"last_checked": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+	if observed {
+		updateData["has_update"] = boolToInt(hasUpdate)
 	}
 
 	if latestVersion != nil && latestRelease != nil {
@@ -352,7 +358,10 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 		}
 	} else if hasUpdate && app.LatestVersion.Valid && app.LatestVersion.String != "" {
 		updateData["latest_version"] = app.LatestVersion.String
-	} else if !hasUpdate && latestVersion == nil {
+	} else if observed && !hasUpdate && latestVersion == nil {
+		// A lookup that succeeded and found no releases at all: the stored
+		// observation is no longer valid. On a failed lookup this must not
+		// erase an update confirmed earlier.
 		updateData["latest_version"] = nil
 	}
 
@@ -384,10 +393,8 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 		}
 	} else if hasUpdate && app.LatestVersionPublishDate.Valid && app.LatestVersionPublishDate.String != "" {
 		updateData["latest_version_publish_date"] = app.LatestVersionPublishDate.String
-	} else {
-		if !hasUpdate {
-			updateData["latest_version_publish_date"] = nil
-		}
+	} else if observed && !hasUpdate {
+		updateData["latest_version_publish_date"] = nil
 	}
 
 	applied, err := db.UpdateTrackedAppFields(ctx, s.DB, app.ID, app.UserID, updateData, app.ObservedSnapshot())
@@ -400,6 +407,13 @@ func (s *Service) checkGitLabTrackedApp(ctx context.Context, app *db.TrackedAppR
 		// that newer baseline; the next check recomputes from it.
 		slog.Info("tracked-app check skipped: baseline changed during the check",
 			"appId", app.ID, "sourceType", app.SourceType)
+		s.reloadAfterRejectedWrite(ctx, app)
+	}
+	if !applied || !observed {
+		// Nothing this check produced is in the database (either the write was
+		// rejected or nothing was observed), so it must not be reported either:
+		// report what the row actually holds.
+		hasUpdate, currentVersionToStore, latestVersion, currentVersionPublishDate = observedStateFromRow(app)
 	}
 
 	displayCurrentVersion := jsString(currentVersionToStore)

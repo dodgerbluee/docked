@@ -695,11 +695,13 @@ func TestExportUserConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
+	created, err := db.GetTrackedAppByID(ctx, database, appID, userID)
+	if err != nil || created == nil {
+		t.Fatalf("load app: %v", err)
+	}
 	if _, err := db.UpdateTrackedAppFields(ctx, database, appID, userID,
 		map[string]any{"current_version": "1.0", "has_update": 1},
-		// The row was created above with NULL observed columns, so the
-		// zero-value snapshot is the baseline it still matches.
-		db.TrackedAppSnapshot{}); err != nil {
+		created.ObservedSnapshot()); err != nil {
 		t.Fatalf("update app: %v", err)
 	}
 	if err := db.UpdateBatchConfig(ctx, database, userID, "app-version-scan", true, 45); err != nil {
@@ -958,8 +960,12 @@ func TestExportUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}
+	created, err := db.GetTrackedAppByID(ctx, database, appID, memberID)
+	if err != nil || created == nil {
+		t.Fatalf("load app: %v", err)
+	}
 	if _, err := db.UpdateTrackedAppFields(ctx, database, appID, memberID,
-		map[string]any{"has_update": 1}, db.TrackedAppSnapshot{}); err != nil {
+		map[string]any{"has_update": 1}, created.ObservedSnapshot()); err != nil {
 		t.Fatalf("update app: %v", err)
 	}
 	if _, err := database.Exec(

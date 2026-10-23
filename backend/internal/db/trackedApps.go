@@ -200,25 +200,38 @@ func DeleteTrackedApp(ctx context.Context, database *sql.DB, id, userID int64) e
 	return err
 }
 
-// TrackedAppSnapshot carries the observed-state columns the check pipeline
-// read before contacting the upstream source. UpdateTrackedAppFields only
-// applies its writes while the row still matches this snapshot, so a
-// concurrent user edit (or parallel scan) is skipped instead of clobbered.
+// TrackedAppSnapshot carries the columns the check pipeline read before
+// contacting the upstream source. UpdateTrackedAppFields only applies its
+// writes while the row still matches this snapshot, so a concurrent user edit
+// (or parallel scan) is skipped instead of clobbered.
+//
+// The source-identity columns are part of the guard as well: they decide WHICH
+// upstream the observation came from. A check that read a GitHub-tracked row
+// and then had its source_type or image_name edited mid-flight would otherwise
+// pass a purely digest-shaped guard and file the old source's release data under
+// a row that now describes something else.
 type TrackedAppSnapshot struct {
 	CurrentVersion sql.NullString
 	CurrentDigest  sql.NullString
 	LatestVersion  sql.NullString
 	LatestDigest   sql.NullString
+
+	SourceType sql.NullString
+	ImageName  sql.NullString
+	GithubRepo sql.NullString
 }
 
-// ObservedSnapshot captures a loaded row's observed-state columns so the
-// caller can pass them as the guard to UpdateTrackedAppFields.
+// ObservedSnapshot captures a loaded row's observed-state and source-identity
+// columns so the caller can pass them as the guard to UpdateTrackedAppFields.
 func (a *TrackedAppRow) ObservedSnapshot() TrackedAppSnapshot {
 	return TrackedAppSnapshot{
 		CurrentVersion: a.CurrentVersion,
 		CurrentDigest:  a.CurrentDigest,
 		LatestVersion:  a.LatestVersion,
 		LatestDigest:   a.LatestDigest,
+		SourceType:     sql.NullString{String: a.SourceType, Valid: a.SourceType != ""},
+		ImageName:      a.ImageName,
+		GithubRepo:     a.GithubRepo,
 	}
 }
 
@@ -243,7 +256,7 @@ func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID in
 	sort.Strings(cols)
 
 	assigns := make([]string, 0, len(cols))
-	args := make([]any, 0, len(cols)+6)
+	args := make([]any, 0, len(cols)+9)
 	for _, c := range cols {
 		assigns = append(assigns, c+" = ?")
 		args = append(args, sets[c])
@@ -251,14 +264,18 @@ func UpdateTrackedAppFields(ctx context.Context, database *sql.DB, id, userID in
 	assigns = append(assigns, "updated_at = CURRENT_TIMESTAMP")
 	args = append(args, id, userID,
 		snapshot.CurrentVersion, snapshot.CurrentDigest,
-		snapshot.LatestVersion, snapshot.LatestDigest)
+		snapshot.LatestVersion, snapshot.LatestDigest,
+		snapshot.SourceType, snapshot.ImageName, snapshot.GithubRepo)
 
 	query := fmt.Sprintf(`UPDATE tracked_apps SET %s
 		 WHERE id = ? AND user_id = ?
 		   AND current_version IS NOT DISTINCT FROM ?
 		   AND current_digest IS NOT DISTINCT FROM ?
 		   AND latest_version IS NOT DISTINCT FROM ?
-		   AND latest_digest IS NOT DISTINCT FROM ?`,
+		   AND latest_digest IS NOT DISTINCT FROM ?
+		   AND source_type IS NOT DISTINCT FROM ?
+		   AND image_name IS NOT DISTINCT FROM ?
+		   AND github_repo IS NOT DISTINCT FROM ?`,
 		joinStrings(assigns, ", "))
 	res, err := database.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -285,30 +302,53 @@ func normalizeVersion(v string) string {
 // SetTrackedAppCurrentVersion applies an explicit user upgrade: sets current_version,
 // syncs latest_version, clears has_update, and optionally carries the publish date over.
 // Mirrors the Node PUT /tracked-apps/:id current_version semantics.
+//
+// The write is guarded on the observed (latest_version, latest_digest). A scan
+// that lands between the client rendering the card and the user confirming the
+// upgrade moves that observation, and an unguarded write then does two kinds of
+// damage at once: it writes latest_version back from the stale read (undoing the
+// scan's newer finding) and records the scan's digest as the baseline for a
+// version that never ran it. The app then reads as up to date while it is
+// behind. current_digest therefore comes from the observed snapshot rather than
+// the column, and hasUpdate lets the caller keep the flag set when a re-read
+// shows the acknowledged version is no longer the observed latest. Returns
+// applied=false when the guard did not hold so the caller can re-read.
 func SetTrackedAppCurrentVersion(ctx context.Context, database *sql.DB, id, userID int64,
-	currentVersion, latestVersion string, publishDate *string) error {
+	currentVersion, newLatest string, observed TrackedAppSnapshot, publishDate *string, hasUpdate bool) (bool, error) {
 
-	// current_digest = latest_digest only when the acknowledged version IS
-	// the observed latest version: moving the digest baseline is correct
-	// then, and the next scan's digest-first comparison won't re-flag the
-	// app. When the user sets a DIFFERENT version (e.g. a rollback, or a
-	// manual tag that isn't the observed latest), latest_digest belongs to
-	// another version, so the stale baseline must be cleared instead —
-	// otherwise the digest-first comparison flags a bogus update against a
-	// digest the app never ran. With no observed latest digest there is
-	// nothing to carry over either way, so the CASE clears.
+	// Move the digest baseline only when the acknowledged version IS the
+	// observed latest version: that is the one case where the observed digest
+	// is the digest this version runs. When the user sets a DIFFERENT version
+	// (e.g. a rollback, or a manual tag that isn't the observed latest), the
+	// observed digest belongs to another version, so the stale baseline must
+	// be cleared instead - otherwise the digest-first comparison flags a bogus
+	// update against a digest the app never ran.
 	digestMatches := normalizeVersion(currentVersion) != "" &&
-		normalizeVersion(currentVersion) == normalizeVersion(latestVersion)
+		normalizeVersion(observed.LatestVersion.String) == normalizeVersion(currentVersion)
 
-	_, err := database.ExecContext(ctx,
+	var currentDigest any
+	if digestMatches && observed.LatestDigest.Valid {
+		currentDigest = observed.LatestDigest.String
+	}
+
+	res, err := database.ExecContext(ctx,
 		`UPDATE tracked_apps
-		 SET current_version = ?, latest_version = ?, has_update = 0,
-		     current_digest = CASE WHEN ? THEN latest_digest ELSE NULL END,
+		 SET current_version = ?, latest_version = ?, has_update = ?,
+		     current_digest = ?,
 		     current_version_publish_date = ?, latest_version_publish_date = NULL,
 		     updated_at = datetime('now')
-		 WHERE id = ? AND user_id = ?`,
-		currentVersion, latestVersion, digestMatches, publishDate, id, userID)
-	return err
+		 WHERE id = ? AND user_id = ?
+		   AND latest_version IS NOT DISTINCT FROM ? AND latest_digest IS NOT DISTINCT FROM ?`,
+		currentVersion, newLatest, hasUpdate, currentDigest, publishDate, id, userID,
+		observed.LatestVersion, observed.LatestDigest)
+	if err != nil {
+		return false, fmt.Errorf("set tracked app current version: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("set tracked app current version: %w", err)
+	}
+	return n > 0, nil
 }
 
 // TrackedAppUpgradeHistoryInput carries the fields for a tracked_app_upgrade_history insert.

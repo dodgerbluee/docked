@@ -1339,7 +1339,8 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 		normalize := func(v string) string {
 			return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "v")
 		}
-		latest := nullStrDefault(existing.LatestVersion)
+		snapshot := existing.ObservedSnapshot()
+		latest := nullStrDefault(snapshot.LatestVersion)
 		newLatest := trimmed
 		if latest != "" {
 			// Keep the observed latest_version metadata: the db call syncs
@@ -1356,8 +1357,40 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 				}
 			}
 		}
-		if err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, publishDate); err != nil {
+		applied, err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, snapshot, publishDate, false)
+		if err != nil {
 			return nil, err
+		}
+		if !applied {
+			// A scan moved the observation while the user was deciding, so the
+			// values read above are stale. Re-read and apply against the new
+			// state rather than writing the stale ones: the acknowledged version
+			// may no longer be the observed latest, in which case the app is
+			// still behind and must stay flagged.
+			fresh, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+			if err != nil {
+				return nil, err
+			}
+			if fresh == nil {
+				return nil, fmt.Errorf("not found")
+			}
+			snapshot = fresh.ObservedSnapshot()
+			latest = nullStrDefault(snapshot.LatestVersion)
+			newLatest = trimmed
+			if latest != "" {
+				newLatest = latest
+			}
+			publishDate = nil
+			if latest != "" && normalize(trimmed) != "" && normalize(trimmed) == normalize(latest) {
+				if fresh.LatestVersionPublishDate.Valid && fresh.LatestVersionPublishDate.String != "" {
+					pd := fresh.LatestVersionPublishDate.String
+					publishDate = &pd
+				}
+			}
+			stillBehind := latest != "" && normalize(trimmed) != "" && normalize(trimmed) != normalize(latest)
+			if _, err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, snapshot, publishDate, stillBehind); err != nil {
+				return nil, err
+			}
 		}
 
 		if input.IsUpgrade != nil && *input.IsUpgrade {
