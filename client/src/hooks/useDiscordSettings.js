@@ -13,6 +13,7 @@ export function useDiscordSettings(isAuthenticated, authToken) {
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [editingDiscordWebhook, setEditingDiscordWebhook] = useState(null);
   const [discordSuccess, setDiscordSuccess] = useState("");
+  const [discordError, setDiscordError] = useState("");
 
   // If not provided, check if we have auth via localStorage
   const hasAuth =
@@ -23,11 +24,16 @@ export function useDiscordSettings(isAuthenticated, authToken) {
     if (!hasAuth || !effectiveToken) return;
     try {
       const result = await graphqlClient.query(DISCORD_WEBHOOKS_QUERY).toPromise();
+      if (result.error) throw new Error(result.error.message);
       if (result.data?.discordWebhooks) {
         setDiscordWebhooks(result.data.discordWebhooks);
+        setDiscordError("");
       }
     } catch (err) {
       console.error("Error fetching Discord webhooks:", err);
+      // Without this the notification settings show "no webhooks" for what is
+      // really an outage, and the user concludes their alerts are gone.
+      setDiscordError(err.message || "Failed to load Discord webhooks");
     }
   }, [hasAuth, effectiveToken]);
 
@@ -73,6 +79,7 @@ export function useDiscordSettings(isAuthenticated, authToken) {
     editingDiscordWebhook,
     setEditingDiscordWebhook,
     discordSuccess,
+    discordError,
     handleDiscordModalSuccess,
     handleDeleteDiscordWebhook,
     fetchDiscordWebhooks,

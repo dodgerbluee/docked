@@ -32,11 +32,12 @@ export function calculateTrackedAppsStats(trackedApps, dismissedNotifications = 
     // Exclude unknown apps
     if (isUnknown(img)) return false;
 
-    // Must not have updates and versions should match
-    return (
-      !img.has_update ||
-      (img.current_version && img.latest_version && img.current_version === img.latest_version)
-    );
+    // has_update is the server's verdict and already accounts for digest
+    // drift on mutable tags: an image can sit on the same version string and
+    // still be behind. Re-deriving it from the version strings here both
+    // overrode that verdict and double-counted the app as up to date AND
+    // behind, so the three buckets no longer summed to the total.
+    return !img.has_update;
   }).length;
 
   // Behind: apps that have updates (excluding unknown apps)

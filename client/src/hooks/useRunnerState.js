@@ -18,6 +18,10 @@ const RUNNER_REFRESH_INTERVAL_MS = 60 * 1000;
 export function useRunnerState() {
   const [runners, setRunners] = useState([]);
   const [loading, setLoading] = useState(true);
+  // A failed runner fetch used to resolve to an empty list, so the Runners view
+  // rendered "no runners" and the user could not tell an outage from a genuinely
+  // empty fleet.
+  const [runnersError, setRunnersError] = useState("");
   const [saving, setSaving] = useState(false);
   const [editRunner, setEditRunner] = useState(null);
   const [showEnrollment, setShowEnrollment] = useState(false);
@@ -35,14 +39,17 @@ export function useRunnerState() {
   const fetchRunners = useCallback(async () => {
     try {
       const result = await graphqlClient.query(RUNNERS_QUERY).toPromise();
-      if (!result.error && result.data?.runners) {
+      if (result.error) throw new Error(result.error.message);
+      if (result.data?.runners) {
         const runners = result.data.runners.map(mapGraphRunner);
         setRunners(runners);
+        setRunnersError("");
         return runners;
       }
       return [];
     } catch (err) {
       console.error("Failed to fetch runners:", err);
+      setRunnersError(err.message || "Failed to load runners");
       return [];
     } finally {
       setLoading(false);
@@ -252,6 +259,7 @@ export function useRunnerState() {
   return {
     // State
     runners,
+    runnersError,
     loading,
     saving,
     editRunner,

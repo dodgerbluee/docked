@@ -37,6 +37,7 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
   const [error, setError] = useState(null);
   const [unusedImages, setUnusedImages] = useState(cachedUnusedImages || []);
   const [unusedImagesCount, setUnusedImagesCount] = useState(cachedUnusedImagesCount || 0);
+  const [unusedImagesError, setUnusedImagesError] = useState("");
   const [loadingInstances, setLoadingInstances] = useState(new Set());
   const [dataFetched, setDataFetched] = useState(cachedDataFetched);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
@@ -90,8 +91,12 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
       );
       setUnusedImages(images);
       setUnusedImagesCount(images.length);
+      setUnusedImagesError("");
     } catch (err) {
       console.error("Error fetching unused images:", err);
+      // Left unset, the Unused Images tab renders "nothing to clean up" for what
+      // is really a failed scan, and the batch-delete affordances disappear.
+      setUnusedImagesError(err?.message || "Failed to fetch unused images");
     }
   }, []);
 
@@ -192,6 +197,7 @@ export const useContainersData = (successfullyUpdatedContainersRef) => {
     error,
     unusedImages,
     unusedImagesCount,
+    unusedImagesError,
     loadingInstances,
     dataFetched,
     dockerHubDataPulled,

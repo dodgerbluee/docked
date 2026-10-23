@@ -5,6 +5,8 @@ import { formatTimeAgo } from "../../utils/formatters";
 import { getImageKey } from "../../utils/imageHelpers";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
+import Alert from "../ui/Alert";
+import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import styles from "./UnusedTab.module.css";
 
@@ -26,7 +28,20 @@ const UnusedTab = React.memo(function UnusedTab({
   executeDeleteImages,
   collapsedUnusedImages,
   onToggleCollapsed,
+  loadError,
+  onRetryLoad,
 }) {
+  const loadErrorBanner = loadError ? (
+    <Alert variant="error" role="alert">
+      <p>Unused images could not be loaded: {loadError}</p>
+      {onRetryLoad && (
+        <Button type="button" onClick={() => onRetryLoad()}>
+          Retry
+        </Button>
+      )}
+    </Alert>
+  ) : null;
+
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   if (isLoading && !hasData) {
     return (
@@ -35,6 +50,11 @@ const UnusedTab = React.memo(function UnusedTab({
   }
 
   if (unusedImages.length === 0) {
+    // A failed scan is not "all clean": saying so hides the outage and the
+    // cleanup affordances disappear with it.
+    if (loadError) {
+      return <div className={styles.contentTabPanel}>{loadErrorBanner}</div>;
+    }
     return (
       <EmptyState
         message={
@@ -72,6 +92,7 @@ const UnusedTab = React.memo(function UnusedTab({
 
   return (
     <div className={styles.contentTabPanel}>
+      {loadErrorBanner}
       <div className={styles.stackGroup}>
         <div
           className={styles.stackHeader}
@@ -237,6 +258,8 @@ UnusedTab.propTypes = {
   executeDeleteImages: PropTypes.func.isRequired,
   collapsedUnusedImages: PropTypes.bool.isRequired,
   onToggleCollapsed: PropTypes.func.isRequired,
+  loadError: PropTypes.string,
+  onRetryLoad: PropTypes.func,
 };
 
 UnusedTab.displayName = "UnusedTab";

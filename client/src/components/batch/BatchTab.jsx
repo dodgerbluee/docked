@@ -19,12 +19,19 @@ const BatchTab = React.memo(function BatchTab({
   colorScheme,
   onColorSchemeChange,
 }) {
-  const { batchConfigs, batchError, batchSuccess, batchLoading, handleBatchConfigSubmit } =
-    useGeneralSettings({
-      colorScheme,
-      onColorSchemeChange,
-      onBatchConfigUpdate,
-    });
+  const {
+    batchConfigs,
+    batchError,
+    batchSuccess,
+    batchLoading,
+    batchConfigLoadError,
+    handleBatchConfigSubmit,
+    fetchBatchConfig,
+  } = useGeneralSettings({
+    colorScheme,
+    onColorSchemeChange,
+    onBatchConfigUpdate,
+  });
 
   // Use extracted form hook
   const {
@@ -56,6 +63,17 @@ const BatchTab = React.memo(function BatchTab({
         <h3 className={styles.title}>Batch Configuration</h3>
       </div>
 
+      {batchConfigLoadError && (
+        <Alert variant="error" className={styles.alert} role="alert">
+          <p>
+            Batch schedules could not be loaded: {batchConfigLoadError} The values below are the
+            built-in defaults, not your saved schedules. Saving is disabled until they load.
+          </p>
+          <Button type="button" onClick={() => fetchBatchConfig()}>
+            Retry
+          </Button>
+        </Alert>
+      )}
       {batchError && (
         <Alert variant="error" className={styles.alert}>
           {batchError}
@@ -209,7 +227,7 @@ const BatchTab = React.memo(function BatchTab({
           <Button
             type="submit"
             variant="primary"
-            disabled={!hasChanges || isSaving}
+            disabled={!hasChanges || isSaving || !!batchConfigLoadError}
             className={styles.saveButton}
             icon={isSaving ? undefined : Save}
             iconPosition="left"

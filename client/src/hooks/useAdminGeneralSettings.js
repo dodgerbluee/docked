@@ -22,6 +22,10 @@ export function useAdminGeneralSettings() {
   const isSavingRef = useRef(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSuccess, setGeneralSettingsSuccess] = useState("");
+  // Both reads fall back to a default on failure, and the save handler writes
+  // whatever is on screen. A failed read therefore silently resets the admin's
+  // real log level and debug-endpoints flag to the defaults.
+  const [loadError, setLoadError] = useState("");
 
   const fetchLogLevel = useCallback(async () => {
     const generation = getSessionGeneration();
@@ -30,13 +34,17 @@ export function useAdminGeneralSettings() {
       // A response that lands after logout belongs to a dead session and must
       // not seed the replacement session's state.
       if (isSessionStale(generation)) return;
-      if (!result.error && result.data?.batchLogLevel) {
+      if (result.error) {
+        setLoadError(result.error.message || "Failed to load admin settings");
+        return;
+      }
+      if (result.data?.batchLogLevel) {
         const fetchedLevel = result.data.batchLogLevel.toLowerCase() || "info";
         setLogLevel(fetchedLevel);
         // Set local state immediately with DB value to prevent flicker
         setLocalLogLevel(fetchedLevel);
       } else {
-        // If no value in DB, use default
+        // No row at all is a legitimate "never configured", not a failure.
         const defaultLevel = "info";
         setLogLevel(defaultLevel);
         setLocalLogLevel(defaultLevel);
@@ -44,10 +52,7 @@ export function useAdminGeneralSettings() {
     } catch (err) {
       console.error("Error fetching log level:", err);
       if (isSessionStale(generation)) return;
-      // On error, use default
-      const defaultLevel = "info";
-      setLogLevel(defaultLevel);
-      setLocalLogLevel(defaultLevel);
+      setLoadError(err.message || "Failed to load admin settings");
     }
   }, []);
 
@@ -63,14 +68,14 @@ export function useAdminGeneralSettings() {
     } catch (err) {
       console.error("Error fetching debug endpoints enabled:", err);
       if (isSessionStale(generation)) return;
-      setDebugEndpointsEnabled(false);
-      setLocalDebugEndpointsEnabled(false);
+      setLoadError(err.message || "Failed to load admin settings");
     }
   }, []);
 
   // Initialize settings on mount
   useEffect(() => {
     const initializeSettings = async () => {
+      setLoadError("");
       await Promise.all([fetchLogLevel(), fetchDebugEndpointsEnabled()]);
       setIsInitialized(true);
     };
@@ -88,6 +93,14 @@ export function useAdminGeneralSettings() {
   }, [logLevel, isInitialized]);
 
   const handleSaveGeneralSettings = useCallback(async () => {
+    if (loadError) {
+      // Refuse rather than write: the form is showing defaults because the read
+      // failed, and this handler overwrites the stored values.
+      setGeneralSettingsSuccess(
+        "Admin settings could not be loaded, so saving is disabled. Saving now would replace them with defaults."
+      );
+      return;
+    }
     setGeneralSettingsSaving(true);
     isSavingRef.current = true;
     setGeneralSettingsSuccess("");
@@ -162,7 +175,7 @@ export function useAdminGeneralSettings() {
         setGeneralSettingsSuccess("");
       }, 3000);
     }
-  }, [localLogLevel, localDebugEndpointsEnabled]);
+  }, [localLogLevel, localDebugEndpointsEnabled, loadError]);
 
   const handleLogLevelChange = useCallback((newLevel) => {
     setLocalLogLevel(newLevel);
@@ -188,5 +201,8 @@ export function useAdminGeneralSettings() {
     generalSettingsSaving,
     generalSettingsSuccess,
     handleSaveGeneralSettings,
+    loadError,
+    fetchLogLevel,
+    fetchDebugEndpointsEnabled,
   };
 }

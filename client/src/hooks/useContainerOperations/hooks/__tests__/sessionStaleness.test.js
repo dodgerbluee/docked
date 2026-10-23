@@ -86,7 +86,7 @@ describe("useContainerPull session guard", () => {
       setDockerHubDataPulled: vi.fn(),
       setDataFetched: vi.fn(),
       fetchUnusedImages: vi.fn().mockResolvedValue(undefined),
-      successfullyUpdatedContainersRef: { current: new Set() },
+      successfullyUpdatedContainersRef: { current: new Map() },
     };
     const { result } = renderHook(() => useContainerPull(setters));
     return { setters, handlePull: result.current };

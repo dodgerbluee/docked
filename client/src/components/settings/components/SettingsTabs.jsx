@@ -100,6 +100,8 @@ const SettingsTabs = ({
         editingDiscordWebhook={settings.editingDiscordWebhook}
         setEditingDiscordWebhook={settings.setEditingDiscordWebhook}
         discordSuccess={settings.discordSuccess}
+        discordError={settings.discordError}
+        onRetryLoad={() => settings.fetchDiscordWebhooks()}
         handleDiscordModalSuccess={settings.handleDiscordModalSuccess}
         handleDeleteDiscordWebhook={settings.handleDeleteDiscordWebhook}
       />

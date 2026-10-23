@@ -33,6 +33,7 @@ function ContainersPage({
   containers = [],
   unusedImages = [],
   unusedImagesCount = 0,
+  unusedImagesError = "",
   containersBySource = {},
   loadingInstances = new Set(),
   dockerHubDataPulled = false,
@@ -120,15 +121,18 @@ function ContainersPage({
     containersPage.aggregatedContainers.all.length > 0 ||
     containersPage.sourceUnusedImages.length > 0;
 
-  // Calculate containers with updates for toolbar buttons
+  // Calculate containers with updates for toolbar buttons.
+  // Must follow the same filtering the list renders: selecting "All" while a
+  // search or source filter is active would silently select (and let the user
+  // upgrade) containers that are not on screen.
   const containersWithUpdates = useMemo(() => {
     if (containersPage.contentTab !== CONTAINERS_CONTENT_TABS.UPDATES) {
       return [];
     }
-    return containersPage.groupedStacks.flatMap((stack) =>
+    return filteredGroupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => computeHasUpdate(c) && !containersPage.isPortainerContainer(c))
     );
-  }, [containersPage]);
+  }, [containersPage, filteredGroupedStacks]);
 
   // Handle batch upgrade click - now opens modal directly
   const handleBatchUpgradeClick = useCallback(() => {
@@ -338,6 +342,8 @@ function ContainersPage({
                   {containersPage.contentTab === CONTAINERS_CONTENT_TABS.UNUSED && (
                     <UnusedTab
                       unusedImages={containersPage.sourceUnusedImages}
+                      loadError={unusedImagesError}
+                      onRetryLoad={() => fetchUnusedImages()}
                       isLoading={containersPage.aggregatedContainers.isLoading}
                       hasData={hasData}
                       selectedImages={containersPage.selectedImages}
@@ -421,6 +427,7 @@ ContainersPage.propTypes = {
   containers: PropTypes.arrayOf(PropTypes.object).isRequired,
   unusedImages: PropTypes.arrayOf(PropTypes.object).isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
+  unusedImagesError: PropTypes.string,
   containersBySource: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
   dockerHubDataPulled: PropTypes.bool.isRequired,

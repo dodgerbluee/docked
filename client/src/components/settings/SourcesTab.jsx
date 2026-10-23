@@ -30,6 +30,7 @@ import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import Alert from "../ui/Alert";
 import ContainerBlocklist from "./ContainerBlocklist";
 import RunnerDetailModal from "./RunnerDetailModal";
 import RunOperationModal from "../ui/RunOperationModal";
@@ -439,6 +440,17 @@ const SourcesTab = React.memo(function SourcesTab({
             </li>
           </ul>
         </div>
+        {runner.runnersError && (
+          <Alert variant="error" role="alert">
+            <p>
+              Runners could not be loaded: {runner.runnersError} The list below may be incomplete or
+              empty even though runners exist.
+            </p>
+            <Button type="button" onClick={() => runner.fetchRunners()}>
+              Retry
+            </Button>
+          </Alert>
+        )}
         <div className={styles.sourceGrid}>
           {/* Runner cards, sorted alphabetically */}
           {[...runner.runners]

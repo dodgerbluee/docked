@@ -126,7 +126,10 @@ function SessionApp({
   const { discordWebhooks } = useDiscordSettings(true, authToken);
 
   // Container data management - using custom hook
-  const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
+  // Containers whose upgrade just succeeded, mapped to when that grace period
+  // expires (see containerStateHelpers). Suppresses the transient hasUpdate:true
+  // from a runner that has not re-reported the container yet.
+  const successfullyUpdatedContainersRef = useRef(new Map());
   const containersData = useContainersData(successfullyUpdatedContainersRef);
   const {
     containers,
@@ -136,6 +139,7 @@ function SessionApp({
     error,
     unusedImages,
     unusedImagesCount,
+    unusedImagesError,
     loadingInstances,
     dockerHubDataPulled,
     dataFetched,
@@ -400,6 +404,7 @@ function SessionApp({
               stacks={stacks}
               unusedImages={unusedImages}
               unusedImagesCount={unusedImagesCount}
+              unusedImagesError={unusedImagesError}
               trackedApps={trackedApps}
               sourceInstances={sourceInstances || []}
               containersBySource={containersBySource}

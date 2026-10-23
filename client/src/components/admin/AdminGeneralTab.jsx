@@ -20,6 +20,8 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
   generalSettingsSaving,
   generalSettingsSuccess,
   handleSaveGeneralSettings,
+  loadError,
+  onRetryLoad,
 }) {
   const logLevelOptions = [
     { value: LOG_LEVELS.INFO, label: "Info", icon: Info },
@@ -35,6 +37,19 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
     <div className={styles.updateSection}>
       <h3 className={styles.title}>General Settings</h3>
       {generalSettingsSuccess && <Alert variant={"info"}>{generalSettingsSuccess}</Alert>}
+      {loadError && (
+        <Alert variant="error" role="alert">
+          <p>
+            These settings could not be loaded ({loadError}). The values shown are defaults, not
+            your saved settings. Saving is disabled until they load.
+          </p>
+          {onRetryLoad && (
+            <Button type="button" onClick={() => onRetryLoad()}>
+              Retry
+            </Button>
+          )}
+        </Alert>
+      )}
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -78,7 +93,7 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
           <Button
             type="submit"
             variant="primary"
-            disabled={!generalSettingsChanged || generalSettingsSaving}
+            disabled={!generalSettingsChanged || generalSettingsSaving || !!loadError}
             className={styles.saveButton}
           >
             {generalSettingsSaving ? "Saving..." : "Save Changes"}
@@ -98,6 +113,8 @@ AdminGeneralTab.propTypes = {
   generalSettingsSaving: PropTypes.bool.isRequired,
   generalSettingsSuccess: PropTypes.string,
   handleSaveGeneralSettings: PropTypes.func.isRequired,
+  loadError: PropTypes.string,
+  onRetryLoad: PropTypes.func,
 };
 
 export default AdminGeneralTab;

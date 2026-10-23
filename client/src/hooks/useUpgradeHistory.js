@@ -66,6 +66,7 @@ export const useUpgradeHistory = (options = {}) => {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(cachedStats);
   const [statsLoading, setStatsLoading] = useState(cachedStats === null);
+  const [statsError, setStatsError] = useState(null);
   const mountedRef = useRef(true);
 
   const fetchHistory = useCallback(async () => {
@@ -132,10 +133,14 @@ export const useUpgradeHistory = (options = {}) => {
         };
         cachedStats = mapped;
         setStats(mapped);
+        setStatsError(null);
       }
     } catch (err) {
       if (!isSessionStale(gen)) {
         console.error("Error fetching upgrade history stats:", err);
+        // The stat cards render 0 for every field on failure, which reads as
+        // "no upgrades have ever run" rather than "the count failed".
+        setStatsError(err.message || "Failed to fetch upgrade history stats");
       }
     } finally {
       if (mountedRef.current && !isSessionStale(gen)) {
@@ -174,6 +179,7 @@ export const useUpgradeHistory = (options = {}) => {
     loading,
     error,
     stats,
+    statsError,
     statsLoading,
     refetch: fetchHistory,
   };

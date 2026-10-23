@@ -31,6 +31,10 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   const requestSeqRef = useRef(0);
   // True when the current token's existing associations could not be loaded.
   const assocLoadFailedRef = useRef(false);
+  // The association list arrives after the container list, so the modal can be
+  // fully rendered while it is still in flight. Saving then sends the empty
+  // initial selection, and the input replaces the whole association set.
+  const [assocLoading, setAssocLoading] = useState(false);
 
   const isRequestCurrent = useCallback((key, seq) => {
     return seq === requestSeqRef.current && activeTokenKeyRef.current === key;
@@ -42,6 +46,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     const key = String(token.id);
     const seq = requestSeqRef.current;
 
+    setAssocLoading(true);
     try {
       const { data, error: gqlError } = await graphqlClient
         .query(TOKEN_ASSOCIATED_IMAGES_QUERY)
@@ -52,6 +57,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       const associatedImageRepos = (entry?.associatedImages || []).map((i) => i.imageRepo);
       assocLoadFailedRef.current = false;
       setSelectedImages(new Set(associatedImageRepos));
+      setAssocLoading(false);
     } catch (err) {
       console.error("Error fetching associated images:", err);
       // The save replaces the whole association set, so a failed load that
@@ -61,6 +67,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       if (isRequestCurrent(key, seq)) {
         assocLoadFailedRef.current = true;
         setSelectedImages(new Set());
+        setAssocLoading(false);
         setError(
           "Failed to load the current image associations. Saving is disabled until they load."
         );
@@ -136,12 +143,14 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
 
     if (isOpen && token) {
       setSaving(false);
+      setAssocLoading(true);
       fetchContainers();
       fetchAssociatedImages();
     } else {
       setContainers([]);
       setSelectedImages(new Set());
       setError(null);
+      setAssocLoading(false);
     }
   }, [isOpen, token, tokenKey, fetchContainers, fetchAssociatedImages]);
 
@@ -173,6 +182,10 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     // intent to clear: refuse rather than wipe associations we never saw.
     if (assocLoadFailedRef.current) {
       setError("Image associations failed to load - close and reopen the modal to retry.");
+      return;
+    }
+    if (assocLoading) {
+      setError("Image associations are still loading - please wait before saving.");
       return;
     }
 
@@ -282,11 +295,13 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
               <Button
                 onClick={handleSave}
                 variant="primary"
-                disabled={saving}
+                disabled={saving || assocLoading}
                 title={
-                  selectedImages.size === 0
-                    ? "Save with no images selected to clear all associations"
-                    : undefined
+                  assocLoading
+                    ? "Waiting for the current associations to load"
+                    : selectedImages.size === 0
+                      ? "Save with no images selected to clear all associations"
+                      : undefined
                 }
               >
                 {saving ? "Saving..." : `Save (${selectedImages.size})`}

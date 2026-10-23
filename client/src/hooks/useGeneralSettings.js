@@ -36,6 +36,11 @@ export function useGeneralSettings({
   const [batchError, setBatchError] = useState("");
   const [batchSuccess, setBatchSuccess] = useState("");
   const [batchLoading, setBatchLoading] = useState({});
+  // batchConfigs starts as DEFAULT_BATCH_CONFIG for every job type, so a failed
+  // read is indistinguishable from "the user really has the defaults". Saving in
+  // that state writes defaults back over the stored schedules and silently
+  // disables jobs the user had enabled.
+  const [batchConfigLoadError, setBatchConfigLoadError] = useState("");
 
   const fetchRefreshingTogglesEnabled = useCallback(async () => {
     const generation = getSessionGeneration();
@@ -69,7 +74,11 @@ export function useGeneralSettings({
     try {
       const result = await graphqlClient.query(BATCH_CONFIGS_QUERY).toPromise();
       if (isSessionStale(generation)) return;
-      if (!result.error && result.data?.batchConfigs) {
+      if (result.error) {
+        setBatchConfigLoadError(result.error.message || "Failed to load batch configuration");
+        return;
+      }
+      if (result.data?.batchConfigs) {
         const configs = {};
         result.data.batchConfigs.forEach((c) => {
           configs[c.jobType.toLowerCase().replace(/_/g, "-")] = c;
@@ -110,8 +119,11 @@ export function useGeneralSettings({
 
         setBatchConfigs(newConfigs);
       }
+      setBatchConfigLoadError("");
     } catch (err) {
       console.error("Error fetching batch config:", err);
+      if (isSessionStale(generation)) return;
+      setBatchConfigLoadError(err.message || "Failed to load batch configuration");
     }
   }, []);
 
@@ -213,6 +225,14 @@ export function useGeneralSettings({
       e.preventDefault();
       setBatchError("");
       setBatchSuccess("");
+      if (batchConfigLoadError) {
+        // Refuse rather than write: the form is showing defaults because the
+        // read failed, and this handler replaces all three stored schedules.
+        setBatchError(
+          "Batch schedules could not be loaded, so saving is disabled. Saving now would replace them with defaults."
+        );
+        return;
+      }
       setBatchLoading({
         [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: true,
         [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: true,
@@ -284,7 +304,7 @@ export function useGeneralSettings({
         });
       }
     },
-    [batchConfigs, onBatchConfigUpdate, fetchBatchConfig]
+    [batchConfigs, batchConfigLoadError, onBatchConfigUpdate, fetchBatchConfig]
   );
 
   return {
@@ -303,6 +323,7 @@ export function useGeneralSettings({
     batchError,
     batchSuccess,
     batchLoading,
+    batchConfigLoadError,
     handleBatchConfigSubmit,
     fetchBatchConfig,
     isInitialized, // Expose initialization state

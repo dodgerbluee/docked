@@ -5,6 +5,7 @@ import DiscordWebhookModal from "../DiscordWebhookModal";
 import DiscordIcon from "../icons/DiscordIcon";
 import Card from "../ui/Card";
 import Alert from "../ui/Alert";
+import Button from "../ui/Button";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import styles from "./DiscordTab.module.css";
@@ -20,6 +21,8 @@ const DiscordTab = React.memo(function DiscordTab({
   editingDiscordWebhook,
   setEditingDiscordWebhook,
   discordSuccess,
+  discordError,
+  onRetryLoad,
   handleDiscordModalSuccess,
   handleDeleteDiscordWebhook,
 }) {
@@ -55,6 +58,19 @@ const DiscordTab = React.memo(function DiscordTab({
       </p>
 
       {discordSuccess && <Alert variant="info">{discordSuccess}</Alert>}
+      {discordError && (
+        <Alert variant="error" role="alert">
+          <p>
+            Webhooks could not be loaded: {discordError} The list below may be empty even though
+            webhooks exist.
+          </p>
+          {onRetryLoad && (
+            <Button type="button" onClick={() => onRetryLoad()}>
+              Retry
+            </Button>
+          )}
+        </Alert>
+      )}
 
       <Card variant="secondary" padding="md" className={styles.infoBanner}>
         <div className={styles.infoContent}>
@@ -180,6 +196,8 @@ DiscordTab.propTypes = {
   editingDiscordWebhook: PropTypes.object,
   setEditingDiscordWebhook: PropTypes.func.isRequired,
   discordSuccess: PropTypes.string,
+  discordError: PropTypes.string,
+  onRetryLoad: PropTypes.func,
   handleDiscordModalSuccess: PropTypes.func.isRequired,
   handleDeleteDiscordWebhook: PropTypes.func.isRequired,
 };

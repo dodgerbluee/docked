@@ -8,6 +8,7 @@ import { getUpgradeSteps } from "../../../utils/upgradeSteps";
 import { TIMING } from "../../../constants/timing";
 import { upgradeRunnerContainer, getUpgradeOutcome } from "../../../graphql/upgrades";
 import { getSessionGeneration, isSessionStale } from "../../../utils/cacheRegistry";
+import { pinContainerAsUpdated } from "../../../utils/containerStateHelpers";
 
 /** Auto-dismiss completed (success/error) items after this many ms (10 min) */
 const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
@@ -139,7 +140,7 @@ export const useContainerUpgrade = ({
         await upgradeRunnerContainer(container);
         if (!sessionActive()) return;
 
-        successfullyUpdatedContainersRef.current.add(container.id);
+        pinContainerAsUpdated(successfullyUpdatedContainersRef, container.id);
         if (onContainersUpdate) {
           onContainersUpdate((prevContainers) =>
             prevContainers.map((c) => {

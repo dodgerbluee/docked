@@ -32,6 +32,11 @@ function AdminPage() {
             generalSettingsSaving={adminSettings.generalSettingsSaving}
             generalSettingsSuccess={adminSettings.generalSettingsSuccess}
             handleSaveGeneralSettings={adminSettings.handleSaveGeneralSettings}
+            loadError={adminSettings.loadError}
+            onRetryLoad={() => {
+              adminSettings.fetchLogLevel();
+              adminSettings.fetchDebugEndpointsEnabled();
+            }}
           />
         );
       case ADMIN_TABS.USERS:

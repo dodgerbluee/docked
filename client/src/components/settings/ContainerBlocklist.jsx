@@ -65,6 +65,11 @@ function ContainerBlocklist({ containers = [] }) {
   const [manualAddName, setManualAddName] = useState("");
   const saveMessageTimer = useRef(null);
   const hasLoadedRef = useRef(false);
+  // A failed load must not be indistinguishable from an empty blocklist: the
+  // save handler writes the whole list, so saving after a failed load replaces
+  // the user's saved blocklist with nothing.
+  const [loadError, setLoadError] = useState(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     // Load the saved blocklist independently of the inventory: an empty
@@ -135,8 +140,12 @@ function ContainerBlocklist({ containers = [] }) {
         // arrives later still populates the picker; once we have seen real
         // containers, do not re-run and clobber unsaved edits.
         if (entries.length > 0) hasLoadedRef.current = true;
+        setLoadError(null);
       } catch (err) {
         console.error("Failed to load disallowed containers:", err);
+        if (!cancelled) {
+          setLoadError(err.message || "Failed to load the blocklist");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -145,7 +154,7 @@ function ContainerBlocklist({ containers = [] }) {
     return () => {
       cancelled = true;
     };
-  }, [containers]); // re-evaluate when containers arrive; hasLoadedRef prevents repeat runs
+  }, [containers, reloadNonce]); // re-evaluate when containers arrive; hasLoadedRef prevents repeat runs
 
   const filteredAllowed = allowedSearch
     ? allowedList.filter(
@@ -343,6 +352,27 @@ function ContainerBlocklist({ containers = [] }) {
 
   if (loading) {
     return <div className={styles.loadingState}>Loading containers...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className={styles.loadingState} role="alert">
+        <p>Could not load the blocklist: {loadError}</p>
+        <p>
+          The list is shown as empty only because it could not be read. Saving now would overwrite
+          the saved blocklist, so saving is disabled.
+        </p>
+        <Button
+          type="button"
+          onClick={() => {
+            hasLoadedRef.current = false;
+            setReloadNonce((n) => n + 1);
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (
