@@ -1389,7 +1389,7 @@ func restartSingleContainer(ctx context.Context, rr db.RunnerRow, d depAfter) er
 // were not stopped up front: network_mode dependents are recreated against the
 // new provider, and stack dependents are only restarted when they were already
 // running (stopped ones stay stopped).
-func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool, preRestored map[string]bool) error {
+func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db.RunnerRow, newID, cleanName, originalID, stackName string, shared bool, preRestored map[string]bool, owned map[string]bool) error {
 	if shared {
 		return nil
 	}
@@ -1427,19 +1427,61 @@ func (r *mutationResolver) restartDependentContainers(ctx context.Context, rr db
 			errs = append(errs, err)
 		}
 	}
-	for _, d := range otherDeps {
-		// Stack dependents were never removed by us (compose owns their
-		// lifecycle): a failed restart is logged, not fatal.
-		if err := restartSingleContainer(ctx, rr, d); err != nil {
-			log.Printf("upgrade: failed to restart dependent %s: %v", d.Name, err)
+	if len(otherDeps) > 0 {
+		// A stack dependent can itself be the target of a concurrent upgrade
+		// (batch or single-container). Stopping it out from under that
+		// operation loses its rollback, so claim its lock first and leave
+		// anything busy alone. `owned` are the dependents this pipeline
+		// already locked up front: those are ours to restart, and re-claiming
+		// them under a new owner would only make them look busy.
+		ids := make([]string, 0, len(otherDeps))
+		for _, d := range otherDeps {
+			if !owned[d.ID] {
+				ids = append(ids, d.ID)
+			}
+		}
+		held, release := r.claimRestartLocks(ctx, rr, ids)
+		if release != nil {
+			defer release()
+		}
+		for _, d := range otherDeps {
+			if !owned[d.ID] && !held[d.ID] {
+				log.Printf("upgrade: dependent %s is part of another upgrade, leaving it alone", d.Name)
+				continue
+			}
+			// Stack dependents were never removed by us (compose owns their
+			// lifecycle): a failed restart is logged, not fatal.
+			if err := restartSingleContainer(ctx, rr, d); err != nil {
+				log.Printf("upgrade: failed to restart dependent %s: %v", d.Name, err)
+			}
 		}
 	}
 	return errors.Join(errs...)
 }
 
+// claimRestartLocks locks the given containers for this pipeline's exclusive
+// use and returns the subset it holds plus the release func. Containers another
+// operation already locked are omitted.
+func (r *mutationResolver) claimRestartLocks(ctx context.Context, rr db.RunnerRow, ids []string) (map[string]bool, func()) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	owner := fmt.Sprintf("pipeline-restart-%d-%d", time.Now().UnixNano(), rand.Int63())
+	held, release, err := r.acquireUpgradeLockSet(ctx, rr, owner, ids, false)
+	if err != nil {
+		log.Printf("upgrade: could not claim restart locks: %v", err)
+	}
+	if held == nil {
+		held = map[string]bool{}
+	}
+	return held, release
+}
+
 // restartSiblingContainers restarts other containers that share the same
-// network provider as the (shared-network-mode) upgraded container.
-func restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDetails map[string]any, newID string) {
+// network provider as the (shared-network-mode) upgraded container. Like the
+// dependent sweep, a sibling that another operation holds an upgrade lock on is
+// left alone rather than stopped mid-operation.
+func (r *mutationResolver) restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDetails map[string]any, newID string, owned map[string]bool) {
 	provider := networkModeRef(jStr(jObj(originalDetails, "HostConfig"), "NetworkMode"))
 	if provider == "" {
 		return
@@ -1449,6 +1491,8 @@ func restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDeta
 		log.Printf("upgrade: could not list containers for sibling restart: %v", err)
 		return
 	}
+	type sibling struct{ id, name string }
+	var eligible []sibling
 	for _, c := range list {
 		if c.ID == newID {
 			continue
@@ -1461,13 +1505,34 @@ func restartSiblingContainers(ctx context.Context, rr db.RunnerRow, originalDeta
 		if networkModeRef(nm) != provider || !inspectRunning(details) {
 			continue
 		}
-		if err := runner.StopContainer(ctx, rr, c.ID); err != nil {
-			log.Printf("upgrade: failed to stop sibling %s: %v", c.Name, err)
+		eligible = append(eligible, sibling{id: c.ID, name: c.Name})
+	}
+	if len(eligible) == 0 {
+		return
+	}
+
+	ids := make([]string, 0, len(eligible))
+	for _, s := range eligible {
+		if !owned[s.id] {
+			ids = append(ids, s.id)
+		}
+	}
+	held, release := r.claimRestartLocks(ctx, rr, ids)
+	if release != nil {
+		defer release()
+	}
+	for _, s := range eligible {
+		if !owned[s.id] && !held[s.id] {
+			log.Printf("upgrade: sibling %s is part of another upgrade, leaving it alone", s.name)
+			continue
+		}
+		if err := runner.StopContainer(ctx, rr, s.id); err != nil {
+			log.Printf("upgrade: failed to stop sibling %s: %v", s.name, err)
 			continue
 		}
 		time.Sleep(1 * time.Second)
-		if err := runner.StartContainer(ctx, rr, c.ID); err != nil {
-			log.Printf("upgrade: failed to start sibling %s: %v", c.Name, err)
+		if err := runner.StartContainer(ctx, rr, s.id); err != nil {
+			log.Printf("upgrade: failed to start sibling %s: %v", s.name, err)
 		}
 	}
 }
@@ -1690,6 +1755,10 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 	// Dependent restarts must not fail an otherwise successful upgrade.
 	setPhase(phase, model.UpgradePhaseRestartingDependents)
 	preRestored := map[string]bool{}
+	// IDs the pipeline already holds upgrade locks on (acquired before the
+	// dependents were stopped). The recovery sweep must treat them as ours
+	// rather than as contended targets.
+	owned := map[string]bool{}
 	if len(deps) > 0 {
 		// The up-front removal deleted these dependents; the post-upgrade
 		// sweep only sees containers that still exist, so recreate them
@@ -1703,14 +1772,15 @@ func (r *mutationResolver) runnerUpgradePipeline(ctx context.Context, uid int64,
 		}
 		for _, d := range deps {
 			preRestored[d.Name] = true
+			owned[d.ID] = true
 		}
 	}
-	if err := r.restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored); err != nil {
+	if err := r.restartDependentContainers(ctx, *rr, newID, cleanName, container.ContainerID, stackName, shared, preRestored, owned); err != nil {
 		log.Printf("upgrade %s: restart dependent containers failed: %v", cleanName, err)
 		return fmt.Errorf("provider %s upgraded, but dependent recovery failed: %w", cleanName, err)
 	}
 	if shared {
-		restartSiblingContainers(ctx, *rr, details, newID)
+		r.restartSiblingContainers(ctx, *rr, details, newID, owned)
 	}
 	return nil
 }

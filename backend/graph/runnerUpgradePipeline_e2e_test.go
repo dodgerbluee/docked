@@ -39,7 +39,10 @@ type fakeRunner struct {
 	// between dependent discovery and snapshot).
 	inspectFailAfter map[string]int
 	inspectCount     map[string]int
-	creates          []createRecord
+	// stops counts stop calls per container ID so a test can prove a locked
+	// container was never touched by the recovery sweep.
+	stops   map[string]int
+	creates []createRecord
 
 	srv *httptest.Server
 }
@@ -52,7 +55,7 @@ type createRecord struct {
 func newFakeRunner(t *testing.T) *fakeRunner {
 	t.Helper()
 	f := &fakeRunner{byID: map[string]map[string]any{}, failCreate: map[string]int{}, createdIDs: map[string]bool{},
-		inspectFailAfter: map[string]int{}, inspectCount: map[string]int{}}
+		inspectFailAfter: map[string]int{}, inspectCount: map[string]int{}, stops: map[string]int{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /containers", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -93,6 +96,7 @@ func newFakeRunner(t *testing.T) *fakeRunner {
 			writeJSON(w, http.StatusNotFound, map[string]any{"message": "no such container"})
 			return
 		}
+		f.stops[r.PathValue("id")]++
 		doc["State"] = map[string]any{"Status": "exited", "Running": false}
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -205,6 +209,12 @@ func (f *fakeRunner) createRecords() []createRecord {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]createRecord(nil), f.creates...)
+}
+
+func (f *fakeRunner) stopCount(id string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.stops[id]
 }
 
 func newPipelineTestDB(t *testing.T) *sql.DB {
