@@ -105,6 +105,13 @@ type Service struct {
 	// Wired by main.go to the intents evaluator.
 	OnScanComplete func(ctx context.Context, userID int64, itemsUpdated int)
 
+	// OnBatchRun reports every batch run this service finalizes so the GraphQL
+	// layer can fan it out to the batchJobProgress / operationProgress
+	// subscribers. These jobs are started here and by the cron scheduler, not
+	// by a mutation, so nothing else publishes them - and the client's
+	// batchJobProgress handler is written for exactly these job types.
+	OnBatchRun func(ctx context.Context, userID, runID int64)
+
 	mu                sync.Mutex
 	running           map[int64]bool // userID -> in-process docker-hub-pull run flag
 	runningTracked    map[int64]bool // userID -> in-process tracked-apps-check run flag
@@ -216,8 +223,9 @@ func isPartialScan(runErr error) bool {
 //
 // Returns the completion error when the scan itself succeeded, because then
 // the lost write is the only failure the caller has.
-func (s *Service) completeRun(ctx context.Context, runID int64, checked, updated int, runErr error) error {
+func (s *Service) completeRun(ctx context.Context, userID, runID int64, checked, updated int, runErr error) error {
 	doneCtx := context.WithoutCancel(ctx)
+	defer s.reportRun(doneCtx, userID, runID)
 	if runErr != nil {
 		msg := runErr.Error()
 		status := "failed"
@@ -239,6 +247,21 @@ func (s *Service) completeRun(ctx context.Context, runID int64, checked, updated
 	return nil
 }
 
+// reportRun hands the finalized run to the GraphQL layer for fan-out. Deferred
+// from completeRun so subscribers see the terminal state whatever the scan
+// answered, and it runs after the write so the re-read cannot see a stale row.
+func (s *Service) reportRun(ctx context.Context, userID, runID int64) {
+	if s.OnBatchRun == nil {
+		return
+	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("panic in batch-run report hook", "recover", rec, "runId", runID)
+		}
+	}()
+	s.OnBatchRun(ctx, userID, runID)
+}
+
 // ExecuteAndComplete performs the scan and finalizes the batch_run row
 // created by Acquire. It always releases the in-process flag. Optional
 // runnerIDs restrict the scan to specific runners; callers that want the
@@ -256,7 +279,7 @@ func (s *Service) ExecuteAndComplete(ctx context.Context, userID, runID int64, r
 	defer stopHeartbeat()
 
 	checked, updated, runErr := s.RunDockerHubPull(ctx, userID, runnerIDs...)
-	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
+	completeErr := s.completeRun(ctx, userID, runID, checked, updated, runErr)
 	if runErr == nil || isPartialScan(runErr) {
 		// Immediate intents key off what the scan found, so they must still
 		// fire when the scan finished but could not reach part of the fleet.

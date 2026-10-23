@@ -193,6 +193,14 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	resolver.Intents = intentEval
 	if syncSvc != nil {
 		syncSvc.OnScanComplete = intentEval.EvaluateImmediateIntents
+		// Every batch run this service finalizes (manual sync, cron sync,
+		// tracked-apps check, app-version scan) is published to the
+		// batchJobProgress / operationProgress subscribers. The client's
+		// handler for those job types can only fire from here, since no
+		// mutation is watching these runs.
+		syncSvc.OnBatchRun = func(ctx context.Context, userID, runID int64) {
+			graph.PublishBatchRun(ctx, resolver, userID, runID)
+		}
 	}
 	execSchema := graph.NewExecutableSchema(graph.Config{Resolvers: resolver})
 	srv := handler.New(execSchema)

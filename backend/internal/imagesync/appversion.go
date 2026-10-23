@@ -63,7 +63,7 @@ func (s *Service) AppVersionExecuteAndComplete(ctx context.Context, userID, runI
 	defer stopHeartbeat()
 
 	checked, updated, runErr := s.ScanRunnerApps(ctx, userID)
-	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
+	completeErr := s.completeRun(ctx, userID, runID, checked, updated, runErr)
 	if runErr == nil || isPartialScan(runErr) {
 		// Immediate intents key off what the scan found, so they must still
 		// fire when the scan finished but could not reach part of the fleet.

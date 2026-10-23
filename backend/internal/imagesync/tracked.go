@@ -81,8 +81,10 @@ func (s *Service) TrackedExecuteAndComplete(ctx context.Context, userID, runID i
 	defer stopHeartbeat()
 
 	checked, updated, runErr := s.CheckAllTrackedApps(ctx, userID)
-	completeErr := s.completeRun(ctx, runID, checked, updated, runErr)
-	if runErr == nil {
+	completeErr := s.completeRun(ctx, userID, runID, checked, updated, runErr)
+	if runErr == nil || isPartialScan(runErr) {
+		// Same rule as the other jobs: a scan that reached part of the fleet
+		// still found things, and immediate intents key off those results.
 		s.fireScanComplete(context.WithoutCancel(ctx), userID, updated)
 	}
 	if runErr != nil {

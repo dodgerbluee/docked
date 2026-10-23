@@ -130,10 +130,14 @@ func forwardSubscription[T any](ctx context.Context, in <-chan T, cleanup func()
 	return out
 }
 
-// publishBatchRun re-reads a batch run and fans it out to batchJobProgress
-// subscribers (best-effort).
-func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int64) {
-	if r.Hub == nil {
+// PublishBatchRun re-reads a batch run and fans it out to batchJobProgress
+// subscribers (best-effort). Exported so the sync service can report the runs
+// it owns: the docker-hub-pull, tracked-apps-check and app-version-scan jobs
+// are driven by imagesync and by the cron scheduler, not by a mutation, so
+// without this the client's batchJobProgress handler for those job types
+// never fires.
+func PublishBatchRun(ctx context.Context, r *Resolver, uid, batchID int64) {
+	if r == nil || r.Hub == nil {
 		return
 	}
 	run, err := db.GetBatchRunByID(ctx, r.DB, batchID, uid)
@@ -147,6 +151,10 @@ func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int
 	// subscription never delivered anything at all: a client that opened it
 	// hung until its transport idle-timeout instead of learning the job ended.
 	r.Hub.PublishOperation(uid, *operationFromBatchRun(m))
+}
+
+func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int64) {
+	PublishBatchRun(ctx, r.Resolver, uid, batchID)
 }
 
 // finishBatchRun writes a batch run's terminal state and publishes it. The
