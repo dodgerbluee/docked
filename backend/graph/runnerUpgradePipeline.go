@@ -902,7 +902,7 @@ func findDependentContainersAfterUpgrade(ctx context.Context, rr db.RunnerRow, n
 					stack = jStr(labels, "com.docker.stack.namespace")
 				}
 			}
-			if stack == stackName && (running || stopped) {
+			if stack == stackName && running {
 				out = append(out, depAfter{ID: c.ID, Name: c.Name, Running: running, Stopped: stopped, Reason: "stack"})
 			}
 		}
@@ -1363,25 +1363,19 @@ func (r *mutationResolver) handleNetworkModeContainers(ctx context.Context, rr d
 	return errors.Join(errs...)
 }
 
-// restartSingleContainer restarts a stack dependent (stop+start, or start for
-// already-stopped containers).
+// restartSingleContainer restarts a running stack dependent (stop+start). A
+// dependent that is not running was stopped by its owner, not by us - the ones
+// this pipeline stopped are already accounted for in preRestored - so it stays
+// stopped: starting it here would silently undo a deliberate choice.
 func restartSingleContainer(ctx context.Context, rr db.RunnerRow, d depAfter) error {
-	if d.Running {
-		if err := runner.StopContainer(ctx, rr, d.ID); err != nil {
-			return err
-		}
-		time.Sleep(1 * time.Second)
-		return runner.StartContainer(ctx, rr, d.ID)
+	if !d.Running {
+		return nil
 	}
-	if d.Stopped {
-		if err := runner.StartContainer(ctx, rr, d.ID); err == nil {
-			return nil
-		}
-		_ = runner.StopContainer(ctx, rr, d.ID)
-		time.Sleep(1 * time.Second)
-		return runner.StartContainer(ctx, rr, d.ID)
+	if err := runner.StopContainer(ctx, rr, d.ID); err != nil {
+		return err
 	}
-	return nil
+	time.Sleep(1 * time.Second)
+	return runner.StartContainer(ctx, rr, d.ID)
 }
 
 // restartDependentContainers is the post-upgrade dependent restart entry
