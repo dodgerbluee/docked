@@ -88,6 +88,11 @@
   text-align: right;
 }
 
+.actionsCell {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .role {
   text-align: left;
 }

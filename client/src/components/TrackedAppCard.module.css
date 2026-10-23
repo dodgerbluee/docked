@@ -122,6 +122,10 @@ body.dark-mode .noCurrentVersion:hover {
   min-width: 0;
 }
 
+.editButton {
+  flex-shrink: 0;
+}
+
 .name {
   font-size: 0.95rem;
   white-space: nowrap;

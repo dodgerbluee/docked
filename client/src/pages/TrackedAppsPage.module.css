@@ -500,6 +500,10 @@ body.dark-mode .emptyStateLink:hover {
   transition: all 0.2s;
   gap: 8px;
   height: 100%;
+  /* It is a real <button> now so the control is reachable by keyboard. */
+  font: inherit;
+  color: inherit;
+  width: 100%;
 }
 
 .addCard:hover {

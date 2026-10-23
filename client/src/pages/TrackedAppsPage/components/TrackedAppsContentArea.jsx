@@ -67,13 +67,17 @@ SectionHeader.propTypes = {
  * Add new app card component
  */
 const AddNewCard = ({ onClick }) => (
-  <div
+  <button
+    type="button"
     className={styles.addCard}
     onClick={onClick}
+    aria-label="Track a new app"
     title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
   >
-    <div className={styles.addCardIcon}>+</div>
-  </div>
+    <span className={styles.addCardIcon} aria-hidden="true">
+      +
+    </span>
+  </button>
 );
 
 AddNewCard.propTypes = {

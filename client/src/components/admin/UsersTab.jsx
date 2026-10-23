@@ -131,6 +131,7 @@ const UsersTab = React.memo(function UsersTab() {
                 <th>Role</th>
                 <th className={styles.dateHeader}>Creation Date</th>
                 <th className={styles.dateHeader}>Last Logged In</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -156,6 +157,22 @@ const UsersTab = React.memo(function UsersTab() {
                   <td className={styles.date}>{formatDate(user.createdAt)}</td>
                   <td className={styles.date}>
                     {user.lastLogin ? formatDate(user.lastLogin) : "Never"}
+                  </td>
+                  <td className={styles.actionsCell}>
+                    {/* The row itself is only clickable with a pointer; keyboard
+                        users need a real control to reach the user's actions. */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Manage ${user.username}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUserClick(user);
+                      }}
+                    >
+                      Manage
+                    </Button>
                   </td>
                 </tr>
               ))}

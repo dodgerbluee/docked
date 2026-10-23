@@ -4,18 +4,20 @@
  *
  * Interactions:
  * - Tap/click: mark as upgraded (when update available)
- * - Long-press: open edit mode
+ * - Long-press: open edit mode (touch shortcut for the Edit button)
  */
 
 import React, { useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
+import { Edit2 } from "lucide-react";
 import { getDockerHubRepoUrl } from "../utils/formatters";
+import Button from "./ui/Button";
 import styles from "./TrackedAppCard.module.css";
 
 /**
  * TrackedAppCard component
  * @param {Object} image - Tracked image data
- * @param {Function} onEdit - Handler for edit action (triggered by long-press)
+ * @param {Function} onEdit - Handler for edit action (Edit button / long-press)
  * @param {Function} onUpgrade - Handler for upgrade action
  */
 const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade }) {
@@ -185,6 +187,22 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
               {image.name}
             </span>
           </div>
+          {/* Always-available edit control: the long-press shortcut is pointer-only
+              and gives keyboard/AT users no way to reach it. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Edit2}
+            className={styles.editButton}
+            aria-label={`Edit ${image.name}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit();
+            }}
+          >
+            Edit
+          </Button>
         </div>
 
         <div className={`${styles.repoInfo} ${image.has_update ? styles.repoInfoWithUpdates : ""}`}>
