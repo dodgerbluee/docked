@@ -157,6 +157,20 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
                     onUpgrade(container);
                   }
                 }}
+                // It is an action control, so it has to be reachable and
+                // operable without a pointer.
+                role="button"
+                tabIndex={isPortainer || upgrading ? -1 : 0}
+                aria-disabled={isPortainer || upgrading ? true : undefined}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isPortainer && !upgrading && onUpgrade) {
+                    onUpgrade(container);
+                  }
+                }}
               >
                 {upgrading ? (
                   <span className={styles.upgradingText}>Rebuilding...</span>

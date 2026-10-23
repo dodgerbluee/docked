@@ -173,6 +173,9 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
       role={image.has_update ? "button" : undefined}
       tabIndex={image.has_update ? 0 : undefined}
       onKeyDown={(e) => {
+        // Keys pressed on the buttons inside the card bubble here, and Enter
+        // on "Edit" would otherwise also fire the card's upgrade action.
+        if (e.target !== e.currentTarget) return;
         if (image.has_update && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
           handleCardClick();

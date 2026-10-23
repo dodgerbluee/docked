@@ -239,6 +239,17 @@ function TrackedAppUpgradeHistoryTab() {
                 upgrade.status === "failed" ? styles.failed : styles.success
               }`}
               onClick={() => handleUpgradeClick(upgrade)}
+              // The card opens the detail modal, so it has to work from the
+              // keyboard as well as with a pointer.
+              role="button"
+              tabIndex={0}
+              aria-label={`Upgrade ${upgrade.app_name} - open details`}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                handleUpgradeClick(upgrade);
+              }}
             >
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
