@@ -1339,86 +1339,80 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 		normalize := func(v string) string {
 			return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "v")
 		}
-		snapshot := existing.ObservedSnapshot()
-		latest := nullStrDefault(snapshot.LatestVersion)
-		newLatest := trimmed
-		if latest != "" {
-			// Keep the observed latest_version metadata: the db call syncs
-			// latest_version to this value and compares it against the
-			// acknowledged version to decide the digest baseline.
-			newLatest = latest
-		}
-		var publishDate *string
-		if latest != "" {
-			if normalize(trimmed) == normalize(latest) && normalize(trimmed) != "" {
-				if existing.LatestVersionPublishDate.Valid && existing.LatestVersionPublishDate.String != "" {
-					pd := existing.LatestVersionPublishDate.String
-					publishDate = &pd
+		// The compare-and-set below is anchored on the observed (latest_version,
+		// latest_digest) pair, so a scan that lands while the user is deciding
+		// rejects the write. Re-read and retry against the new observation
+		// instead of writing the stale one: the acknowledged version may no
+		// longer be the observed latest, in which case the app is still behind
+		// and must stay flagged.
+		base := existing
+		applied := false
+		for attempt := 0; attempt < 3 && !applied; attempt++ {
+			if attempt > 0 {
+				fresh, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+				if err != nil {
+					return nil, err
 				}
+				if fresh == nil {
+					return nil, fmt.Errorf("not found")
+				}
+				base = fresh
 			}
-		}
-		applied, err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, snapshot, publishDate, false)
-		if err != nil {
-			return nil, err
-		}
-		if !applied {
-			// A scan moved the observation while the user was deciding, so the
-			// values read above are stale. Re-read and apply against the new
-			// state rather than writing the stale ones: the acknowledged version
-			// may no longer be the observed latest, in which case the app is
-			// still behind and must stay flagged.
-			fresh, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+			snapshot := base.ObservedSnapshot()
+			latest := nullStrDefault(snapshot.LatestVersion)
+			newLatest := trimmed
+			if latest != "" {
+				// Keep the observed latest_version metadata: the db call syncs
+				// latest_version to this value and compares it against the
+				// acknowledged version to decide the digest baseline.
+				newLatest = latest
+			}
+			var publishDate *string
+			if latest != "" && normalize(trimmed) != "" && normalize(trimmed) == normalize(latest) &&
+				base.LatestVersionPublishDate.Valid && base.LatestVersionPublishDate.String != "" {
+				pd := base.LatestVersionPublishDate.String
+				publishDate = &pd
+			}
+			stillBehind := latest != "" && normalize(trimmed) != "" && normalize(trimmed) != normalize(latest)
+			var err error
+			applied, err = db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, snapshot, publishDate, stillBehind)
 			if err != nil {
 				return nil, err
 			}
-			if fresh == nil {
-				return nil, fmt.Errorf("not found")
-			}
-			snapshot = fresh.ObservedSnapshot()
-			latest = nullStrDefault(snapshot.LatestVersion)
-			newLatest = trimmed
-			if latest != "" {
-				newLatest = latest
-			}
-			publishDate = nil
-			if latest != "" && normalize(trimmed) != "" && normalize(trimmed) == normalize(latest) {
-				if fresh.LatestVersionPublishDate.Valid && fresh.LatestVersionPublishDate.String != "" {
-					pd := fresh.LatestVersionPublishDate.String
-					publishDate = &pd
-				}
-			}
-			stillBehind := latest != "" && normalize(trimmed) != "" && normalize(trimmed) != normalize(latest)
-			if _, err := db.SetTrackedAppCurrentVersion(ctx, r.DB, tid, uid, trimmed, newLatest, snapshot, publishDate, stillBehind); err != nil {
-				return nil, err
-			}
+		}
+		if !applied {
+			// Every attempt lost the race with a concurrent scan. Report the
+			// conflict rather than recording an upgrade the database does not
+			// reflect.
+			return nil, fmt.Errorf("this tracked app changed while you were updating it; please try again")
 		}
 
 		if input.IsUpgrade != nil && *input.IsUpgrade {
 			h := db.TrackedAppUpgradeHistoryInput{
 				UserID:       uid,
 				TrackedAppID: tid,
-				AppName:      existing.Name,
-				Provider:     existing.SourceType,
-				Repository:   nullStrDefault(existing.GithubRepo),
-				OldVersion:   nullStrDefault(existing.CurrentVersion),
+				AppName:      base.Name,
+				Provider:     base.SourceType,
+				Repository:   nullStrDefault(base.GithubRepo),
+				OldVersion:   nullStrDefault(base.CurrentVersion),
 				NewVersion:   trimmed,
 				Status:       "success",
 			}
 			if h.Repository == "" {
-				h.Repository = nullStrDefault(existing.ImageName)
+				h.Repository = nullStrDefault(base.ImageName)
 			}
 			if h.OldVersion == "" {
 				h.OldVersion = "Not set"
 			}
-			if existing.SourceType == "github" || existing.SourceType == "gitlab" {
-				if existing.CurrentDigest.Valid {
-					h.OldCommitSHA = &existing.CurrentDigest.String
+			if base.SourceType == "github" || base.SourceType == "gitlab" {
+				if base.CurrentDigest.Valid {
+					h.OldCommitSHA = &base.CurrentDigest.String
 				}
-				if existing.LatestDigest.Valid {
-					h.NewCommitSHA = &existing.LatestDigest.String
+				if base.LatestDigest.Valid {
+					h.NewCommitSHA = &base.LatestDigest.String
 				}
 			} else {
-				oldTag := nullStrDefault(existing.CurrentVersion)
+				oldTag := nullStrDefault(base.CurrentVersion)
 				newTag := trimmed
 				h.OldTag = &oldTag
 				h.NewTag = &newTag
