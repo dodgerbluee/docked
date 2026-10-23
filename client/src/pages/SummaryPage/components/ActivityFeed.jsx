@@ -77,8 +77,10 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
     // Add recent batch runs
     if (recentRuns && recentRuns.length > 0) {
       recentRuns.slice(0, 3).forEach((run) => {
-        // Validate timestamp before creating activity
-        const timeValue = run.end_time || run.start_time;
+        // Validate timestamp before creating activity. mapGraphRunToRow emits
+        // started_at/completed_at — reading start_time/end_time silently
+        // dropped every batch entry from the feed.
+        const timeValue = run.completed_at || run.started_at || run.queued_at;
         if (!timeValue) return; // Skip if no valid timestamp
 
         const timestamp = parseUtcIfNeeded(timeValue);
@@ -111,16 +113,18 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
       });
     });
 
-    // Add individual tracked apps with updates (top 5)
-    const trackedAppsWithUpdates = trackedApps.filter((app) => app.isBehind);
+    // Add individual tracked apps with updates (top 5). useTrackedApps hands
+    // the UI the snake_case shape (has_update / current_version / ...), so
+    // reading isBehind/camelCase here excluded every available update.
+    const trackedAppsWithUpdates = trackedApps.filter((app) => app.has_update);
     trackedAppsWithUpdates.slice(0, 5).forEach((app) => {
       items.push({
         id: `tracked-update-${app.id}`,
         type: "tracked-update",
         icon: Package,
-        title: app.label || app.repository,
-        description: `${app.currentVersion} → ${app.latestVersion}`,
-        timestamp: new Date(app.lastChecked || Date.now()),
+        title: app.name,
+        description: `${app.current_version || "?"} → ${app.latest_version}`,
+        timestamp: new Date(app.last_checked || Date.now()),
         status: "warning",
       });
     });

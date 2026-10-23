@@ -58,7 +58,7 @@ function RunnerEditForm({ runner, onSave, onCancel, saving }) {
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return setError("Name is required");
     if (!form.url.trim()) return setError("URL is required");
@@ -68,7 +68,12 @@ function RunnerEditForm({ runner, onSave, onCancel, saving }) {
       return setError("Invalid URL format");
     }
     setError("");
-    onSave({ name: form.name.trim(), url: form.url.trim(), enabled: form.enabled });
+    const res = await onSave({
+      name: form.name.trim(),
+      url: form.url.trim(),
+      enabled: form.enabled,
+    });
+    if (res && !res.success) setError(res.error || "Failed to update runner");
   };
 
   return (
@@ -436,7 +441,11 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
       if (uninstall) {
         await uninstallRunner(runner.id);
       } else {
-        await graphqlClient.mutation(DELETE_RUNNER_MUTATION, { id: runner.id }).toPromise();
+        const result = await graphqlClient
+          .mutation(DELETE_RUNNER_MUTATION, { id: runner.id })
+          .toPromise();
+        // urql reports failures through result.error, not a rejection.
+        if (result.error) throw new Error(result.error.message || "Failed to delete runner");
       }
       onDeleted();
     } catch (err) {
@@ -573,19 +582,26 @@ export default function RunnerTab() {
 
   const handleEdit = useCallback(
     async ({ name, url, enabled }) => {
-      if (!editRunner) return;
+      if (!editRunner) return { success: false, error: "No runner selected" };
       setSaving(true);
       try {
-        await graphqlClient
+        const result = await graphqlClient
           .mutation(UPDATE_RUNNER_MUTATION, {
             id: editRunner.id,
             input: { name, url, enabled },
           })
           .toPromise();
+        if (result.error) {
+          const msg = result.error.message || "Failed to update runner";
+          console.error("Failed to update runner:", result.error);
+          return { success: false, error: msg };
+        }
         await fetchRunners();
         setEditRunner(null);
+        return { success: true };
       } catch (err) {
         console.error("Failed to update runner:", err);
+        return { success: false, error: err.message || "Failed to update runner" };
       } finally {
         setSaving(false);
       }
@@ -764,10 +780,10 @@ export default function RunnerTab() {
                   </div>
                 </div>
 
-                {hs?.online && hs?.health?.docker !== undefined && (
+                {hs?.online && hs?.health?.dockerOk !== undefined && (
                   <div className={styles.healthInfo}>
                     <span className={styles.healthBadge}>
-                      Docker: {hs.health.docker ? "connected" : "unavailable"}
+                      Docker: {hs.health.dockerOk ? "connected" : "unavailable"}
                     </span>
                   </div>
                 )}

@@ -2,10 +2,13 @@
  * Constants for Intents feature
  */
 
-// Schedule types
+// Schedule types. These are the GraphQL IntentScheduleType enum values
+// verbatim: the server rejects anything else at variable-coercion time, and
+// every consumer (card, detail modal, form) compares against these constants,
+// so keeping one canonical spelling fixes both the submit and the render path.
 export const SCHEDULE_TYPES = {
-  IMMEDIATE: "immediate",
-  SCHEDULED: "scheduled",
+  IMMEDIATE: "IMMEDIATE",
+  SCHEDULED: "SCHEDULED",
 };
 
 // Schedule type labels

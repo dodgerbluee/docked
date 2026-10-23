@@ -67,9 +67,11 @@ function ContainerBlocklist({ containers = [] }) {
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Wait until containers have been fetched before loading blocklist.
-    // Only load once — subsequent container prop changes won't reset unsaved edits.
-    if (hasLoadedRef.current || containers.length === 0) return;
+    // Load the saved blocklist independently of the inventory: an empty
+    // inventory is a legitimate result, and gating on it left this view stuck
+    // in "loading" forever, so orphaned blocked names could never be reviewed
+    // or removed. Only subsequent container arrivals re-evaluate.
+    if (hasLoadedRef.current) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -129,7 +131,10 @@ function ContainerBlocklist({ containers = [] }) {
 
         setAllowedList(allowed);
         setDisallowedList(disallowed);
-        hasLoadedRef.current = true;
+        // Stay un-settled while the inventory is still empty so a list that
+        // arrives later still populates the picker; once we have seen real
+        // containers, do not re-run and clobber unsaved edits.
+        if (entries.length > 0) hasLoadedRef.current = true;
       } catch (err) {
         console.error("Failed to load disallowed containers:", err);
       } finally {

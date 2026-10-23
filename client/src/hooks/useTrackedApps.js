@@ -50,6 +50,11 @@ function mapTrackedApp(a) {
     latest_version: a.latestVersion,
     latest_digest: a.latestDigest,
     has_update: a.hasUpdate,
+    // TrackedAppCard reads these two in camelCase (it is the only component
+    // that shows a release date); not selecting them made "Released" always
+    // render "Not available".
+    currentVersionPublishDate: a.currentVersionPublishDate,
+    latestVersionPublishDate: a.latestVersionPublishDate,
     last_checked: a.lastChecked,
     created_at: a.createdAt,
     updated_at: a.updatedAt,

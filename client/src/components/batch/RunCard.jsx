@@ -15,8 +15,11 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
   const [showErrorModal, setShowErrorModal] = useState(false);
 
   const handleClick = (e) => {
-    // Don't trigger card selection if clicking the error icon
-    if (e.target.closest(`.${styles.errorIconContainer}`)) {
+    // Don't trigger card selection if clicking the error icon. Keyboard
+    // activation reaches the same handler, where target is the card itself
+    // (closest() walks upward, so it never matches the icon) — hence the
+    // optional chaining rather than an unconditional dereference.
+    if (e?.target?.closest?.(`.${styles.errorIconContainer}`)) {
       return;
     }
     if (onClick) {
@@ -43,7 +46,7 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          handleClick();
+          handleClick(e);
         }
       }}
     >

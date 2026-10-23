@@ -121,7 +121,11 @@ function AddTrackedAppModal({
 
       const input = {
         name: (formData.name || "").trim(),
-        sourceType: sourceType,
+        // The form keeps the provider in lowercase (it drives the tab/URL logic),
+        // but TrackedAppSourceType is a GraphQL enum: GITHUB | GITLAB | DOCKER.
+        // Sending the lowercase UI value fails variable coercion before the
+        // mutation ever runs, so translate at the payload boundary.
+        sourceType: (sourceType || "").toUpperCase(),
       };
 
       if (sourceType === "github" || sourceType === "gitlab") {

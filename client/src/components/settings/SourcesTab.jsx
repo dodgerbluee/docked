@@ -54,7 +54,7 @@ function RunnerEditForm({ runner, onSave, onCancel, saving }) {
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return setError("Name is required");
     if (!form.url.trim()) return setError("URL is required");
@@ -64,7 +64,15 @@ function RunnerEditForm({ runner, onSave, onCancel, saving }) {
       return setError("Invalid URL format");
     }
     setError("");
-    onSave({ name: form.name.trim(), url: form.url.trim(), enabled: form.enabled });
+    // urql resolves GraphQL failures through result.error rather than
+    // rejecting, so the save must report back: otherwise the form closes as if
+    // the runner had been updated and the typed values are lost.
+    const res = await onSave({
+      name: form.name.trim(),
+      url: form.url.trim(),
+      enabled: form.enabled,
+    });
+    if (res && !res.success) setError(res.error || "Failed to update runner");
   };
 
   return (
@@ -241,7 +249,12 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
       if (uninstall) {
         await uninstallRunner(runner.id);
       } else {
-        await graphqlClient.mutation(DELETE_RUNNER_MUTATION, { id: runner.id }).toPromise();
+        const result = await graphqlClient
+          .mutation(DELETE_RUNNER_MUTATION, { id: runner.id })
+          .toPromise();
+        // result.error, not a rejection: without this the source is reported
+        // deleted (and removed from the list) even when the server refused.
+        if (result.error) throw new Error(result.error.message || "Failed to delete source");
       }
       onDeleted();
     } catch (err) {
@@ -492,18 +505,18 @@ const SourcesTab = React.memo(function SourcesTab({
                     <div className={styles.dockerStatus}>
                       <span
                         className={
-                          hs.online && hs.health?.docker
+                          hs.online && hs.health?.dockerOk
                             ? styles.dockerConnected
                             : styles.dockerUnavailable
                         }
                         title={
-                          hs.online && hs.health?.docker
+                          hs.online && hs.health?.dockerOk
                             ? "Container management connected"
                             : "Container management unavailable"
                         }
                       >
                         <Terminal size={12} />
-                        {hs.online && hs.health?.docker ? "Docker" : "Docker offline"}
+                        {hs.online && hs.health?.dockerOk ? "Docker" : "Docker offline"}
                       </span>
                     </div>
                   )}

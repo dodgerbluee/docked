@@ -147,7 +147,6 @@ function SSOProviderModal({
       }
 
       const payload = {
-        name: formData.name.trim(),
         displayName: formData.displayName.trim(),
         providerType: formData.providerType,
         clientId: formData.clientId.trim(),
@@ -164,8 +163,12 @@ function SSOProviderModal({
       }
 
       if (isEdit) {
+        // UpdateSSOProviderInput has no `name` field (the identity is fixed at
+        // creation); sending it fails input coercion, so every edit — including
+        // secret rotation and disabling a provider — would be rejected.
         await updateProvider(existingProvider.id, payload);
       } else {
+        payload.name = formData.name.trim();
         payload.clientSecret = formData.clientSecret.trim();
         await createProvider(payload);
       }

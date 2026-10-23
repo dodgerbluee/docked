@@ -156,7 +156,9 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   };
 
   const handleSave = async () => {
-    if (!token || selectedImages.size === 0) return;
+    // An empty selection is meaningful: the input replaces the association set,
+    // so zero selections is the only way to clear every image from a token.
+    if (!token) return;
 
     const key = String(token.id);
     const seq = requestSeqRef.current;
@@ -264,7 +266,12 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
               <Button
                 onClick={handleSave}
                 variant="primary"
-                disabled={saving || selectedImages.size === 0}
+                disabled={saving}
+                title={
+                  selectedImages.size === 0
+                    ? "Save with no images selected to clear all associations"
+                    : undefined
+                }
               >
                 {saving ? "Saving..." : `Save (${selectedImages.size})`}
               </Button>

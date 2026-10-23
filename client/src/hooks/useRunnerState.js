@@ -95,19 +95,29 @@ export function useRunnerState() {
 
   const handleEdit = useCallback(
     async ({ name, url, enabled }) => {
-      if (!editRunner) return;
+      if (!editRunner) return { success: false, error: "No runner selected" };
       setSaving(true);
       try {
-        await graphqlClient
+        const result = await graphqlClient
           .mutation(UPDATE_RUNNER_MUTATION, {
             id: editRunner.id,
             input: { name, url, enabled },
           })
           .toPromise();
+        // urql reports GraphQL/network failures as result.error instead of
+        // rejecting, so the old code reached the success path (dialog closed,
+        // no message) on a failed mutation.
+        if (result.error) {
+          const msg = result.error.message || "Failed to update runner";
+          console.error("Failed to update runner:", result.error);
+          return { success: false, error: msg };
+        }
         await fetchRunners();
         setEditRunner(null);
+        return { success: true };
       } catch (err) {
         console.error("Failed to update runner:", err);
+        return { success: false, error: err.message || "Failed to update runner" };
       } finally {
         setSaving(false);
       }

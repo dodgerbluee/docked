@@ -81,8 +81,8 @@ export const USERS_QUERY = /* GraphQL */ `
 `;
 
 export const SET_USER_ROLE_MUTATION = /* GraphQL */ `
-  mutation SetUserRole($userId: ID!, $role: Role!) {
-    setUserRole(userId: $userId, role: $role) {
+  mutation SetUserRole($userId: ID!, $role: Role!, $instanceAdmin: Boolean) {
+    setUserRole(userId: $userId, role: $role, instanceAdmin: $instanceAdmin) {
       success
       message
     }
@@ -269,6 +269,8 @@ export const TRACKED_APPS_QUERY = /* GraphQL */ `
       latestVersion
       latestDigest
       hasUpdate
+      currentVersionPublishDate
+      latestVersionPublishDate
       lastChecked
       createdAt
       updatedAt
