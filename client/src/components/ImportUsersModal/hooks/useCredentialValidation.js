@@ -19,6 +19,7 @@ export function useCredentialValidation({
   currentUser,
   currentStepType,
   userPasswords,
+  userPasswordConfirms,
   userCredentials,
   userSkippedSteps,
   setUserStepErrors,
@@ -31,10 +32,11 @@ export function useCredentialValidation({
 
     const username = currentUser.username;
     const password = userPasswords[username];
+    const confirmPassword = userPasswordConfirms[username];
     const creds = userCredentials[username] || {};
     const webhooks = currentUser?.discordWebhooks || [];
 
-    const validation = validateStep(currentStepType, creds, password, webhooks);
+    const validation = validateStep(currentStepType, creds, password, webhooks, confirmPassword);
 
     if (!validation.valid) {
       setUserStepErrors((prev) => ({
@@ -44,8 +46,21 @@ export function useCredentialValidation({
       return false;
     }
 
+    // Passing validation means the earlier complaints are resolved: drop them
+    // so a fixed field does not keep showing the old error.
+    setUserStepErrors((prev) => {
+      if (!prev[username] || Object.keys(prev[username]).length === 0) return prev;
+      return { ...prev, [username]: {} };
+    });
     return true;
-  }, [currentUser, currentStepType, userPasswords, userCredentials, setUserStepErrors]);
+  }, [
+    currentUser,
+    currentStepType,
+    userPasswords,
+    userPasswordConfirms,
+    userCredentials,
+    setUserStepErrors,
+  ]);
 
   // Validate credentials with backend (for discord)
   const validateCredentialsStep = useCallback(async () => {

@@ -19,6 +19,7 @@ function StepRenderer({
   stepType,
   currentUser,
   userPasswords,
+  userPasswordConfirms,
   userCredentials,
   userStepErrors,
   verificationStatus,
@@ -32,6 +33,7 @@ function StepRenderer({
   onVerifyToken,
   onTokenChange,
   onPasswordChange,
+  onConfirmPasswordChange,
   onDiscordCredentialUpdate,
   setUsersData,
   currentUserIndex,
@@ -92,7 +94,9 @@ function StepRenderer({
       <PasswordStep
         username={username}
         password={userPasswords[username] || ""}
+        confirmPassword={userPasswordConfirms[username] || ""}
         onPasswordChange={onPasswordChange}
+        onConfirmPasswordChange={onConfirmPasswordChange}
         errors={errors}
       />
     );
@@ -123,6 +127,7 @@ StepRenderer.propTypes = {
   stepType: PropTypes.string.isRequired,
   currentUser: PropTypes.object,
   userPasswords: PropTypes.object.isRequired,
+  userPasswordConfirms: PropTypes.object.isRequired,
   userCredentials: PropTypes.object.isRequired,
   userStepErrors: PropTypes.object.isRequired,
   verificationStatus: PropTypes.object.isRequired,
@@ -136,6 +141,7 @@ StepRenderer.propTypes = {
   onVerifyToken: PropTypes.func.isRequired,
   onTokenChange: PropTypes.func.isRequired,
   onPasswordChange: PropTypes.func.isRequired,
+  onConfirmPasswordChange: PropTypes.func.isRequired,
   onDiscordCredentialUpdate: PropTypes.func.isRequired,
   setUsersData: PropTypes.func.isRequired,
   currentUserIndex: PropTypes.number.isRequired,

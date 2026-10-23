@@ -57,6 +57,8 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     setImportStarted,
     userPasswords,
     setUserPasswords,
+    userPasswordConfirms,
+    setUserPasswordConfirms,
     userCredentials,
     setUserCredentials,
     userSkippedSteps,
@@ -120,6 +122,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     currentUser,
     currentStepType,
     userPasswords,
+    userPasswordConfirms,
     userCredentials,
     userSkippedSteps,
     setUserStepErrors,
@@ -356,6 +359,24 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     [currentUser, setUserPasswords, setUserStepErrors]
   );
 
+  // Update password confirmation for current user. Kept in the flow's state
+  // (not the step component) so validateCurrentStep can refuse a mismatch
+  // instead of creating the user with a mistyped password.
+  const handleConfirmPasswordChange = useCallback(
+    (confirmPassword) => {
+      if (!currentUser) return;
+      setUserPasswordConfirms((prev) => ({ ...prev, [currentUser.username]: confirmPassword }));
+      setUserStepErrors((prev) => {
+        const updated = { ...prev };
+        if (updated[currentUser.username]) {
+          delete updated[currentUser.username].confirmPassword;
+        }
+        return updated;
+      });
+    },
+    [currentUser, setUserPasswordConfirms, setUserStepErrors]
+  );
+
   // Update credential for current user (generic)
   const handleCredentialUpdate = useCallback(
     (updateFn) => {
@@ -478,6 +499,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             stepType={currentStepType}
             currentUser={currentUser}
             userPasswords={userPasswords}
+            userPasswordConfirms={userPasswordConfirms}
             userCredentials={userCredentials}
             userStepErrors={userStepErrors}
             verificationStatus={verificationStatus}
@@ -491,6 +513,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             onVerifyToken={handleVerifyToken}
             onTokenChange={handleTokenChange}
             onPasswordChange={handlePasswordChange}
+            onConfirmPasswordChange={handleConfirmPasswordChange}
             onDiscordCredentialUpdate={handleDiscordCredentialUpdate}
             setUsersData={setUsersData}
             currentUserIndex={currentUserIndex}

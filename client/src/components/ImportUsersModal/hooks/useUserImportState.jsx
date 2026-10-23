@@ -19,6 +19,10 @@ export function useUserImportState(isOpen) {
 
   // Per-user data storage
   const [userPasswords, setUserPasswords] = useState({}); // { username: password }
+  // The confirmation lives here rather than in the step component so the flow
+  // can validate the pair: a mismatch the flow cannot see would create the
+  // user with a password nobody typed on purpose.
+  const [userPasswordConfirms, setUserPasswordConfirms] = useState({}); // { username: password }
   const [userCredentials, setUserCredentials] = useState({}); // { username: { discordWebhooks } }
   const [userSkippedSteps, setUserSkippedSteps] = useState({}); // { username: Set<stepType> }
   const [userStepErrors, setUserStepErrors] = useState({}); // { username: { stepType: error } }
@@ -48,6 +52,7 @@ export function useUserImportState(isOpen) {
       setCurrentStepIndex(0);
       setImportStarted(false);
       setUserPasswords({});
+      setUserPasswordConfirms({});
       setUserCredentials({});
       setUserSkippedSteps({});
       setUserStepErrors({});
@@ -89,6 +94,8 @@ export function useUserImportState(isOpen) {
     // Per-user data
     userPasswords,
     setUserPasswords,
+    userPasswordConfirms,
+    setUserPasswordConfirms,
     userCredentials,
     setUserCredentials,
     userSkippedSteps,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import PropTypes from "prop-types";
 import Input from "../ui/Input";
 import { Lock } from "lucide-react";
@@ -8,15 +8,20 @@ import styles from "../ImportUsersModal.module.css";
  * PasswordStep Component
  * Step component for setting password for imported user
  */
-function PasswordStep({ username, password, onPasswordChange, errors }) {
-  const [confirmPassword, setConfirmPassword] = useState("");
-
+function PasswordStep({
+  username,
+  password,
+  confirmPassword,
+  onPasswordChange,
+  onConfirmPasswordChange,
+  errors,
+}) {
   const handlePasswordChange = (e) => {
     onPasswordChange(e.target.value);
   };
 
   const handleConfirmPasswordChange = (e) => {
-    setConfirmPassword(e.target.value);
+    onConfirmPasswordChange(e.target.value);
   };
 
   return (
@@ -63,7 +68,9 @@ function PasswordStep({ username, password, onPasswordChange, errors }) {
 PasswordStep.propTypes = {
   username: PropTypes.string.isRequired,
   password: PropTypes.string,
+  confirmPassword: PropTypes.string,
   onPasswordChange: PropTypes.func.isRequired,
+  onConfirmPasswordChange: PropTypes.func.isRequired,
   errors: PropTypes.object,
 };
 

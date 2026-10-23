@@ -8,9 +8,19 @@ import { validateDiscordWebhookUrl } from "../../../utils/validation";
 /**
  * Validate password step
  */
-export function validatePasswordStep(password) {
+export function validatePasswordStep(password, confirmPassword) {
+  const errors = {};
   if (!password || password.length < 8) {
-    return { valid: false, error: "Password must be at least 8 characters long" };
+    errors.password = "Password must be at least 8 characters long";
+  }
+  // The confirm field used to be local to the step component, so the flow
+  // happily created the user with a password that did not match what they
+  // retyped.
+  if (password && confirmPassword !== password) {
+    errors.confirmPassword = "Passwords do not match";
+  }
+  if (Object.keys(errors).length > 0) {
+    return { valid: false, errors };
   }
   return { valid: true };
 }
@@ -40,10 +50,10 @@ export function validateDiscordStep(credentials, webhooks) {
 /**
  * Validate current step based on step type
  */
-export function validateStep(stepType, credentials, password, webhooks) {
+export function validateStep(stepType, credentials, password, webhooks, confirmPassword) {
   switch (stepType) {
     case "password":
-      return validatePasswordStep(password);
+      return validatePasswordStep(password, confirmPassword);
     case "discord":
       return validateDiscordStep(credentials, webhooks);
     default:
