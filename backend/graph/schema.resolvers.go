@@ -615,7 +615,10 @@ func (r *mutationResolver) PullContainers(ctx context.Context, runnerID *string)
 
 	msg := "Container sync started"
 	return &model.Operation{
-		ID:       fmt.Sprintf("pull-%d", time.Now().UnixMilli()),
+		// Acquire already created the 'running' batch_run row, so the id is
+		// the batch-<runID> that query operation(id) can resolve: a synthetic
+		// pull-<millis> id was a correlation token nothing could poll.
+		ID:       fmt.Sprintf("batch-%d", runID),
 		Type:     model.OperationTypePullContainers,
 		Status:   model.OperationStatusRunning,
 		Message:  &msg,
@@ -972,12 +975,18 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 		runnerMap[rr.ID] = rr
 	}
 
+	// Bound the fan-out: one goroutine and one runner round-trip per image
+	// meant a single mutation could open hundreds of simultaneous DELETEs.
+	const maxConcurrentImageDeletes = 8
 	outcomes := make([]*model.DeleteImageResult, len(unique))
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrentImageDeletes)
 	for i, img := range unique {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(i int, img *model.DeleteImageInput) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			outcomes[i] = r.deleteOneImage(ctx, img, runnerMap)
 		}(i, img)
 	}
@@ -3553,8 +3562,9 @@ func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operat
 		return nil, err
 	}
 	// Batch operations are persisted in batch_runs and can be polled by id
-	// (batchUpgrade returns "batch-<runID>"). Single-container pull/upgrade
-	// operations are ephemeral with no backing table, so those stay not-found.
+	// (batchUpgrade and pullContainers both return "batch-<runID>"). A
+	// single-container upgrade id is the upgrade lock owner token, not a
+	// pollable job handle, so those stay not-found.
 	if strings.HasPrefix(id, "batch-") {
 		if n, perr := strconv.ParseInt(strings.TrimPrefix(id, "batch-"), 10, 64); perr == nil {
 			run, gerr := db.GetBatchRunByID(ctx, r.DB, n, uid)

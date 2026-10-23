@@ -2220,3 +2220,59 @@ func dbIDByUsername(t *testing.T, database *sql.DB, username string) int64 {
 	}
 	return id
 }
+
+// The GraphQL transports decode the whole request body before parsing, so the
+// HTTP layer has to cap it: an unauthenticated caller must not be able to make
+// the process hold an arbitrarily large payload per request. The rejection
+// surfaces as a transport-level GraphQL error (HTTP 200 + error, the same
+// contract the resolver-level guards use).
+func TestGraphqlRejectsOversizedBody(t *testing.T) {
+	env := newTestEnv(t, false)
+	body := bytes.Repeat([]byte("a"), 2<<20)
+	req, err := http.NewRequest(http.MethodPost, env.ts.URL+"/graphql", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if !bytes.Contains(raw, []byte("request body too large")) {
+		t.Fatalf("a 2 MiB body was not capped: status=%d body=%s", resp.StatusCode, string(raw))
+	}
+}
+
+// pullContainers creates its batch_run row synchronously, so the operation it
+// hands back must be pollable through query operation(id) rather than being a
+// synthetic id nothing can resolve.
+func TestPullContainersReturnsPollableOperation(t *testing.T) {
+	env := newTestEnv(t, true)
+	tok := env.token(t, env.adminID, "admin")
+
+	res := env.gql(t, tok, `mutation { pullContainers { id type status } }`, nil)
+	if res.Errors != nil {
+		t.Fatalf("pullContainers failed: %+v", res.Errors)
+	}
+	var out struct {
+		PullContainers struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"pullContainers"`
+	}
+	if err := json.Unmarshal(res.Data["pullContainers"], &out.PullContainers); err != nil {
+		t.Fatalf("decode pullContainers: %v", err)
+	}
+	if !strings.HasPrefix(out.PullContainers.ID, "batch-") {
+		t.Fatalf("pull operation id %q is not a batch run id", out.PullContainers.ID)
+	}
+
+	poll := env.gql(t, tok, `query ($id: ID!) { operation(id: $id) { id status } }`,
+		map[string]any{"id": out.PullContainers.ID})
+	if poll.hasErrorContaining("not found") {
+		t.Fatalf("the pull operation id cannot be polled: %+v", poll.Errors)
+	}
+}

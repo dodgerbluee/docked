@@ -790,6 +790,11 @@ type StackGroup {
 # Long-Running Operations
 # -----------------------------------------------------------------------------
 
+# Operation is a pollable job handle. id is a correlation id: batch operations
+# ("batch-<runID>", including container sync) are persisted in batch_runs and can
+# be read back through query operation(id). A single-container upgrade id names
+# that upgrade's lock owner (visible in the admin debug lock list) and is not
+# pollable.
 type Operation {
   id: ID!
   type: OperationType!

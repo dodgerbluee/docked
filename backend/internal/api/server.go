@@ -274,6 +274,11 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 	// sanitized by RealIPFrom (forwarding headers honored only from
 	// trusted proxy networks).
 	publicLimiter := apimiddleware.NewRateLimiter(60, time.Minute, 10000)
+	// The GraphQL transports decode the whole request body before parsing, so
+	// an unauthenticated caller could otherwise pin arbitrarily large bodies in
+	// memory per request. The REST handlers already cap at 1 MiB; queries,
+	// variables and persisted-query hashes fit far below that.
+	const maxGraphQLBodyBytes = 1 << 20
 	graphqlAuth := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := apimiddleware.WithClientIP(req.Context(), apimiddleware.ClientKeyFromRequest(req))
@@ -289,6 +294,8 @@ func NewServer(cfg *config.Config, database *sql.DB, hub *events.Hub, syncSvc *i
 				next.ServeHTTP(w, req)
 				return
 			}
+
+			req.Body = http.MaxBytesReader(w, req.Body, maxGraphQLBodyBytes)
 
 			raw, ok := bearerToken(req)
 			if !ok {
