@@ -117,6 +117,7 @@ export async function fetchContainersGraphql() {
     name: r.name ?? null,
     url: r.url ?? null,
     enabled: r.enabled ?? true,
+    dockerEnabled: r.dockerEnabled ?? true,
     healthStatus: r.healthStatus ?? null,
   }));
   return { containers, stacks: deriveStacks(containers), runners };

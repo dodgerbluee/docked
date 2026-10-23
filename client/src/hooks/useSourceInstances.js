@@ -8,7 +8,7 @@ import { buildContainersBySource } from "../utils/containerHelpers";
  *
  * @param {Object} params - Hook parameters
  * @param {Array} params.containers - Array of containers to group by source
- * @param {Array} params.runners - Runner rows (id/name/url) from containerGroup
+ * @param {Array} params.runners - Runner rows from containerGroup (id/name/url/enabled/dockerEnabled)
  * @returns {Object} Hook return value
  * @returns {Array} return.sourceInstances - Runner instances sorted by name
  * @returns {Object} return.containersBySource - Containers grouped by source URL
@@ -34,6 +34,11 @@ export const useSourceInstances = ({ containers, runners = [] }) => {
     for (const runner of runners) {
       const runnerId = Number(runner?.id);
       if (!Number.isFinite(runnerId)) continue;
+      // Only runners that can actually serve container data are sources.
+      // A runner with Docker turned off (a bare agent on a Proxmox host, say)
+      // has no containers and no images to manage, so it stays out of the
+      // picker instead of adding an empty tab.
+      if (runner.enabled === false || runner.dockerEnabled === false) continue;
       const key = `runner:${runnerId}`;
       byKey.set(key, {
         name: runner.name || "Runner",

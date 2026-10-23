@@ -23,7 +23,10 @@ const container = (over = {}) => ({
 describe("useSourceInstances", () => {
   it("keeps a runner with no containers in the source list", () => {
     const { result } = renderHook(() =>
-      useSourceInstances({ containers: [], runners: [{ id: "3", name: "toybox" }] })
+      useSourceInstances({
+        containers: [],
+        runners: [{ id: "3", name: "toybox", dockerEnabled: true }],
+      })
     );
 
     expect(result.current.sourceInstances).toEqual([
@@ -37,6 +40,31 @@ describe("useSourceInstances", () => {
         upToDate: [],
       },
     ]);
+  });
+
+  it("leaves Docker-less agents out of the source list", () => {
+    const { result } = renderHook(() =>
+      useSourceInstances({
+        containers: [],
+        runners: [
+          { id: 6, name: "proxmox", dockerEnabled: false },
+          { id: 7, name: "vault", enabled: false, dockerEnabled: true },
+        ],
+      })
+    );
+
+    expect(result.current.sourceInstances).toEqual([]);
+  });
+
+  it("still shows a Docker-less runner that somehow reports containers", () => {
+    const { result } = renderHook(() =>
+      useSourceInstances({
+        containers: [container({ runnerId: 6, runnerName: "proxmox" })],
+        runners: [{ id: 6, name: "proxmox", dockerEnabled: false }],
+      })
+    );
+
+    expect(result.current.sourceInstances.map((i) => i.url)).toEqual(["runner:6"]);
   });
 
   it("merges the container grouping into the runner entry", () => {
