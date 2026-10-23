@@ -692,6 +692,26 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 	}
 	return out
 }
+
+// registryFromName maps a persisted registry host (deployed_images.registry)
+// onto the GraphQL Registry enum.
+func registryFromName(name string) model.Registry {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "ghcr.io":
+		return model.RegistryGhcr
+	case "quay.io":
+		return model.RegistryQuay
+	case "gcr.io":
+		return model.RegistryGcr
+	case "registry.gitlab.com":
+		return model.RegistryGitlab
+	case "", "docker.io", "index.docker.io":
+		return model.RegistryDockerHub
+	default:
+		return model.RegistryOther
+	}
+}
+
 func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 	// Only return imageInfo if we have registry_image_versions data
 	if !c.LatestTag.Valid && !c.Provider.Valid && !c.ImageTag.Valid {
@@ -711,6 +731,11 @@ func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 			registry = model.RegistryQuay
 		case "lscr":
 			registry = model.RegistryOther
+		case "github-releases":
+			// A version feed, not a registry: report where the image actually
+			// lives so a GHCR image whose newest version came only from a
+			// release tag is not shown as a Docker Hub image.
+			registry = registryFromName(nullStrDefault(c.Registry))
 		}
 	}
 	namespace, repository := parseRepoParts(repo)

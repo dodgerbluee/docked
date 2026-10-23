@@ -205,6 +205,12 @@ func (p *GitHubReleasesProvider) GetLatestDigest(ctx context.Context, imageRepo,
 		Version:     &version,
 		PublishDate: release.PublishedAt,
 		IsFallback:  true,
+		// Label the observation with what produced it. Without this the
+		// enclosing registry provider (ghcr/dockerhub) claims the result, and
+		// the version-only update check in db.containerHasUpdate - which is
+		// the only comparison that works when no digest was found - never
+		// fires, hiding the update.
+		Provider: p.Name(),
 	}, nil
 }
 
