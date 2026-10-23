@@ -16,6 +16,11 @@ import { registerCacheClear, getSessionGeneration, isSessionStale } from "../uti
 let cachedHistory = null;
 let cachedStats = null;
 
+// The resolver caps one request at 500 rows (graph/helpers.go maxPageLimit);
+// the mount window is walked by offset in pages of this size.
+const SERVER_MAX_PAGE = 500;
+const DEFAULT_WINDOW = 500;
+
 // Holds one user's upgrade history; must not survive logout into the next
 // session in the same tab.
 export function clearTrackedAppUpgradeHistoryCache() {
@@ -66,22 +71,36 @@ export function useTrackedAppUpgradeHistory() {
       if (options.provider) filter.provider = options.provider;
       if (options.status) filter.status = options.status.toUpperCase();
 
-      const { data, error: gqlError } = await graphqlClient
-        .query(TRACKED_APP_UPGRADE_HISTORY_QUERY, {
-          filter: Object.keys(filter).length ? filter : null,
-          first: options.limit || 100,
-          offset: options.offset || 0,
-        })
-        .toPromise();
-      if (gqlError) throw new Error(gqlError.message);
-      // Logout mid-flight: this response belongs to the dead session
-      // (possibly another user's history); never repopulate state or cache.
-      if (isSessionStale(gen)) return;
+      // The resolver caps one request at 500 rows and returns a plain list, so
+      // a wider window has to be walked by offset: reading a single page made
+      // every consumer silently see only the newest slice.
+      const totalCap = options.limit || 100;
+      const pageSize = Math.min(totalCap, SERVER_MAX_PAGE);
+      const rows = [];
+      for (let offset = options.offset || 0; rows.length < totalCap; ) {
+        const want = Math.min(pageSize, totalCap - rows.length);
+        const { data, error: gqlError } = await graphqlClient
+          .query(TRACKED_APP_UPGRADE_HISTORY_QUERY, {
+            filter: Object.keys(filter).length ? filter : null,
+            first: want,
+            offset,
+          })
+          .toPromise();
+        if (gqlError) throw new Error(gqlError.message);
+        // Logout mid-flight: this response belongs to the dead session
+        // (possibly another user's history); never repopulate state or cache.
+        if (isSessionStale(gen)) return;
+
+        const page = data?.trackedAppUpgradeHistory || [];
+        rows.push(...page);
+        if (page.length < want) break;
+        offset += page.length;
+      }
 
       if (mountedRef.current) {
-        const rows = (data?.trackedAppUpgradeHistory || []).map(mapRecord);
-        cachedHistory = rows;
-        setHistory(rows);
+        const mapped = rows.map(mapRecord);
+        cachedHistory = mapped;
+        setHistory(mapped);
       }
     } catch (err) {
       if (isSessionStale(gen)) return;
@@ -139,7 +158,7 @@ export function useTrackedAppUpgradeHistory() {
     mountedRef.current = true;
     if (!fetchDoneRef.current) {
       fetchDoneRef.current = true;
-      fetchHistory();
+      fetchHistory({ limit: DEFAULT_WINDOW });
       fetchStats();
     }
     return () => {

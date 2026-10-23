@@ -358,3 +358,7 @@ body.dark-mode .opBadge {
     gap: 8px;
   }
 }
+
+.loadError {
+  margin-bottom: 16px;
+}

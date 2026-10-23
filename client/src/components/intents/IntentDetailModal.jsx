@@ -42,6 +42,7 @@ import Tabs from "../ui/Tabs";
 import Button from "../ui/Button";
 import EmptyState from "../ui/EmptyState";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import Alert from "../ui/Alert";
 import { useIntents } from "../../hooks/useIntents";
 import {
   SCHEDULE_TYPES,
@@ -523,7 +524,7 @@ PreviewTab.propTypes = {
    History Tab (with inline detail)
    ========================================== */
 
-function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
+function HistoryTab({ intent, executions, loading, error, onRetry, fetchExecutionDetail }) {
   const [selectedExecId, setSelectedExecId] = useState(null);
   const [detailExec, setDetailExec] = useState(null);
   const [detailContainers, setDetailContainers] = useState([]);
@@ -737,12 +738,29 @@ function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
   }
 
   // List view
+  const errorBanner = error ? (
+    <Alert variant="error" role="alert">
+      Execution history could not be loaded: {error}
+      {onRetry && (
+        <Button type="button" onClick={() => onRetry()}>
+          Retry
+        </Button>
+      )}
+    </Alert>
+  ) : null;
+
   if (executions.length === 0) {
+    if (error) {
+      // A failed read must not render as "No executions yet": that states a
+      // fact about the intent the request never actually established.
+      return errorBanner;
+    }
     return <EmptyState icon={HistoryIcon} message="No executions yet for this intent." />;
   }
 
   return (
     <div className={styles.historyContent}>
+      {errorBanner}
       <div className={styles.historyHeader}>
         <span className={styles.historyCount}>{executions.length} execution(s)</span>
       </div>
@@ -801,6 +819,8 @@ function HistoryTab({ intent, executions, loading, fetchExecutionDetail }) {
 HistoryTab.propTypes = {
   intent: PropTypes.object,
   executions: PropTypes.array.isRequired,
+  error: PropTypes.string,
+  onRetry: PropTypes.func,
   loading: PropTypes.bool,
   fetchExecutionDetail: PropTypes.func,
 };
@@ -825,6 +845,7 @@ function IntentDetailModal({
   const [executions, setExecutions] = useState([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingExecutions, setLoadingExecutions] = useState(false);
+  const [executionsError, setExecutionsError] = useState("");
 
   // The modal component itself is never unmounted between openings, so a
   // preview/history response for the intent that was open before can land
@@ -842,6 +863,7 @@ function IntentDetailModal({
       setActiveTab(initialTab || TAB_CONFIG);
       setPreviewData(null);
       setExecutions([]);
+      setExecutionsError("");
     }
   }, [isOpen, intent?.id, initialTab]);
 
@@ -877,9 +899,17 @@ function IntentDetailModal({
       if (!isRequestCurrent(intentId, epoch)) return;
       if (result.success) {
         setExecutions(result.executions);
+        setExecutionsError("");
+      } else {
+        // Leaving the list untouched made a lost request indistinguishable
+        // from an intent that has genuinely never run.
+        setExecutionsError(result.error || "Execution history could not be loaded.");
       }
     } catch (error) {
       console.error("Failed to load executions:", error);
+      if (isRequestCurrent(intentId, epoch)) {
+        setExecutionsError(error?.message || "Execution history could not be loaded.");
+      }
     } finally {
       if (isRequestCurrent(intentId, epoch)) {
         setLoadingExecutions(false);
@@ -916,6 +946,8 @@ function IntentDetailModal({
             intent={intent}
             executions={executions}
             loading={loadingExecutions}
+            error={executionsError}
+            onRetry={loadExecutions}
             fetchExecutionDetail={fetchExecutionDetail}
           />
         );

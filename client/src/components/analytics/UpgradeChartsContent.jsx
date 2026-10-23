@@ -25,6 +25,7 @@ import {
 import { Target, Award, Clock, Zap, BarChart3, Package, Cpu } from "lucide-react";
 import { processChartData, calculateStats, COLORS, CHART_COLORS } from "./upgradeChartsUtils";
 import { useRunnerApps } from "../../hooks/useRunnerApps";
+import Alert from "../ui/Alert";
 import { ANALYTICS_VIEW_TABS } from "../../constants/analyticsPage";
 import styles from "./UpgradeChartsContent.module.css";
 
@@ -52,7 +53,31 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
   const trackedAppStats = useMemo(() => calculateStats(trackedAppHistory), [trackedAppHistory]);
 
   // ── Apps tab: dockhand runner apps data ──
-  const { allApps, history: appsHistory, stats: appsStats, loading: appsLoading } = useRunnerApps();
+  const {
+    allApps,
+    runners: appRunners,
+    history: appsHistory,
+    stats: appsStats,
+    loading: appsLoading,
+    error: appsError,
+    appErrors,
+    historyError: appsHistoryError,
+  } = useRunnerApps();
+
+  // A runner that failed to answer used to disappear from the page, so its
+  // apps were missing from every chart with no indication they were missing.
+  const failedAppRunners = Object.entries(appErrors || {});
+  const appsLoadError =
+    appsError ||
+    appsHistoryError ||
+    (failedAppRunners.length > 0
+      ? `${failedAppRunners.length} runner(s) could not be read: ${failedAppRunners
+          .map(
+            ([id, msg]) =>
+              `${(appRunners || []).find((r) => String(r.id) === String(id))?.name || `#${id}`} (${msg})`
+          )
+          .join(", ")}.`
+      : "");
 
   const appsChartData = useMemo(() => {
     if (!allApps || allApps.length === 0) return null;
@@ -496,6 +521,11 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
 
       {activeViewTab === ANALYTICS_VIEW_TABS.APPS && (
         <div className={styles.chartsGrid}>
+          {appsLoadError && (
+            <Alert variant="error" role="alert" className={styles.loadError}>
+              {appsLoadError} These charts only cover the runners that answered.
+            </Alert>
+          )}
           {hasAppsData ? (
             <>
               <div className={styles.chartCard}>

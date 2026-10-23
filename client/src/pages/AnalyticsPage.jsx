@@ -14,8 +14,13 @@ import UpgradeChartsContent from "../components/analytics/UpgradeChartsContent";
 import AnalyticsPageSkeleton from "../components/analytics/AnalyticsPageSkeleton";
 import MobileDrawer from "../components/ui/MobileDrawer";
 import Button from "../components/ui/Button";
+import Alert from "../components/ui/Alert";
 import { ANALYTICS_VIEW_TABS, ANALYTICS_DATA_SOURCE } from "../constants/analyticsPage";
 import styles from "./AnalyticsPage.module.css";
+
+// Rows each history source contributes to the charts. The connection is
+// cursor-paged and the server caps a page at 500, so this is walked in pages.
+const ANALYTICS_HISTORY_LIMIT = 1000;
 
 function AnalyticsPage({ sourceInstances = [] }) {
   const [activeViewTab, setActiveViewTab] = useState(ANALYTICS_VIEW_TABS.OVERVIEW);
@@ -28,9 +33,18 @@ function AnalyticsPage({ sourceInstances = [] }) {
     setMobileSidebarOpen(false);
   }, []);
 
-  const { history: containerHistoryRaw = [], loading: containerLoading } = useUpgradeHistory();
-  const { history: trackedAppHistory = [], loading: trackedAppLoading } =
-    useTrackedAppUpgradeHistory();
+  // The charts aggregate over the whole window, so ask for more than the
+  // default 100 rows; the hook walks the connection cursor to honor it.
+  const {
+    history: containerHistoryRaw = [],
+    loading: containerLoading,
+    error: containerHistoryError,
+  } = useUpgradeHistory({ limit: ANALYTICS_HISTORY_LIMIT });
+  const {
+    history: trackedAppHistory = [],
+    loading: trackedAppLoading,
+    error: trackedAppHistoryError,
+  } = useTrackedAppUpgradeHistory();
 
   const isInitialLoading = containerLoading && trackedAppLoading;
 
@@ -49,6 +63,15 @@ function AnalyticsPage({ sourceInstances = [] }) {
       selectedDataSources.size === 0 || selectedDataSources.has(ANALYTICS_DATA_SOURCE.TRACKED_APPS);
     return includeTrackedApps ? trackedAppHistory : [];
   }, [trackedAppHistory, selectedDataSources]);
+
+  // A failed history read must not render as "nothing to chart": the charts
+  // compute plausible zeros out of data that never arrived.
+  const historyError = [
+    containerHistoryError && `Container history: ${containerHistoryError}`,
+    trackedAppHistoryError && `Tracked app history: ${trackedAppHistoryError}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const sidebarProps = {
     activeViewTab,
@@ -101,6 +124,12 @@ function AnalyticsPage({ sourceInstances = [] }) {
         </MobileDrawer>
 
         <div className={styles.analyticsContentArea} role="region" aria-label="Analytics charts">
+          {historyError && (
+            <Alert variant="error" role="alert" className={styles.historyError}>
+              {historyError} The charts below are computed from whatever did load, so the totals and
+              rates are not trustworthy.
+            </Alert>
+          )}
           {isInitialLoading ? (
             <AnalyticsPageSkeleton />
           ) : (

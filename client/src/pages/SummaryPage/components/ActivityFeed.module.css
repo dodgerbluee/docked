@@ -181,3 +181,7 @@
 .feedContent::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+.historyError {
+  margin-bottom: 12px;
+}

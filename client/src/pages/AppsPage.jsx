@@ -13,6 +13,7 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import ErrorBoundary from "../components/ErrorBoundary";
 import MobileDrawer from "../components/ui/MobileDrawer";
 import AppsPageSkeleton from "../components/apps/AppsPageSkeleton";
+import Alert from "../components/ui/Alert";
 import Button from "../components/ui/Button";
 import SearchInput from "../components/ui/SearchInput";
 import OperationTasksModal from "../components/ui/OperationTasksModal";
@@ -385,6 +386,10 @@ export default function AppsPage({
   const [loading, setLoading] = useState(!hasCachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [appErrors, setAppErrors] = useState({}); // runnerId → string
+  // The runner list itself failed to load. Distinct from "there are no
+  // runners": without it the page rendered the "No runners configured" empty
+  // state over a transport failure.
+  const [runnersError, setRunnersError] = useState(null);
 
   // UI state
   const [search, setSearch] = useState("");
@@ -448,11 +453,15 @@ export default function AppsPage({
         const list = (runnersResult.data?.runners || [])
           .map(mapGraphRunner)
           .filter((r) => r.enabled !== 0);
+        setRunnersError(null);
         setRunners(list);
         cachedRunners = list;
         await Promise.all(list.map(fetchAppsForRunner));
       } catch (err) {
         console.error("AppsPage: failed to fetch runners", err);
+        if (!isSessionStale(gen)) {
+          setRunnersError(err.message || "The runner list could not be loaded.");
+        }
       } finally {
         if (!isSessionStale(gen)) {
           setLoading(false);
@@ -756,6 +765,9 @@ export default function AppsPage({
     }
 
     if (enabledRunners.length === 0) {
+      // The banner above already explains this case: an empty list that came
+      // from a failed read is not the same fact as "no runners configured".
+      if (runnersError) return null;
       return (
         <div className={styles.emptyStateMessage}>
           <Cpu size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
@@ -898,7 +910,18 @@ export default function AppsPage({
         </ErrorBoundary>
 
         {/* Content */}
-        <div className={styles.contentArea}>{renderContent()}</div>
+        <div className={styles.contentArea}>
+          {runnersError && (
+            <Alert variant="error" role="alert" className={styles.loadError}>
+              The runner list could not be loaded: {runnersError} The apps shown here are only what
+              an earlier read returned.{" "}
+              <Button onClick={() => fetchAll(true)} size="sm">
+                Retry
+              </Button>
+            </Alert>
+          )}
+          {renderContent()}
+        </div>
       </div>
 
       {pendingRun && (

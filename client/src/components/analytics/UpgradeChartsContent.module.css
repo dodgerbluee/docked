@@ -420,3 +420,7 @@ body.dark-mode .tooltip {
 .content::-webkit-scrollbar-thumb:hover {
   background: var(--dodger-blue);
 }
+
+.loadError {
+  grid-column: 1 / -1;
+}

@@ -24,6 +24,7 @@ import {
   isSessionStale,
 } from "../../utils/cacheRegistry";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import Alert from "../ui/Alert";
 import styles from "./AppsHistoryTab.module.css";
 
 // Module-level cache – survives unmount/remount so the history view
@@ -70,6 +71,10 @@ function parseOpKey(operationName) {
 export default function AppsHistoryTab({ runners }) {
   const hasCachedData = cachedHistoryByRunner !== null;
   const [historyByRunner, setHistoryByRunner] = useState(cachedHistoryByRunner || {}); // runnerId → record[]
+  // runnerId → message for runners whose history read was rejected. Without
+  // this a failed read dropped the runner from the map and it rendered as a
+  // runner that has never run anything.
+  const [historyErrors, setHistoryErrors] = useState({});
   const [loading, setLoading] = useState(!hasCachedData);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -92,12 +97,23 @@ export default function AppsHistoryTab({ runners }) {
       // module cache the next user would be served from.
       if (isSessionStale(gen) || !mountedRef.current) return;
       const map = {};
-      for (const result of results) {
+      const errs = {};
+      // allSettled preserves order, so index i is runners[i].
+      results.forEach((result, i) => {
         if (result.status === "fulfilled") {
           map[result.value.runnerId] = result.value.records;
+        } else {
+          const runner = runners[i];
+          if (runner) {
+            errs[runner.id] =
+              result.reason?.response?.data?.error ||
+              result.reason?.message ||
+              "History read failed";
+          }
         }
-      }
+      });
       setHistoryByRunner(map);
+      setHistoryErrors(errs);
       cachedHistoryByRunner = map;
       setLoading(false);
     },
@@ -178,6 +194,15 @@ export default function AppsHistoryTab({ runners }) {
 
   return (
     <div className={styles.container}>
+      {Object.keys(historyErrors).length > 0 && (
+        <Alert variant="error" role="alert" className={styles.loadError}>
+          History could not be read for {Object.keys(historyErrors).length} runner(s):{" "}
+          {Object.entries(historyErrors)
+            .map(([id, msg]) => `${runnerById[id]?.name || `#${id}`} (${msg})`)
+            .join(", ")}
+          . The runs listed here are incomplete.
+        </Alert>
+      )}
       {/* Stats bar */}
       {allRecords.length > 0 && (
         <div className={styles.statsBar}>

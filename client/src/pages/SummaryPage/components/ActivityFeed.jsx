@@ -12,6 +12,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useUpgradeHistory } from "../../../hooks/useUpgradeHistory";
 import { useTrackedAppUpgradeHistory } from "../../../hooks/useTrackedAppUpgradeHistory";
+import Alert from "../../../components/ui/Alert";
 import styles from "./ActivityFeed.module.css";
 
 /**
@@ -30,8 +31,18 @@ function parseUtcIfNeeded(dateStr) {
  */
 const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType }) => {
   // Fetch recent upgrade history
-  const { history } = useUpgradeHistory({ limit: 10 });
-  const { history: trackedAppHistory } = useTrackedAppUpgradeHistory();
+  const { history, error: upgradeHistoryError } = useUpgradeHistory({ limit: 10 });
+  const { history: trackedAppHistory, error: trackedAppHistoryError } =
+    useTrackedAppUpgradeHistory();
+
+  // A failed history read used to render as "No recent activity", which states
+  // a fact about the instance the request never established.
+  const historyError = [
+    upgradeHistoryError && `Upgrade history: ${upgradeHistoryError}`,
+    trackedAppHistoryError && `Tracked app history: ${trackedAppHistoryError}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const activities = useMemo(() => {
     const items = [];
@@ -158,7 +169,12 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
       </div>
 
       <div className={styles.feedContent}>
-        {activities.length === 0 ? (
+        {historyError && (
+          <Alert variant="error" role="alert" className={styles.historyError}>
+            {historyError} The list below only reflects what did load.
+          </Alert>
+        )}
+        {activities.length === 0 && !historyError ? (
           <div className={styles.emptyState}>
             <Clock size={32} className={styles.emptyIcon} />
             <p className={styles.emptyText}>No recent activity</p>

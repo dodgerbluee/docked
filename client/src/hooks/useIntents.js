@@ -318,7 +318,11 @@ export function useIntents(isAuthenticated, authToken) {
           },
         };
       }
-      return { success: false, error: result.error?.message || "Failed to dry run intent" };
+      const errorMsg = result.error?.message || "Failed to dry run intent";
+      // urql never rejects, so this is the normal failure path: without
+      // publishing it, the Dry Run button just stops spinning.
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
     } catch (err) {
       const errorMsg = err.message || "Failed to dry run intent";
       setError(errorMsg);

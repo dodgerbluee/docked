@@ -148,14 +148,19 @@ function AddTrackedAppModal({
         }
       }
 
-      if (formData.currentVersion && formData.currentVersion.trim()) {
-        input.currentVersion = formData.currentVersion.trim();
+      // Clearing this field has to actually clear it: omitting the key leaves
+      // the stored version in place, so the save reports success and reopening
+      // the app shows the value that was just erased from the form. On create
+      // an absent version is genuinely unset, so keep omitting it there.
+      const currentVersion = (formData.currentVersion || "").trim();
+      if (currentVersion || initialData) {
+        input.currentVersion = currentVersion;
       }
 
-      // GitLab token kept for backward compatibility when no token row is used
-      if (sourceType === "gitlab") {
-        input.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
-      }
+      // No gitlabToken is sent: the GitLab form offers only the repository
+      // token selector, so formData.gitlabToken is always empty here, and the
+      // backend treats an explicit "" as "clear the credential". Sending it
+      // silently wiped the stored token of every legacy GitLab app on edit.
 
       let result;
       const generation = getSessionGeneration();

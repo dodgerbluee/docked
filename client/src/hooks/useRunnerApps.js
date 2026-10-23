@@ -35,6 +35,8 @@ export const useRunnerApps = () => {
   const [history, setHistory] = useState(cachedHistory || []);
   const [loading, setLoading] = useState(cachedRunners === null);
   const [error, setError] = useState(null);
+  const [appErrors, setAppErrors] = useState({});
+  const [historyError, setHistoryError] = useState(null);
   const mountedRef = useRef(true);
 
   const fetchAll = useCallback(async (silent = false) => {
@@ -42,6 +44,8 @@ export const useRunnerApps = () => {
     try {
       if (!silent && cachedRunners === null) setLoading(true);
       setError(null);
+      setAppErrors({});
+      setHistoryError(null);
 
       // 1. Fetch runners
       const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
@@ -69,13 +73,25 @@ export const useRunnerApps = () => {
       if (!mountedRef.current || isSessionStale(gen)) return;
 
       const newAppsByRunner = {};
-      appsResults.forEach((result) => {
+      // runnerId → message for runners whose app read was rejected. Dropping
+      // them silently made a runner that could not be reached render as a
+      // runner with no apps configured.
+      const newAppErrors = {};
+      // allSettled preserves order, so index i is enabledRunners[i].
+      appsResults.forEach((result, i) => {
         if (result.status === "fulfilled") {
           newAppsByRunner[result.value.runnerId] = result.value.apps;
+        } else {
+          const runner = enabledRunners[i];
+          if (runner) {
+            newAppErrors[runner.id] =
+              result.reason?.response?.data?.error || result.reason?.message || "App read failed";
+          }
         }
       });
       setAppsByRunner(newAppsByRunner);
       cachedAppsByRunner = newAppsByRunner;
+      setAppErrors(newAppErrors);
 
       // 3. Fetch combined history from all runners in parallel
       const historyResults = await Promise.allSettled(
@@ -98,6 +114,16 @@ export const useRunnerApps = () => {
         .flatMap((r) => r.value)
         .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
         .slice(0, 100);
+
+      // Rejected history reads used to vanish, so the combined run list and
+      // every operation stat computed from it read as complete when they were
+      // missing whole runners.
+      const failedHistoryReads = historyResults.filter((r) => r.status === "rejected").length;
+      setHistoryError(
+        failedHistoryReads > 0
+          ? `${failedHistoryReads} of ${enabledRunners.length} runner history reads failed; the run list and the operation stats are incomplete.`
+          : null
+      );
 
       setHistory(allHistory);
       cachedHistory = allHistory;
@@ -188,6 +214,8 @@ export const useRunnerApps = () => {
     stats,
     loading,
     error,
+    appErrors,
+    historyError,
     refetch: fetchAll,
   };
 };

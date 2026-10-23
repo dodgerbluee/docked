@@ -65,161 +65,186 @@ export function useUserCreation({
   setImportErrors,
   setVerificationTokens,
 }) {
-  const createUserWithConfig = useCallback(async () => {
-    if (!currentUser) return { success: false, imported: false, username: null };
+  // `skippedOverride` is the skipped-step set as of the click that triggered
+  // this create. React state has not committed yet when "Skip Step" on the
+  // last step advances straight into creation, so reading the closed-over
+  // userSkippedSteps would import the very step that was just skipped.
+  const createUserWithConfig = useCallback(
+    async (skippedOverride = null) => {
+      if (!currentUser) return { success: false, imported: false, username: null };
 
-    setImporting(true);
-    setError("");
+      setImporting(true);
+      setError("");
 
-    // Captured before the create request: the bootstrap login below installs
-    // credentials, so it must know whether the session it belongs to is still
-    // the live one by the time the request lands.
-    const generation = getSessionGeneration();
+      // Captured before the create request: the bootstrap login below installs
+      // credentials, so it must know whether the session it belongs to is still
+      // the live one by the time the request lands.
+      const generation = getSessionGeneration();
 
-    try {
-      const createAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: { "Content-Type": "application/json" },
-      });
-      // Carry the session token when one exists (admin-UI import wizard, or a
-      // login-page wizard that already bootstrapped an instance admin). The
-      // server requires an authenticated instance admin to create plain
-      // accounts once the instance has an owner.
-      const sessionToken = localStorage.getItem("authToken");
-      if (sessionToken) {
-        createAxios.defaults.headers.common["Authorization"] = `Bearer ${sessionToken}`;
-      }
+      try {
+        const createAxios = axios.create({
+          baseURL: API_BASE_URL,
+          headers: { "Content-Type": "application/json" },
+        });
+        // Carry the session token when one exists (admin-UI import wizard, or a
+        // login-page wizard that already bootstrapped an instance admin). The
+        // server requires an authenticated instance admin to create plain
+        // accounts once the instance has an owner.
+        const sessionToken = localStorage.getItem("authToken");
+        if (sessionToken) {
+          createAxios.defaults.headers.common["Authorization"] = `Bearer ${sessionToken}`;
+        }
 
-      const username = currentUser.username;
-      const password = userPasswords[username];
+        const username = currentUser.username;
+        const password = userPasswords[username];
 
-      // Check if user was marked as instance admin in JSON
-      const wasMarkedAsInstanceAdmin =
-        currentUser.instanceAdmin !== undefined
-          ? currentUser.instanceAdmin
-          : currentUser.instance_admin === true || currentUser.instance_admin === 1;
+        // Check if user was marked as instance admin in JSON
+        const wasMarkedAsInstanceAdmin =
+          currentUser.instanceAdmin !== undefined
+            ? currentUser.instanceAdmin
+            : currentUser.instance_admin === true || currentUser.instance_admin === 1;
 
-      // Check if instance admin verification step was skipped
-      const skippedSteps = userSkippedSteps[username] || new Set();
-      const verificationSkipped = skippedSteps.has(STEP_TYPES.INSTANCE_ADMIN_VERIFICATION);
+        // Check if instance admin verification step was skipped
+        const skippedSteps = skippedOverride ?? userSkippedSteps[username] ?? new Set();
+        const verificationSkipped = skippedSteps.has(STEP_TYPES.INSTANCE_ADMIN_VERIFICATION);
 
-      // Check if verification was successful
-      const verificationSuccessful = verificationStatus[username] === true;
+        // Check if verification was successful
+        const verificationSuccessful = verificationStatus[username] === true;
 
-      // User should only be marked as instance admin if:
-      // 1. They were marked as instance admin in JSON, AND
-      // 2. Verification step was NOT skipped, AND
-      // 3. Verification was successful
-      const isInstanceAdmin =
-        wasMarkedAsInstanceAdmin && !verificationSkipped && verificationSuccessful;
+        // User should only be marked as instance admin if:
+        // 1. They were marked as instance admin in JSON, AND
+        // 2. Verification step was NOT skipped, AND
+        // 3. Verification was successful
+        const isInstanceAdmin =
+          wasMarkedAsInstanceAdmin && !verificationSkipped && verificationSuccessful;
 
-      // Build user data
-      const userData = {
-        username,
-        password,
-        email: currentUser.email || null,
-        role: currentUser.role || "Administrator",
-        instanceAdmin: isInstanceAdmin,
-      };
+        // Build user data
+        const userData = {
+          username,
+          password,
+          email: currentUser.email || null,
+          role: currentUser.role || "Administrator",
+          instanceAdmin: isInstanceAdmin,
+        };
 
-      // Build config data (only include if user has it)
-      const configData = {};
-      if (
-        currentUser.discordWebhooks &&
-        Array.isArray(currentUser.discordWebhooks) &&
-        currentUser.discordWebhooks.length > 0
-      ) {
-        configData.discordWebhooks = currentUser.discordWebhooks;
-      }
-      if (
-        currentUser.trackedApps &&
-        Array.isArray(currentUser.trackedApps) &&
-        currentUser.trackedApps.length > 0
-      ) {
-        configData.trackedApps = currentUser.trackedApps;
-      }
+        // Build config data (only include if user has it)
+        const configData = {};
+        if (
+          currentUser.discordWebhooks &&
+          Array.isArray(currentUser.discordWebhooks) &&
+          currentUser.discordWebhooks.length > 0
+        ) {
+          configData.discordWebhooks = currentUser.discordWebhooks;
+        }
+        if (
+          currentUser.trackedApps &&
+          Array.isArray(currentUser.trackedApps) &&
+          currentUser.trackedApps.length > 0
+        ) {
+          configData.trackedApps = currentUser.trackedApps;
+        }
 
-      // Build credentials (only include non-skipped steps)
-      const credentials = {};
+        // Build credentials (only include non-skipped steps)
+        const credentials = {};
 
-      if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
-        credentials.discordWebhooks = userCredentials[username].discordWebhooks;
-      }
+        if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
+          credentials.discordWebhooks = userCredentials[username].discordWebhooks;
+        }
 
-      // The server only grants instance-admin when it can atomically consume
-      // the pending verification token, so send the exact token the operator
-      // read from the container logs and typed into the verification step.
-      const enteredToken = (verificationInputTokens[username] || "").trim() || null;
+        // The server only grants instance-admin when it can atomically consume
+        // the pending verification token, so send the exact token the operator
+        // read from the container logs and typed into the verification step.
+        const enteredToken = (verificationInputTokens[username] || "").trim() || null;
 
-      // Call endpoint to create user with config
-      const response = await createAxios.post("/api/auth/create-user-with-config", {
-        userData,
-        configData: Object.keys(configData).length > 0 ? configData : null,
-        credentials: Object.keys(credentials).length > 0 ? credentials : null,
-        skippedSteps: Array.from(skippedSteps),
-        verificationToken: enteredToken,
-      });
+        // Call endpoint to create user with config
+        const response = await createAxios.post("/api/auth/create-user-with-config", {
+          userData,
+          configData: Object.keys(configData).length > 0 ? configData : null,
+          credentials: Object.keys(credentials).length > 0 ? credentials : null,
+          skippedSteps: Array.from(skippedSteps),
+          verificationToken: enteredToken,
+        });
 
-      if (response.data.success) {
-        // Check if user was skipped (already exists)
-        if (response.data.skipped) {
-          // User already exists - add to errors but continue with other users
-          setImportErrors((prev) => [
-            ...prev,
-            response.data.message || `User "${username}" already exists`,
-          ]);
-          // Clear token from temporary storage
+        if (response.data.success) {
+          // Check if user was skipped (already exists)
+          if (response.data.skipped) {
+            // User already exists - add to errors but continue with other users
+            setImportErrors((prev) => [
+              ...prev,
+              response.data.message || `User "${username}" already exists`,
+            ]);
+            // Clear token from temporary storage
+            setVerificationTokens((prev) => {
+              const updated = { ...prev };
+              delete updated[username];
+              return updated;
+            });
+            // Return success but not imported
+            return { success: true, imported: false, username };
+          }
+
+          // Clear token from temporary storage after user is created
           setVerificationTokens((prev) => {
             const updated = { ...prev };
             delete updated[username];
             return updated;
           });
-          // Return success but not imported
-          return { success: true, imported: false, username };
-        }
+          // If we just created the instance that now has an owner and we have no
+          // session yet, log in with the credentials just set so subsequent
+          // member imports in this wizard carry an authenticated token.
+          if (isInstanceAdmin && !localStorage.getItem("authToken")) {
+            await bootstrapSessionToken(username, password, generation);
+          }
+          // The account was created, but the server reports sub-import failures
+          // (webhooks, tracked apps, settings) inside results.errors while still
+          // returning success: true. Counting the user as cleanly imported hid
+          // that half their configuration never landed.
+          const nestedErrors = Array.isArray(response.data.results?.errors)
+            ? response.data.results.errors
+            : [];
+          if (nestedErrors.length > 0) {
+            setImportErrors((prev) => [
+              ...prev,
+              ...nestedErrors.map(
+                (e) =>
+                  `User "${username}": ${typeof e === "string" ? e : (e?.message ?? String(e))}`
+              ),
+            ]);
+          }
 
-        // Clear token from temporary storage after user is created
-        setVerificationTokens((prev) => {
-          const updated = { ...prev };
-          delete updated[username];
-          return updated;
-        });
-        // If we just created the instance that now has an owner and we have no
-        // session yet, log in with the credentials just set so subsequent
-        // member imports in this wizard carry an authenticated token.
-        if (isInstanceAdmin && !localStorage.getItem("authToken")) {
-          await bootstrapSessionToken(username, password, generation);
+          setImportedUsers((prev) => [...prev, username]);
+          return { success: true, imported: true, username, partial: nestedErrors.length > 0 };
+        } else {
+          setImportErrors((prev) => [
+            ...prev,
+            `User "${username}": ${response.data.error || "Failed to create user"}`,
+          ]);
+          return { success: false, imported: false, username };
         }
-        setImportedUsers((prev) => [...prev, username]);
-        return { success: true, imported: true, username };
-      } else {
-        setImportErrors((prev) => [
-          ...prev,
-          `User "${username}": ${response.data.error || "Failed to create user"}`,
-        ]);
-        return { success: false, imported: false, username };
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.error || getErrorMessage(err) || "Failed to create user";
+        setImportErrors((prev) => [...prev, `User "${currentUser.username}": ${errorMsg}`]);
+        setError(errorMsg);
+        return { success: false, imported: false, username: currentUser.username };
+      } finally {
+        setImporting(false);
       }
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || getErrorMessage(err) || "Failed to create user";
-      setImportErrors((prev) => [...prev, `User "${currentUser.username}": ${errorMsg}`]);
-      setError(errorMsg);
-      return { success: false, imported: false, username: currentUser.username };
-    } finally {
-      setImporting(false);
-    }
-  }, [
-    currentUser,
-    userPasswords,
-    userCredentials,
-    userSkippedSteps,
-    verificationStatus,
-    verificationInputTokens,
-    setImporting,
-    setError,
-    setImportedUsers,
-    setImportErrors,
-    setVerificationTokens,
-  ]);
+    },
+    [
+      currentUser,
+      userPasswords,
+      userCredentials,
+      userSkippedSteps,
+      verificationStatus,
+      verificationInputTokens,
+      setImporting,
+      setError,
+      setImportedUsers,
+      setImportErrors,
+      setVerificationTokens,
+    ]
+  );
 
   return {
     createUserWithConfig,

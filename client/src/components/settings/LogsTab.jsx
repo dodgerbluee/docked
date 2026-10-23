@@ -99,8 +99,18 @@ function LogsTab() {
     []
   );
 
-  const fetchLogs = useCallback(
-    async (incremental = false) => {
+  // Reads are serialized through one queue and tagged with the tail generation
+  // they were issued for. Two overlapping incremental reads would both start
+  // from the same byte offset and append the same chunk twice, and a slow
+  // response can land after a newer one and rewind the tail. A full re-tail
+  // (a new tail size, or a rotation) bumps the generation, which retires
+  // anything still queued or in flight for the previous tail.
+  const logsGenerationRef = useRef(0);
+  const logsQueueRef = useRef(Promise.resolve());
+  const fetchLogsRef = useRef(null);
+
+  const runFetchLogs = useCallback(
+    async (incremental, generation) => {
       try {
         setError(null);
         if (!incremental) setLoading(true);
@@ -110,30 +120,35 @@ function LogsTab() {
         const vars = incremental ? { offset: lastFileSizeRef.current } : { lines: tailLines };
 
         const result = await graphqlClient.query(LOGS_QUERY, vars).toPromise();
+        if (generation !== logsGenerationRef.current) return;
         if (result.error) {
           setError(result.error.message || "Failed to fetch logs");
           return;
         }
 
-        const { logs: rawLogs, fileSize, rotated } = result.data.logs;
+        const { logs: rawLogs, fileSize, rotated } = result.data?.logs || {};
 
         // If the log file was rotated (fileSize shrank), do a fresh tail load
         if (rotated) {
           lastFileSizeRef.current = 0;
-          fetchLogs(false);
+          fetchLogsRef.current(false);
           return;
         }
 
         lastFileSizeRef.current = fileSize ?? 0;
 
-        if (rawLogs && rawLogs.trim().length > 0) {
-          const incoming = rawLogs.split("\n").filter((l) => l.trim());
+        const incoming =
+          rawLogs && rawLogs.trim() ? rawLogs.split("\n").filter((l) => l.trim()) : [];
 
-          if (incremental) {
+        if (incremental) {
+          if (incoming.length > 0) {
             setLogLines((prev) => applyRollingWindow([...prev, ...incoming], tailLines));
-          } else {
-            setLogLines(applyRollingWindow(incoming, tailLines));
           }
+        } else {
+          // A full tail always replaces, including with nothing: a log file
+          // truncated or rotated down to empty kept showing the lines from
+          // before it was emptied, because an empty response was skipped.
+          setLogLines(applyRollingWindow(incoming, tailLines));
         }
 
         setIsInitialLoad(false);
@@ -143,13 +158,28 @@ function LogsTab() {
         }
       } catch (err) {
         console.error("Error fetching logs:", err);
-        setError(err.response?.data?.error || err.message || "Failed to fetch logs");
+        if (generation === logsGenerationRef.current) {
+          setError(err.response?.data?.error || err.message || "Failed to fetch logs");
+        }
       } finally {
         setLoading(false);
       }
     },
     [tailLines, applyRollingWindow]
   );
+
+  const fetchLogs = useCallback(
+    (incremental = false) => {
+      if (!incremental) logsGenerationRef.current += 1;
+      const generation = logsGenerationRef.current;
+      logsQueueRef.current = logsQueueRef.current
+        .then(() => runFetchLogs(incremental, generation))
+        .catch(() => {});
+      return logsQueueRef.current;
+    },
+    [runFetchLogs]
+  );
+  fetchLogsRef.current = fetchLogs;
 
   // Initial load
   useEffect(() => {

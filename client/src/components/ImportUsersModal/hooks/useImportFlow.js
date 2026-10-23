@@ -102,10 +102,15 @@ export function useImportFlow({
 
   // Common logic for advancing to next step or user
   const advanceFlow = useCallback(
-    async (skipValidation = false) => {
+    async (skipValidation = false, skippedOverride = null) => {
       if (!currentUser) return false;
 
       const username = currentUser.username;
+      // The skipped set as of this click rather than as of the last render:
+      // when the final step advances straight into user creation, the state
+      // update that recorded the skip has not committed yet, and the create
+      // would import the very step that was just skipped.
+      const skipped = new Set(skippedOverride ?? userSkippedSteps[username] ?? []);
 
       // advanceFlow chains several mutations in sequence (verify token →
       // webhook tests → create). Each one runs on the CURRENT client, so if
@@ -113,8 +118,11 @@ export function useImportFlow({
       // against the new session's credentials.
       const generation = getSessionGeneration();
 
-      // For instance admin verification step, verify token if entered
-      if (currentStepType === STEP_TYPES.INSTANCE_ADMIN_VERIFICATION) {
+      // For instance admin verification step, verify token if entered.
+      // Skipping the step must not verify: an invalid or already-consumed
+      // token would block the operator out of the very step they are choosing
+      // not to complete, and the skip would never take effect.
+      if (!skipValidation && currentStepType === STEP_TYPES.INSTANCE_ADMIN_VERIFICATION) {
         const inputToken = verificationInputTokens[username];
         if (inputToken && inputToken.trim()) {
           setLoading(true);
@@ -173,6 +181,14 @@ export function useImportFlow({
       // Clear step errors
       clearStepErrors(username, currentStepType);
 
+      // Completing a step successfully undoes an earlier skip of it. Without
+      // this, skip verification, press Back, then verify successfully: the
+      // stale skip still applied at create time and the account was imported
+      // without the instance-admin grant the operator had just earned.
+      if (!skipValidation) {
+        skipped.delete(currentStepType);
+      }
+
       if (currentStepType === STEP_TYPES.INSTANCE_ADMIN_VERIFICATION) {
         setLoading(false);
       }
@@ -188,7 +204,7 @@ export function useImportFlow({
           // would run with the new session's credentials.
           return false;
         }
-        const result = await createUserWithConfig();
+        const result = await createUserWithConfig(skipped);
 
         if (result.success) {
           // Move to next user
@@ -209,6 +225,7 @@ export function useImportFlow({
       totalStepsForCurrentUser,
       currentUserIndex,
       totalUsers,
+      userSkippedSteps,
       verificationInputTokens,
       handleVerifyToken,
       validateCurrentStep,
@@ -253,7 +270,10 @@ export function useImportFlow({
     // Advance flow without validation. advanceFlow already reports its own
     // failures; this only catches an unexpected throw, which would otherwise
     // be an unhandled rejection with no feedback at all.
-    advanceFlow(true).catch((err) => {
+    // Pass the set directly: on the final step advanceFlow creates the user in
+    // this same tick, before setUserSkippedSteps has committed, and the create
+    // would still see the step as unskipped.
+    advanceFlow(true, skipped).catch((err) => {
       setError(err?.message || "Failed to skip the step");
     });
   }, [

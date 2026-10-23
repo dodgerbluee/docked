@@ -166,12 +166,27 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     });
   };
 
+  // Membership, not size: an association retained for an offline runner is in
+  // the set but absent from this list, so equal sizes can still mean "nothing
+  // visible is selected" - and the deselect branch would then drop links the
+  // operator never saw or chose.
+  const allVisibleSelected =
+    containers.length > 0 && containers.every((img) => selectedImages.has(img.imageRepo));
+
   const handleSelectAll = () => {
-    if (selectedImages.size === containers.length) {
-      setSelectedImages(new Set());
-    } else {
-      setSelectedImages(new Set(containers.map((img) => img.imageRepo)));
-    }
+    // Toggle only the repositories this list actually shows: unseen
+    // associations belong to the operator's existing set, not to this control.
+    setSelectedImages((prev) => {
+      const next = new Set(prev);
+      for (const img of containers) {
+        if (allVisibleSelected) {
+          next.delete(img.imageRepo);
+        } else {
+          next.add(img.imageRepo);
+        }
+      }
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -261,7 +276,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
                 Select images that should use this token when checking for updates.
               </p>
               <Button onClick={handleSelectAll} variant="outline" size="sm" disabled={saving}>
-                {selectedImages.size === containers.length ? "Deselect All" : "Select All"}
+                {allVisibleSelected ? "Deselect All" : "Select All"}
               </Button>
             </div>
 

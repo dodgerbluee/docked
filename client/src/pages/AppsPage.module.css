@@ -710,3 +710,7 @@ body.dark-mode .emptyStateLink:hover {
 body.dark-mode .confirmRunBtn {
   background: var(--dodger-blue-light);
 }
+
+.loadError {
+  margin-bottom: 16px;
+}

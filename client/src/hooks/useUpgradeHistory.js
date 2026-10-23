@@ -10,13 +10,19 @@ import { registerCacheClear, getSessionGeneration, isSessionStale } from "../uti
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
+// The cache holds the widest window any consumer has asked for, newest first;
+// consumers with a smaller limit slice it rather than shrinking the cache, so
+// the 10-row activity feed cannot starve the analytics charts of history.
 let cachedHistory = null;
+let cachedHistoryCap = 0;
 let cachedStats = null;
+// The server caps one connection page at 500 rows (graph/helpers.go).
+const SERVER_MAX_PAGE = 500;
 
 // Must not survive logout into the next session in the same tab.
 export function clearUpgradeHistoryCache() {
   cachedHistory = null;
-  cachedStats = null;
+  cachedHistoryCap = 0;
 }
 registerCacheClear(clearUpgradeHistoryCache);
 
@@ -61,7 +67,10 @@ function mapUpgradeRecord(r) {
  * @returns {Object} Upgrade history state and functions
  */
 export const useUpgradeHistory = (options = {}) => {
-  const [history, setHistory] = useState(cachedHistory || []);
+  const requestedLimit = options.limit || 100;
+  const [history, setHistory] = useState(() =>
+    cachedHistory ? cachedHistory.slice(0, requestedLimit) : []
+  );
   const [loading, setLoading] = useState(cachedHistory === null);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(cachedStats);
@@ -82,22 +91,49 @@ export const useUpgradeHistory = (options = {}) => {
       if (options.containerName) filter.containerName = options.containerName;
       if (options.status) filter.status = options.status;
 
-      const result = await graphqlClient
-        .query(UPGRADE_HISTORY_QUERY, {
-          first: options.limit || 100,
-          filter: Object.keys(filter).length ? filter : null,
-        })
-        .toPromise();
+      // upgradeHistory is a cursor connection and the server caps a page at 500
+      // rows. Reading only the first page made "the last N upgrades" silently
+      // mean "the newest page", so analytics and the activity feed under-counted
+      // (and skewed every chart) once history grew past the limit. Walk the
+      // cursor until the cap is reached or the connection is exhausted.
+      const totalCap = requestedLimit;
+      const pageSize = Math.min(totalCap, SERVER_MAX_PAGE);
+      const records = [];
+      let after = null;
+      for (let page = 0; records.length < totalCap; page += 1) {
+        const result = await graphqlClient
+          .query(UPGRADE_HISTORY_QUERY, {
+            first: Math.min(pageSize, totalCap - records.length),
+            after,
+            filter: Object.keys(filter).length ? filter : null,
+          })
+          .toPromise();
 
-      // urql reports errors on the result rather than throwing: without this
-      // a failed query fell through and rendered an empty history.
-      if (result.error) throw new Error(result.error.message);
+        // urql reports errors on the result rather than throwing: without this
+        // a failed query fell through and rendered an empty history.
+        if (result.error) throw new Error(result.error.message);
 
-      // Discard the response if the session changed while it was in flight
+        // Discard the response if the session changed while it was in flight
+        if (isSessionStale(gen)) return;
+
+        const connection = result.data?.upgradeHistory;
+        if (!connection) break;
+        records.push(...(connection.items || []));
+
+        const endCursor = connection.pageInfo?.endCursor;
+        if (!connection.pageInfo?.hasNextPage || !endCursor || endCursor === after) break;
+        after = endCursor;
+      }
+
       if (isSessionStale(gen)) return;
-      if (result.data?.upgradeHistory && mountedRef.current) {
-        const data = (result.data.upgradeHistory.items || []).map(mapUpgradeRecord);
-        cachedHistory = data;
+      if (mountedRef.current) {
+        const data = records.map(mapUpgradeRecord);
+        // Only widen the shared cache: a 10-row consumer must not evict the
+        // wider window the analytics charts are reading.
+        if (totalCap >= cachedHistoryCap) {
+          cachedHistory = data;
+          cachedHistoryCap = totalCap;
+        }
         setHistory(data);
       }
     } catch (err) {
@@ -110,7 +146,7 @@ export const useUpgradeHistory = (options = {}) => {
         setLoading(false);
       }
     }
-  }, [options.limit, options.containerName, options.status]);
+  }, [requestedLimit, options.containerName, options.status]);
 
   const fetchStats = useCallback(async () => {
     const gen = getSessionGeneration();
