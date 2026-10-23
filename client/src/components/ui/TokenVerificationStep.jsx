@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import Input from "./Input";
 import Alert from "./Alert";
@@ -58,11 +58,15 @@ function TokenVerificationStep({
     }
   }, [token]);
 
-  // Notify parent of token changes
+  // Notify parent of token changes. Callers pass inline arrows, so the
+  // callback identity changes on every parent render: notifying unconditionally
+  // re-renders the parent, which re-notifies, and the loop never settles.
+  // Only an actual change in the input value is worth reporting.
+  const lastNotifiedRef = useRef(inputToken);
   useEffect(() => {
-    if (onTokenChange) {
-      onTokenChange(inputToken);
-    }
+    if (!onTokenChange || lastNotifiedRef.current === inputToken) return;
+    lastNotifiedRef.current = inputToken;
+    onTokenChange(inputToken);
   }, [inputToken, onTokenChange]);
 
   const handleRegenerate = async () => {

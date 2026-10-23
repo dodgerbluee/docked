@@ -2,7 +2,7 @@
  * Hook for managing avatar crop, zoom, and pan state
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 /**
  * Hook to manage avatar crop, zoom, and pan state
@@ -90,7 +90,7 @@ export const useAvatarCrop = () => {
     reader.readAsDataURL(file);
   };
 
-  const resetAvatarState = () => {
+  const resetAvatarState = useCallback(() => {
     setShowPreviewModal(false);
     setImageReady(false);
     setAvatarPreview(null);
@@ -99,7 +99,7 @@ export const useAvatarCrop = () => {
     setAvatarCrop({ x: 0, y: 0, width: 200, height: 200 });
     setAvatarZoom(1);
     setAvatarPan({ x: 0, y: 0 });
-  };
+  }, []);
 
   return {
     avatarPreview,

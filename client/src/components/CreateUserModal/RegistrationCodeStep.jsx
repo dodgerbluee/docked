@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import TokenVerificationStep from "../ui/TokenVerificationStep";
 import { Key } from "lucide-react";
@@ -19,9 +19,15 @@ function RegistrationCodeStep({
   generating,
   verified,
 }) {
-  // Generate code when component loads (if not already generated)
+  // Generate code when component loads (if not already generated). Only once:
+  // a failed generate leaves codeGenerated false and generating false again,
+  // which would re-arm this effect and hammer the server. The Regenerate
+  // button is the retry path.
+  const attemptedRef = useRef(false);
   useEffect(() => {
+    if (attemptedRef.current) return;
     if (onGenerate && !codeGenerated && !generating && !regenerating) {
+      attemptedRef.current = true;
       onGenerate();
     }
   }, [onGenerate, codeGenerated, generating, regenerating]);

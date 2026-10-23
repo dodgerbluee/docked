@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import TokenVerificationStep from "../ui/TokenVerificationStep";
 import { Shield } from "lucide-react";
@@ -22,13 +22,19 @@ function InstanceAdminVerificationStep({
   error,
 }) {
   const username = typeof user === "string" ? user : user?.username || "";
+  const attemptedForRef = useRef(null);
 
   // Generate token when component loads (if not already generated). The
   // token itself is never returned to the client - it is only written to
   // the container logs - so `generated` is the marker that a pending token
   // exists for this username.
   useEffect(() => {
-    if (username && onGenerate && !generated && !generating) {
+    // One attempt per username: a failed generate leaves `generated` false and
+    // `generating` false again, which would re-arm this effect and hammer the
+    // server. The Regenerate button is the retry path.
+    if (!username || attemptedForRef.current === username) return;
+    if (onGenerate && !generated && !generating) {
+      attemptedForRef.current = username;
       onGenerate(username);
     }
   }, [username, onGenerate, generated, generating]);

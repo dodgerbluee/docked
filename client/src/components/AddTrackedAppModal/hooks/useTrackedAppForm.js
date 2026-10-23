@@ -2,7 +2,7 @@
  * Custom hook for managing tracked app form state and logic
  */
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { PREDEFINED_GITHUB_REPOS, PREDEFINED_DOCKER_IMAGES } from "../../../constants/trackedApps";
 import {
   getTrackedGitHubRepos,
@@ -127,6 +127,9 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
             value: initialData.github_repo,
             label: initialData.github_repo,
           });
+        } else {
+          // Otherwise the previous edit's selection leaks into this form.
+          setSelectedPredefinedRepo(null);
         }
         if (isPredefinedImage && initialData.image_name) {
           const imageWithoutTag = initialData.image_name.split(":")[0];
@@ -134,6 +137,8 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
             value: imageWithoutTag,
             label: imageWithoutTag,
           });
+        } else {
+          setSelectedPredefinedImage(null);
         }
         lastAutoPopulatedName.current = initialData.name || "";
       } else {
@@ -162,7 +167,10 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
     });
   };
 
-  const resetForm = () => {
+  // Stable identity: the modal calls this from an effect keyed on it, and a
+  // fresh function every render made that effect re-arm forever (the reset
+  // re-renders, which recreates the function, which re-runs the effect).
+  const resetForm = useCallback(() => {
     setFormData({
       name: "",
       imageName: "",
@@ -177,7 +185,7 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
     setSelectedPredefinedRepo(null);
     setSelectedPredefinedImage(null);
     lastAutoPopulatedName.current = "";
-  };
+  }, []);
 
   return {
     sourceType,
