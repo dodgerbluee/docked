@@ -88,6 +88,10 @@ export const useUpgradeHistory = (options = {}) => {
         })
         .toPromise();
 
+      // urql reports errors on the result rather than throwing: without this
+      // a failed query fell through and rendered an empty history.
+      if (result.error) throw new Error(result.error.message);
+
       // Discard the response if the session changed while it was in flight
       if (isSessionStale(gen)) return;
       if (result.data?.upgradeHistory && mountedRef.current) {

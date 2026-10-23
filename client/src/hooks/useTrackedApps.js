@@ -82,6 +82,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(cachedLastScanTime);
   const mountedRef = useRef(true);
+  // True while the visible trackedAppError came from a failed load.
+  const loadErrorRef = useRef(false);
   const [editingTrackedAppData, setEditingTrackedAppData] = useState(null);
   const [showAddTrackedAppModal, setShowAddTrackedAppModal] = useState(false);
   const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
@@ -123,6 +125,13 @@ export function useTrackedApps(isAuthenticated, authToken) {
           cachedTrackedApps = sortedApps;
           setTrackedApps(sortedApps);
           setHasLoadedOnce(true); // Mark that we've loaded data at least once
+          // Clear only a load failure we raised ourselves: trackedAppError is
+          // shared with action errors (delete/check), and the periodic refresh
+          // must not erase one of those before the user has seen it.
+          if (loadErrorRef.current) {
+            loadErrorRef.current = false;
+            setTrackedAppError("");
+          }
 
           // Set last scan time from the most recent last_checked
           if (apps.length > 0) {
@@ -145,6 +154,12 @@ export function useTrackedApps(isAuthenticated, authToken) {
       } catch (err) {
         if (isSessionStale(gen)) return;
         console.error("Error fetching tracked apps:", err);
+        // The page renders trackedAppError; without this a failed fetch left
+        // an empty grid and the user could not tell "none" from "broken".
+        if (mountedRef.current) {
+          loadErrorRef.current = true;
+          setTrackedAppError("Failed to load tracked apps");
+        }
       } finally {
         if (mountedRef.current && !isSessionStale(gen)) {
           setIsLoading(false);

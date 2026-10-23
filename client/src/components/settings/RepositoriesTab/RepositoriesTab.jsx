@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import LoadingSpinner from "../../ui/LoadingSpinner";
+import Alert from "../../ui/Alert";
 import ConfirmDialog from "../../ui/ConfirmDialog";
 import { useRepositoryAccessTokens } from "../../../hooks/useRepositoryAccessTokens";
 import AddRepositoryAccessTokenModal from "../../AddRepositoryAccessTokenModal";
@@ -23,6 +24,7 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
   const {
     tokens,
     loading: tokensLoading,
+    error: tokensError,
     createOrUpdateToken,
     deleteToken,
   } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.REPOSITORIES });
@@ -48,7 +50,12 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
 
   const handleTokenDeleteConfirm = useCallback(async () => {
     if (tokenDeleteConfirm.tokenId) {
-      await deleteToken(tokenDeleteConfirm.tokenId);
+      const result = await deleteToken(tokenDeleteConfirm.tokenId);
+      if (result && !result.success) {
+        // Keep the dialog open so the retry is one click away; the reason is
+        // in the banner below.
+        return;
+      }
     }
     setTokenDeleteConfirm({ isOpen: false, tokenId: null });
   }, [tokenDeleteConfirm.tokenId, deleteToken]);
@@ -77,6 +84,10 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
         associate these tokens with your container images to enable automatic update detection for
         private registries.
       </p>
+
+      {/* The token hooks report failures through this state; without it a
+          failed save or delete left no trace at all. */}
+      {tokensError && <Alert variant="error">{tokensError}</Alert>}
 
       <div className={styles.tokensSection}>
         {tokensLoading ? (

@@ -104,15 +104,18 @@ export function useIntents(isAuthenticated, authToken) {
       try {
         if (showLoading) setIsLoading(true);
         const result = await graphqlClient.query(INTENTS_QUERY).toPromise();
+        // urql reports transport/GraphQL errors on the result, it does not
+        // throw: without this a failed fetch looked like "no intents".
+        if (result.error) throw new Error(result.error.message);
         if (result.data?.intents) {
           setIntents(result.data.intents);
           setHasLoadedOnce(true);
         }
       } catch (err) {
         console.error("Error fetching intents:", err);
-        if (showLoading) {
-          setError(err.message || "Failed to fetch intents");
-        }
+        // Report it even for background refreshes: a silent failure leaves
+        // the user looking at a stale (or empty) list with no explanation.
+        setError(err.message || "Failed to fetch intents");
       } finally {
         setIsLoading(false);
       }

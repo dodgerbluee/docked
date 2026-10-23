@@ -127,8 +127,11 @@ export function useImportFlow({
             if (!verified) {
               return false;
             }
-          } catch {
+          } catch (err) {
             setLoading(false);
+            // Without a message the user just watches the button stop
+            // spinning: the flow refused to advance for no visible reason.
+            setError(err?.message || "Token verification failed");
             return false;
           }
         }
@@ -222,8 +225,16 @@ export function useImportFlow({
 
   // Handle next step (with validation)
   const handleNext = useCallback(async () => {
-    return await advanceFlow(false);
-  }, [advanceFlow]);
+    try {
+      return await advanceFlow(false);
+    } catch (err) {
+      // advanceFlow handles the expected failures internally; anything that
+      // reaches here would otherwise be an unhandled rejection with the
+      // button silently refusing to do anything.
+      setError(err?.message || "Failed to advance the import");
+      return false;
+    }
+  }, [advanceFlow, setError]);
 
   // Handle skip current step (without validation)
   const handleSkip = useCallback(() => {
@@ -239,22 +250,15 @@ export function useImportFlow({
 
     setError("");
 
-    // Advance flow without validation
-    advanceFlow(true).then((success) => {
-      if (!success) return;
-
-      // If we completed a user, advanceFlow already handled moving to next user or completion
-      // But we need to handle the case where we're just moving to next step
-      if (currentStepIndex < totalStepsForCurrentUser - 1) {
-        // Already handled in advanceFlow
-        return;
-      }
+    // Advance flow without validation. advanceFlow already reports its own
+    // failures; this only catches an unexpected throw, which would otherwise
+    // be an unhandled rejection with no feedback at all.
+    advanceFlow(true).catch((err) => {
+      setError(err?.message || "Failed to skip the step");
     });
   }, [
     currentUser,
     currentStepType,
-    currentStepIndex,
-    totalStepsForCurrentUser,
     userSkippedSteps,
     setUserSkippedSteps,
     clearStepErrors,

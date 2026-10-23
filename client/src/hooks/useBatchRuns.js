@@ -67,6 +67,12 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
 
       if (!mountedRef.current) return;
 
+      // urql reports query errors on the result instead of throwing, so a
+      // failed runs query used to fall through as "no runs" with no message.
+      if (runsResult.error) {
+        setError(getErrorMessage("BATCH", "FETCH_RUNS"));
+      }
+
       // Items come back newest-first; the first item is the latest run
       const items =
         !runsResult.error && runsResult.data?.batchRuns?.items
