@@ -28,7 +28,7 @@ func sysFreeMemMB() int {
 		return 0
 	}
 	free := uint64(binary.LittleEndian.Uint32(b[0:4]))
-	return int(free*uint64(unix.Getpagesize()) / 1024 / 1024)
+	return int(free * uint64(unix.Getpagesize()) / 1024 / 1024)
 }
 
 func procRSSMB() int {

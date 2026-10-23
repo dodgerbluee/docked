@@ -2095,10 +2095,21 @@ func (r *mutationResolver) DeleteRepositoryToken(ctx context.Context, id string)
 	if err != nil {
 		return nil, err
 	}
-	tid, _ := strconv.ParseInt(id, 10, 64)
+	tid, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		msg := "Invalid token id"
+		return &model.SuccessResult{Success: false, Message: &msg}, nil
+	}
 
-	if err := db.DeleteRepositoryToken(ctx, r.DB, tid, uid); err != nil {
+	deleted, err := db.DeleteRepositoryToken(ctx, r.DB, tid, uid)
+	if err != nil {
 		return nil, err
+	}
+	if deleted == 0 {
+		// Reporting success here left the UI removing a card that was never
+		// touched, and a stale or foreign id silently "worked".
+		msg := "Token not found"
+		return &model.SuccessResult{Success: false, Message: &msg}, nil
 	}
 	return &model.SuccessResult{Success: true}, nil
 }
@@ -2723,7 +2734,12 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 
 	runners, _ := db.GetAllRunners(ctx, r.DB, uid)
 	trackedApps, _ := db.GetAllTrackedApps(ctx, r.DB, uid)
-	unusedImages, _ := db.GetUnusedImages(ctx, r.DB, uid)
+	unusedImages, unusedErr := db.GetUnusedImages(ctx, r.DB, uid)
+	if unusedErr != nil {
+		// Discarding this made a failed lookup indistinguishable from a clean
+		// system: the count simply read zero.
+		slog.Warn("unused images lookup failed", "error", unusedErr)
+	}
 
 	runnerModels := make([]*model.Runner, len(runners))
 	for i, rn := range runners {
@@ -3670,7 +3686,12 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ? AND has_update = 1", uid).Scan(&trackedWithUpdates)
 
 	// unusedImagesCount
-	unusedImages, _ := db.GetUnusedImages(ctx, r.DB, uid)
+	unusedImages, unusedErr := db.GetUnusedImages(ctx, r.DB, uid)
+	if unusedErr != nil {
+		// Discarding this made a failed lookup indistinguishable from a clean
+		// system: the count simply read zero.
+		slog.Warn("unused images lookup failed", "error", unusedErr)
+	}
 
 	return &model.SummaryStats{
 		TotalContainers:        totalContainers,

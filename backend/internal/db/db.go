@@ -31,13 +31,20 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	// Everything below can fail, and a returned error means the caller never
+	// receives the handle, so nothing would ever close it. A leaked *sql.DB
+	// leaves WAL file handles behind on any startup retry loop.
+	closeOnErr := func(err error) error {
+		_ = database.Close()
+		return err
+	}
 
 	// Keep the pool small because this process shares SQLite write access with
 	// Node; WAL permits concurrent readers but SQLite still serializes writers.
 	database.SetMaxOpenConns(4)
 
 	if err := database.Ping(); err != nil {
-		return nil, fmt.Errorf("ping sqlite: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ping sqlite: %w", err))
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS upgrade_locks (
 		target_key TEXT PRIMARY KEY,
@@ -45,7 +52,7 @@ func Open(path string) (*sql.DB, error) {
 		expires_at DATETIME NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`); err != nil {
-		return nil, fmt.Errorf("ensure upgrade locks: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure upgrade locks: %w", err))
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS idempotency_claims (
 		user_id INTEGER NOT NULL,
@@ -54,7 +61,7 @@ func Open(path string) (*sql.DB, error) {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (user_id, operation_type, idempotency_key)
 	)`); err != nil {
-		return nil, fmt.Errorf("ensure idempotency claims: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure idempotency claims: %w", err))
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS pending_auth_tokens (
 		kind TEXT NOT NULL,
@@ -63,7 +70,7 @@ func Open(path string) (*sql.DB, error) {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (kind, username)
 	)`); err != nil {
-		return nil, fmt.Errorf("ensure pending auth tokens: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure pending auth tokens: %w", err))
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS revoked_tokens (
 		token_hash TEXT PRIMARY KEY,
@@ -71,10 +78,10 @@ func Open(path string) (*sql.DB, error) {
 		expires_at INTEGER NOT NULL,
 		revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`); err != nil {
-		return nil, fmt.Errorf("ensure revoked tokens: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure revoked tokens: %w", err))
 	}
 	if _, err := database.Exec(`CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)`); err != nil {
-		return nil, fmt.Errorf("ensure revoked tokens index: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure revoked tokens index: %w", err))
 	}
 	// oauth_states backs the SSO CSRF/PKCE flow (Node migrations 0003/0004
 	// create it today; Go writes it too, so it must survive the Node cutover).
@@ -87,16 +94,16 @@ func Open(path string) (*sql.DB, error) {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		provider_name TEXT
 	)`); err != nil {
-		return nil, fmt.Errorf("ensure oauth states: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure oauth states: %w", err))
 	}
 	// Pre-0004 databases lack provider_name; add it when missing (the
 	// duplicate-column error is expected and ignored).
 	if _, err := database.Exec(`ALTER TABLE oauth_states ADD COLUMN provider_name TEXT`); err != nil &&
 		!strings.Contains(err.Error(), "duplicate column name") {
-		return nil, fmt.Errorf("ensure oauth states provider_name: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure oauth states provider_name: %w", err))
 	}
 	if _, err := database.Exec(`CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at)`); err != nil {
-		return nil, fmt.Errorf("ensure oauth states index: %w", err)
+		return nil, closeOnErr(fmt.Errorf("ensure oauth states index: %w", err))
 	}
 
 	return database, nil
@@ -113,7 +120,12 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open sqlite read-only: %w", err)
 	}
 	if err := database.Ping(); err != nil {
+		_ = database.Close()
 		return nil, fmt.Errorf("ping sqlite read-only: %w", err)
 	}
+	// One connection is enough: this pool exists only to run the single
+	// statement the debug endpoint accepts, and it must not compete with the
+	// main pool for SQLite's writer lock.
+	database.SetMaxOpenConns(1)
 	return database, nil
 }

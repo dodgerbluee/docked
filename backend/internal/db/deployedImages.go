@@ -21,12 +21,28 @@ type DeployedImageRow struct {
 }
 
 // GetUnusedImages returns deployed_images that are not referenced by any container.
+//
+// containers.deployed_image_id is the canonical link, so it drives the
+// exclusion. Matching on image_repo alone was both wrong directions: a repo
+// with a container on one tag hid every other row for that repo (so genuinely
+// unused rows never appeared and unusedImagesCount under-reported), and a
+// container with a NULL image_repo could suppress any deployed_images row that
+// also had no repo. The repo comparison is kept only as a fallback for
+// containers that carry no link at all.
 func GetUnusedImages(ctx context.Context, database *sql.DB, userID int64) ([]DeployedImageRow, error) {
-	q := `SELECT di.id, di.image_repo, di.image_tag, di.image_digest, di.registry, di.namespace, di.repository, di.last_seen
+	q := `SELECT di.id, di.image_repo, di.image_tag, di.image_digest, di.registry, di.namespace, di.repository,
+		COALESCE(di.last_seen, '') AS last_seen
 		FROM deployed_images di
 		WHERE di.user_id = ?
-		AND di.image_repo NOT IN (
-			SELECT COALESCE(image_repo, '') FROM containers WHERE user_id = ?
+		AND di.id NOT IN (
+			SELECT c.deployed_image_id FROM containers c
+			WHERE c.user_id = ? AND c.deployed_image_id IS NOT NULL
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM containers c
+			WHERE c.user_id = di.user_id
+			AND c.deployed_image_id IS NULL
+			AND COALESCE(c.image_repo, '') = COALESCE(di.image_repo, '')
 		)
 		ORDER BY di.last_seen DESC, di.id`
 	rows, err := database.QueryContext(ctx, q, userID, userID)

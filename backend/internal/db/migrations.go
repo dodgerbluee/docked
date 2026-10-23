@@ -980,7 +980,7 @@ func migrateRunnerHealthTracking(ctx context.Context, tx *sql.Tx) error {
 // the same image therefore inserted a second row every time instead of hitting
 // the duplicate error, and the update path then wrote to an arbitrary one of
 // them. Deduplicate what already exists and add an expression index that
-// collapses NULL and '' into the same identity.
+// collapses a NULL and an empty image_name into the same identity.
 //
 // The index is partial on image_name: an app tracked by repository alone has no
 // image identity at all, and those must stay allowed to coexist.

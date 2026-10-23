@@ -62,7 +62,7 @@ func GetRepositoryTokenByID(ctx context.Context, database *sql.DB, userID, token
 }
 
 func UpsertRepositoryToken(ctx context.Context, database *sql.DB, userID int64, provider, name, accessToken string) (int64, error) {
-	res, err := database.ExecContext(ctx,
+	_, err := database.ExecContext(ctx,
 		`INSERT INTO repository_access_tokens (user_id, provider, name, access_token)
 		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(user_id, provider, name) DO UPDATE SET access_token = excluded.access_token, updated_at = CURRENT_TIMESTAMP`,
@@ -70,10 +70,26 @@ func UpsertRepositoryToken(ctx context.Context, database *sql.DB, userID int64, 
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	// SQLite does not advance last_insert_rowid() for the DO UPDATE branch, so
+	// res.LastInsertId() would report whatever an earlier INSERT left behind on
+	// that pooled connection - possibly another user's row. Read the identity
+	// back from the row we just wrote.
+	var id int64
+	if err := database.QueryRowContext(ctx,
+		"SELECT id FROM repository_access_tokens WHERE user_id = ? AND provider = ? AND name = ?",
+		userID, provider, name).Scan(&id); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
-func DeleteRepositoryToken(ctx context.Context, database *sql.DB, id, userID int64) error {
-	_, err := database.ExecContext(ctx, "DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?", id, userID)
-	return err
+// DeleteRepositoryToken reports how many rows it removed so the caller can
+// tell a real delete from an id that matched nothing (stale UI, or another
+// user's row).
+func DeleteRepositoryToken(ctx context.Context, database *sql.DB, id, userID int64) (int64, error) {
+	res, err := database.ExecContext(ctx, "DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?", id, userID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
