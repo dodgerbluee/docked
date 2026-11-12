@@ -23,7 +23,21 @@ func Migrate(ctx context.Context, database *sql.DB) error {
 	if err := ensureSchema(ctx, database); err != nil {
 		return err
 	}
-	return runMigrations(ctx, database)
+	if err := runMigrations(ctx, database); err != nil {
+		return err
+	}
+	// Reconcile this required column even when an imported/restored database
+	// already records migration 16 (or a later version). The ledger alone is
+	// not proof that its physical schema matches the running binary.
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := migrateIntentScheduleTimezone(ctx, tx); err != nil {
+		return fmt.Errorf("ensure intent schedule timezone: %w", err)
+	}
+	return tx.Commit()
 }
 
 // ensureSchema ports the CREATE TABLE IF NOT EXISTS / best-effort ALTER /

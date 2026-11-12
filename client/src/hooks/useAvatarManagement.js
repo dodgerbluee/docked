@@ -59,11 +59,9 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
       const response = await axios.get(`${API_BASE_URL}/api/avatars/recent`);
       if (response.data.success && response.data.avatars) {
         const avatars = response.data.avatars
-          .filter((avatar) => avatar && avatar.url) // Filter out invalid avatars
-          .map((avatar) => ({
-            ...avatar,
-            url: avatar.url.startsWith("http") ? avatar.url : `${API_BASE_URL}${avatar.url}`,
-          }));
+          .map((avatar) => (typeof avatar === "string" ? avatar : avatar?.url))
+          .filter((url) => typeof url === "string" && url)
+          .map((url) => (url.startsWith("http") ? url : `${API_BASE_URL}${url}`));
         setRecentAvatars(avatars);
       }
     } catch (err) {

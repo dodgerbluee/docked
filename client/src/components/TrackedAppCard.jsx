@@ -4,10 +4,11 @@
  *
  * Interactions:
  * - Tap/click: mark as upgraded (when update available)
- * - Long-press: open edit mode (touch shortcut for the Edit button)
+ * - Long-press: open edit mode
+ * - Keyboard: tab to reveal the Edit control
  */
 
-import React, { useMemo, useCallback, useRef } from "react";
+import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Edit2 } from "lucide-react";
 import { getDockerHubRepoUrl } from "../utils/formatters";
@@ -24,6 +25,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
   // Long-press state
   const longPressTimer = useRef(null);
   const longPressFired = useRef(false);
+  useEffect(() => () => clearTimeout(longPressTimer.current), []);
   // Memoize computed values
   const hasNoLatestVersion = useMemo(
     () =>
@@ -190,8 +192,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
               {image.name}
             </span>
           </div>
-          {/* Always-available edit control: the long-press shortcut is pointer-only
-              and gives keyboard/AT users no way to reach it. */}
+          {/* Revealed on keyboard focus; pointer users retain press-and-hold. */}
           <Button
             variant="ghost"
             size="sm"

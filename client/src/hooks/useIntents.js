@@ -110,6 +110,7 @@ export function useIntents(isAuthenticated, authToken) {
         if (result.data?.intents) {
           setIntents(result.data.intents);
           setHasLoadedOnce(true);
+          setError("");
         }
       } catch (err) {
         console.error("Error fetching intents:", err);

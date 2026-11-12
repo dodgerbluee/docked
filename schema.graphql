@@ -1093,6 +1093,10 @@ type Query {
   # Single container by canonical ID (source/endpoint resolved server-side)
   container(id: ID!): Container
 
+  # Container Details: full digest comparison, related image records and the
+  # latest 20 upgrades. Docker IDs require a runner to avoid host collisions.
+  containerDetails(containerId: ID!, runnerId: ID!): JSON
+
   # Developer-mode data viewer: cached container rows grouped by image, plus
   # the raw table records and their image-keyed correlation.
   containerData: ContainerDataResult!

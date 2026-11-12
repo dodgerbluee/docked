@@ -89,6 +89,23 @@ func TestJWTSecretEnvWins(t *testing.T) {
 	}
 }
 
+func TestDataDirFollowsDatabaseDefaults(t *testing.T) {
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("DATABASE_PATH", "/mounted/docked/users.db")
+	if got := DataDir(); got != "/mounted/docked" {
+		t.Fatalf("DataDir = %q", got)
+	}
+	t.Setenv("DATA_DIR", "/separate-assets")
+	if got := DataDir(); got != "/separate-assets" {
+		t.Fatalf("explicit DataDir = %q", got)
+	}
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("DATABASE_PATH", "")
+	if got := DataDir(); got != filepath.Dir(dbPath()) {
+		t.Fatalf("avatar dir %q differs from database default", got)
+	}
+}
+
 func TestJWTSecretGeneratedAndPersisted(t *testing.T) {
 	os.Unsetenv("JWT_SECRET")
 	dir := t.TempDir()

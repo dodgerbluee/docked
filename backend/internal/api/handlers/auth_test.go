@@ -1071,6 +1071,11 @@ func TestAvatarRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
+	// Recent-avatar reads can create the ID directory before the current
+	// avatar has migrated. Its mere existence must not block recovery.
+	if err := os.MkdirAll(filepath.Join(dataDir, "avatars", itoa(plainID), "recent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Missing avatar: 404 JSON (client maps this to its own default image).
 	code, body := doJSON(t, h, http.MethodGet, "/api/avatars", nil, plainToken)

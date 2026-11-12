@@ -19,6 +19,7 @@ import (
 
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/auth"
+	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/imagesync"
 )
@@ -1369,10 +1370,7 @@ func pruneRecentAvatars(dir string) {
 // tracked-app checks now run through the full imagesync.Service pipeline.
 
 func getDataDir() string {
-	if d := os.Getenv("DATA_DIR"); d != "" {
-		return d
-	}
-	return "./data"
+	return config.DataDir()
 }
 func derefStr(s *string) string {
 	if s == nil {

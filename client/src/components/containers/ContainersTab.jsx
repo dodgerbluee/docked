@@ -30,6 +30,7 @@ const ContainersTab = React.memo(function ContainersTab({
   onToggleStack,
   onToggleSelect,
   onUpgrade,
+  onOpenDetails,
   developerModeEnabled = false,
   activeUpgrades = [],
   dismissActiveUpgrade,
@@ -147,6 +148,7 @@ const ContainersTab = React.memo(function ContainersTab({
                               showUpdates={container.hasUpdate}
                               onToggleSelect={onToggleSelect}
                               onUpgrade={onUpgrade}
+                              onOpenDetails={onOpenDetails}
                               developerModeEnabled={developerModeEnabled}
                               disabledMessage={getBlockedMessage?.(container)}
                             />
@@ -269,6 +271,7 @@ const ContainersTab = React.memo(function ContainersTab({
                           showUpdates={showUpdates}
                           onToggleSelect={onToggleSelect}
                           onUpgrade={onUpgrade}
+                          onOpenDetails={onOpenDetails}
                           developerModeEnabled={developerModeEnabled}
                           disabledMessage={getBlockedMessage?.(container)}
                         />
@@ -327,6 +330,7 @@ const ContainersTab = React.memo(function ContainersTab({
             onToggleStack={onToggleStack}
             onToggleSelect={onToggleSelect}
             onUpgrade={onUpgrade}
+            onOpenDetails={onOpenDetails}
             developerModeEnabled={developerModeEnabled}
           />
         ))}
@@ -356,6 +360,7 @@ ContainersTab.propTypes = {
   onToggleStack: PropTypes.func.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  onOpenDetails: PropTypes.func.isRequired,
   developerModeEnabled: PropTypes.bool,
   activeUpgrades: PropTypes.arrayOf(PropTypes.object),
   dismissActiveUpgrade: PropTypes.func,

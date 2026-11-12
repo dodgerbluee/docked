@@ -325,6 +325,16 @@ func dbPath() string {
 	return "../data/users.db"
 }
 
+// DataDir keeps avatar reads/writes beside the default database, including
+// local development and images mounted at /data. An explicit asset directory
+// remains independent of DATABASE_PATH.
+func DataDir() string {
+	if v := os.Getenv("DATA_DIR"); v != "" {
+		return v
+	}
+	return filepath.Dir(dbPath())
+}
+
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

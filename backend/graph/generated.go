@@ -474,6 +474,7 @@ type ComplexityRoot struct {
 		BatchRuns                     func(childComplexity int, jobType *model.BatchJobType, first *int, after *string) int
 		Container                     func(childComplexity int, id string) int
 		ContainerData                 func(childComplexity int) int
+		ContainerDetails              func(childComplexity int, containerID string, runnerID string) int
 		ContainerGroup                func(childComplexity int) int
 		Containers                    func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
 		DebugEndpointsEnabled         func(childComplexity int) int
@@ -935,6 +936,7 @@ type QueryResolver interface {
 	Containers(ctx context.Context, filter *model.ContainerFilterInput, first *int, after *string) (*model.ContainerConnection, error)
 	ContainerGroup(ctx context.Context) (*model.ContainerGroup, error)
 	Container(ctx context.Context, id string) (*model.Container, error)
+	ContainerDetails(ctx context.Context, containerID string, runnerID string) (model.JSON, error)
 	ContainerData(ctx context.Context) (*model.ContainerDataResult, error)
 	UnusedImages(ctx context.Context) ([]*model.DockerImage, error)
 	Runners(ctx context.Context) ([]*model.Runner, error)
@@ -3250,6 +3252,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContainerData(childComplexity), true
+	case "Query.containerDetails":
+		if e.ComplexityRoot.Query.ContainerDetails == nil {
+			break
+		}
+
+		args, err := ec.field_Query_containerDetails_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ContainerDetails(childComplexity, args["containerId"].(string), args["runnerId"].(string)), true
 	case "Query.containerGroup":
 		if e.ComplexityRoot.Query.ContainerGroup == nil {
 			break
@@ -6174,6 +6187,10 @@ type Query {
   # Single container by canonical ID (source/endpoint resolved server-side)
   container(id: ID!): Container
 
+  # Container Details: full digest comparison, related image records and the
+  # latest 20 upgrades. Docker IDs require a runner to avoid host collisions.
+  containerDetails(containerId: ID!, runnerId: ID!): JSON
+
   # Developer-mode data viewer: cached container rows grouped by image, plus
   # the raw table records and their image-keyed correlation.
   containerData: ContainerDataResult!
@@ -9053,6 +9070,28 @@ func (ec *executionContext) field_Query_batchRuns_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_containerDetails_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "containerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["containerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg1
 	return args, nil
 }
 
@@ -18693,6 +18732,50 @@ func (ec *executionContext) fieldContext_Query_container(ctx context.Context, fi
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_container_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_containerDetails(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_containerDetails(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ContainerDetails(ctx, fc.Args["containerId"].(string), fc.Args["runnerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.JSON) graphql.Marshaler {
+			return ec.marshalOJSON2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐJSON(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_containerDetails(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_containerDetails_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -31559,6 +31642,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_container(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "containerDetails":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_containerDetails(ctx, field)
 				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

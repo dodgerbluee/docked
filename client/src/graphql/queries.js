@@ -119,6 +119,12 @@ export const UPDATE_PASSWORD_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const CONTAINER_DETAILS_QUERY = /* GraphQL */ `
+  query ContainerDetails($containerId: ID!, $runnerId: ID!) {
+    containerDetails(containerId: $containerId, runnerId: $runnerId)
+  }
+`;
+
 export const CONTAINERS_QUERY = /* GraphQL */ `
   query Containers {
     containerGroup {

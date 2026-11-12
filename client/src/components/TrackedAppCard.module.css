@@ -126,6 +126,18 @@ body.dark-mode .noCurrentVersion:hover {
   flex-shrink: 0;
 }
 
+/* Keep the original press-and-hold appearance, with an edit control revealed
+   when a keyboard user tabs to it. */
+.editButton:not(:focus-visible) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .name {
   font-size: 0.95rem;
   white-space: nowrap;

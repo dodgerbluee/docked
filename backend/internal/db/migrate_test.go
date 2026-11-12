@@ -66,6 +66,31 @@ func execOK(t *testing.T, database *sql.DB, stmt string, args ...any) {
 	}
 }
 
+func TestMigrateRestoresIntentTimezoneWithoutLosingIntents(t *testing.T) {
+	for _, ledger := range []string{"legacy-v15", "already-v17"} {
+		t.Run(ledger, func(t *testing.T) {
+			database := testDB(t)
+			migrate(t, database)
+			execOK(t, database, `INSERT INTO users (id, username, password_hash) VALUES (1, 'owner', 'hash')`)
+			execOK(t, database, `INSERT INTO intents (user_id, name, match_containers, schedule_type, schedule_cron) VALUES (1, 'keep-me', '["web*"]', 'scheduled', '0 4 * * *')`)
+			execOK(t, database, `ALTER TABLE intents DROP COLUMN schedule_timezone`)
+			if ledger == "legacy-v15" {
+				execOK(t, database, `DELETE FROM schema_migrations WHERE version > 15`)
+			}
+			for i := 0; i < 2; i++ {
+				migrate(t, database)
+				rows, err := GetIntentsByUser(context.Background(), database, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(rows) != 1 || rows[0].Name != "keep-me" || rows[0].MatchContainers.String != `["web*"]` || rows[0].ScheduleCron.String != "0 4 * * *" || rows[0].ScheduleTimezone.Valid {
+					t.Fatalf("intent changed during repair: %+v", rows)
+				}
+			}
+		})
+	}
+}
+
 // TestMigrateFreshSchema verifies a from-nothing Migrate produces the same
 // final schema Node's initializeDatabase + migrations 1-15 produce.
 func TestMigrateFreshSchema(t *testing.T) {

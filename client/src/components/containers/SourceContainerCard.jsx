@@ -20,6 +20,7 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   showUpdates,
   onToggleSelect,
   onUpgrade,
+  onOpenDetails,
   developerModeEnabled = false,
   disabledMessage,
 }) {
@@ -35,16 +36,13 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   const canOpenUpgrade =
     !isPortainer && !upgrading && !!onUpgrade && (showUpdates || developerModeEnabled);
 
-  // Handle container name click - open the upgrade confirm popup (current vs
-  // available version), same as clicking the card body.
+  // Inspection is available even when upgrades are blocked or unnecessary.
   const handleContainerNameClick = useCallback(
     (e) => {
       e.stopPropagation();
-      if (canOpenUpgrade) {
-        onUpgrade(container);
-      }
+      onOpenDetails?.(container);
     },
-    [canOpenUpgrade, onUpgrade, container]
+    [onOpenDetails, container]
   );
 
   // Handle card click to open upgrade/rebuild modal
@@ -103,11 +101,10 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
             className={styles.containerName}
             title={container.name}
             onClick={handleContainerNameClick}
-            // The name is the keyboard-reachable way to open the upgrade
-            // confirm popup; the card body itself is role="article".
+            // Container details remain independent of the card upgrade action.
             role="button"
             tabIndex={0}
-            aria-label={`Open upgrade details for ${container.name}`}
+            aria-label={`Open container details for ${container.name}`}
             onKeyDown={(e) => {
               if (e.target !== e.currentTarget) return;
               if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
@@ -253,6 +250,7 @@ SourceContainerCard.propTypes = {
   showUpdates: PropTypes.bool.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  onOpenDetails: PropTypes.func.isRequired,
   developerModeEnabled: PropTypes.bool,
   disabledMessage: PropTypes.string,
 };

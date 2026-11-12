@@ -27,18 +27,14 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/dockedapp/backend/internal/auth"
+	"github.com/dockedapp/backend/internal/config"
 	"github.com/dockedapp/backend/internal/db"
 )
 
-// avatarsDir resolves the avatar root. Matches the graph package's
-// getDataDir (DATA_DIR env or "./data"); production always sets DATA_DIR,
-// which is also Node's only real configuration.
+// avatarsDir uses the same data root as GraphQL avatar uploads and the
+// database defaults, including /data mounts without an explicit DATA_DIR.
 func avatarsDir() string {
-	dataDir := os.Getenv("DATA_DIR")
-	if dataDir == "" {
-		dataDir = "./data"
-	}
-	return filepath.Join(dataDir, "avatars")
+	return filepath.Join(config.DataDir(), "avatars")
 }
 
 var recentFilenameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+\.jpg$`)
@@ -81,7 +77,8 @@ func isSafeLegacyAvatarName(name string) bool {
 
 // migrateAvatarFromUsername copies (never moves) an older username-keyed
 // avatar directory into the userId-keyed one, matching Node: if the new
-// directory already exists, nothing happens.
+// file already exists, it is preserved. A recent-only directory must not
+// prevent recovery of the current avatar after an interrupted migration.
 func migrateAvatarFromUsername(userID int64, oldUsername string) {
 	if !isSafeLegacyAvatarName(oldUsername) {
 		return
@@ -93,22 +90,19 @@ func migrateAvatarFromUsername(userID int64, oldUsername string) {
 	if _, err := os.Stat(oldDir); err != nil {
 		return
 	}
-	if _, err := os.Stat(newDir); err == nil {
-		return
-	}
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		slog.Warn("avatar migration: mkdir failed", "error", err.Error())
 		return
 	}
-	if err := copyTree(filepath.Join(oldDir, "avatar.jpg"), filepath.Join(newDir, "avatar.jpg")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := copyMissingAvatarFiles(filepath.Join(oldDir, "avatar.jpg"), filepath.Join(newDir, "avatar.jpg")); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		slog.Warn("avatar migration: copy failed", "error", err.Error())
 	}
-	if err := copyTree(filepath.Join(oldDir, "recent"), filepath.Join(newDir, "recent")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := copyMissingAvatarFiles(filepath.Join(oldDir, "recent"), filepath.Join(newDir, "recent")); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		slog.Warn("avatar migration: recent copy failed", "error", err.Error())
 	}
 }
 
-func copyTree(src, dst string) error {
+func copyMissingAvatarFiles(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -118,7 +112,16 @@ func copyTree(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(dst, data, 0o644)
+		f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, fs.ErrExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		_, writeErr := f.Write(data)
+		closeErr := f.Close()
+		return errors.Join(writeErr, closeErr)
 	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
@@ -127,8 +130,8 @@ func copyTree(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	for _, e := range entries {
-		if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+	for _, entry := range entries {
+		if err := copyMissingAvatarFiles(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
 			return err
 		}
 	}

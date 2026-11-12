@@ -9,6 +9,7 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import MobileDrawer from "../components/ui/MobileDrawer";
 import SourcesSidebar from "../components/containers/SourcesSidebar";
+import ContainerDebugModal from "../components/containers/ContainerDebugModal";
 import ContainersTab from "../components/containers/ContainersTab";
 import UnusedTab from "../components/containers/UnusedTab";
 import UpgradeHistoryTab from "../components/containers/UpgradeHistoryTab";
@@ -60,6 +61,9 @@ function ContainersPage({
   onManageSources = null,
   onManageIntents = null,
 }) {
+  const [detailsContainer, setDetailsContainer] = useState(null);
+  const closeContainerDetails = useCallback(() => setDetailsContainer(null), []);
+
   // Use extracted hooks
   const { developerModeEnabled } = useDeveloperMode();
 
@@ -323,6 +327,7 @@ function ContainersPage({
                       onToggleStack={containersPage.toggleStack}
                       onToggleSelect={containersPage.handleToggleSelect}
                       onUpgrade={containersPage.handleUpgrade}
+                      onOpenDetails={setDetailsContainer}
                       developerModeEnabled={developerModeEnabled}
                       activeUpgrades={containersPage.activeUpgrades}
                       dismissActiveUpgrade={containersPage.dismissActiveUpgrade}
@@ -347,6 +352,7 @@ function ContainersPage({
                       onToggleStack={containersPage.toggleStack}
                       onToggleSelect={containersPage.handleToggleSelect}
                       onUpgrade={containersPage.handleUpgrade}
+                      onOpenDetails={setDetailsContainer}
                       developerModeEnabled={developerModeEnabled}
                       activeUpgrades={containersPage.activeUpgrades}
                       dismissActiveUpgrade={containersPage.dismissActiveUpgrade}
@@ -423,6 +429,15 @@ function ContainersPage({
         onConfirmForBanner={(container) => containersPage.confirmAndStartUpgrade(container)}
         onNavigateToLogs={onNavigateToLogs}
       />
+
+      {detailsContainer && (
+        <ContainerDebugModal
+          key={getContainerKey(detailsContainer)}
+          container={detailsContainer}
+          onClose={closeContainerDetails}
+          developerModeEnabled={developerModeEnabled}
+        />
+      )}
 
       {/* Error Modal for Container Upgrade Failures */}
       <ErrorModal

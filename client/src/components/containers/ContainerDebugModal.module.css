@@ -1,0 +1,158 @@
+.topSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 1rem 0;
+}
+
+.metadataCard,
+.comparisonCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.cardTitle {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.metadataGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.metadataItem,
+.digestColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.metadataLabel,
+.digestLabel {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.metadataValue {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.comparisonGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.digestBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  min-width: 0;
+}
+
+.digestCode {
+  font-family: monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.vsDivider {
+  color: var(--text-secondary);
+  font-weight: 700;
+  text-align: center;
+}
+
+.updateBadge {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.providerInfo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.section {
+  margin-top: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  padding: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--bg-secondary);
+}
+
+.sectionHeader:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -3px;
+}
+
+.sectionContent {
+  padding: 0.75rem;
+}
+
+.tableWrapper {
+  max-height: 400px;
+  overflow: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fieldName {
+  color: var(--text-secondary);
+}
+
+.fieldValue {
+  font-family: monospace;
+  overflow-wrap: anywhere;
+  min-width: 160px;
+  user-select: text;
+}
+
+@media (max-width: 600px) {
+  .metadataGrid,
+  .comparisonGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -2939,6 +2939,11 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 	return containerRowToModel(row), nil
 }
 
+// ContainerDetails is the resolver for the containerDetails field.
+func (r *queryResolver) ContainerDetails(ctx context.Context, containerID string, runnerID string) (model.JSON, error) {
+	return r.containerDetails(ctx, containerID, runnerID)
+}
+
 // ContainerData is the resolver for the containerData field: the developer-mode
 // data viewer behind the legacy REST GET /api/containers/data. Entry and record
 // shapes are opaque JSON because the viewer renders them as raw records.

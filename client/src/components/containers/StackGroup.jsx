@@ -20,6 +20,7 @@ const StackGroup = React.memo(function StackGroup({
   onToggleStack,
   onToggleSelect,
   onUpgrade,
+  onOpenDetails,
   developerModeEnabled = false,
   getBlockedMessage,
 }) {
@@ -102,6 +103,7 @@ const StackGroup = React.memo(function StackGroup({
                 showUpdates={showUpdates}
                 onToggleSelect={onToggleSelect}
                 onUpgrade={onUpgrade}
+                onOpenDetails={onOpenDetails}
                 developerModeEnabled={developerModeEnabled}
                 disabledMessage={getBlockedMessage?.(container)}
               />
@@ -124,6 +126,7 @@ StackGroup.propTypes = {
   onToggleStack: PropTypes.func.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  onOpenDetails: PropTypes.func.isRequired,
   getBlockedMessage: PropTypes.func,
 };
 
