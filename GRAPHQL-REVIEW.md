@@ -8,14 +8,14 @@ This is a source review with focused local tests, not a production load test or 
 
 The grading scale for the next review is A = 90–100, B = 80–89, C = 70–79, D = 60–69. Target **85 or higher** to leave room above the B threshold. A confirmed cross-user disclosure, privilege bypass, or destructive-operation correctness bug blocks a B until repaired, regardless of the numerical total.
 
-| Category | Current | Maximum |
-| --- | ---: | ---: |
-| Authentication, authorization, session isolation | 22 | 25 |
-| Schema, input and error contracts | 15 | 20 |
-| Query cost, pagination and data access | 12 | 20 |
-| Mutation and subscription reliability | 17 | 20 |
-| Tests, reproducibility and diagnostics | 12 | 15 |
-| Total | 78 | 100 |
+| Category                                         | Current | Maximum |
+| ------------------------------------------------ | ------: | ------: |
+| Authentication, authorization, session isolation |      22 |      25 |
+| Schema, input and error contracts                |      15 |      20 |
+| Query cost, pagination and data access           |      12 |      20 |
+| Mutation and subscription reliability            |      17 |      20 |
+| Tests, reproducibility and diagnostics           |      12 |      15 |
+| Total                                            |      78 |     100 |
 
 ### What earns credit
 
@@ -84,17 +84,17 @@ These are source-supported abuse scenarios and investigation targets. They are n
 
 This backlog turns the five implementation stages below into reviewable deliverables. Security and debt entries overlap: a shared fix earns credit once in the weighted rubric. Assign a named owner and link a PR plus test/benchmark output to every required row before re-review.
 
-| ID / priority | Deliverable and location | Done when | Grade linkage |
-| --- | --- | --- | --- |
-| TD-1 / P1 | Request-scoped loaders and shared inventory in graph helpers and API operation context | Repeated references to the same runner/intent reuse one load; inventory aliases reuse one collection; different users/requests remain isolated | Performance; SEC-1 |
-| TD-2 / P1 | Bounded pagination in schema, DB queries, graph helpers and client hooks | Persisted small pages avoid full-table materialization; grouped defaults are bounded; clients accumulate pages; mutable-history cursor behavior passes insertion/deletion tests | Performance |
-| TD-3 / P1 | Typed errors and authoritative DB error propagation in resolvers/API/client | Failure injection covers ignored read-after-write/status reads; stable codes replace message matching; committed writes remain reconcilable; internal details stay private | Contracts; SEC-3 |
-| TD-4 / P1 | Authorization and subscription lifecycle matrix in backend API/graph/events tests | SEC-2/SEC-4 evidence exists; revocation/disconnect frees resources; foreign-ID actions cannot affect another user's runners or data | Security and reliability |
-| TD-5 / P1 | Reproducible schema generation and complete document validation in CI | Pinned generation leaves no tracked diff; every shipped document including inline logout is validated; an intentionally breaking schema fixture fails the compatibility check | Tests/reproducibility |
-| TD-6 / P2 | Operation diagnostics and benchmark fixtures | Bounded-label timing/error/call-count metrics exist; secrets are redacted; fixed fixtures record p50/p95, memory and downstream calls against an agreed budget | Diagnostics and performance |
-| TD-7 / P2 | Extract cohesive resolver services from schema.resolvers.go | Move inventory, authorization, operation orchestration and error mapping into focused helpers/services as those areas change; generation preserves handwritten logic and existing behavior tests pass | Maintainability; supports TD-1/TD-3 |
-| TD-8 / P2 | Scalar boundary tests in graph/model | BigInt rejects fractional/out-of-range numeric inputs; its wire format preserves values beyond JavaScript's safe integer range with client compatibility tests; JSON's documented accepted shape matches implementation | Contract hardening |
-| TD-9 / P2 | Event-loss recovery contract in events and client subscription hooks | Force hub buffer overflow and reconnect; client reconciles terminal state by query; dropped-event telemetry is usable and a lost event cannot leave the UI indefinitely running | Reliability |
+| ID / priority | Deliverable and location                                                               | Done when                                                                                                                                                                                                               | Grade linkage                       |
+| ------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| TD-1 / P1     | Request-scoped loaders and shared inventory in graph helpers and API operation context | Repeated references to the same runner/intent reuse one load; inventory aliases reuse one collection; different users/requests remain isolated                                                                          | Performance; SEC-1                  |
+| TD-2 / P1     | Bounded pagination in schema, DB queries, graph helpers and client hooks               | Persisted small pages avoid full-table materialization; grouped defaults are bounded; clients accumulate pages; mutable-history cursor behavior passes insertion/deletion tests                                         | Performance                         |
+| TD-3 / P1     | Typed errors and authoritative DB error propagation in resolvers/API/client            | Failure injection covers ignored read-after-write/status reads; stable codes replace message matching; committed writes remain reconcilable; internal details stay private                                              | Contracts; SEC-3                    |
+| TD-4 / P1     | Authorization and subscription lifecycle matrix in backend API/graph/events tests      | SEC-2/SEC-4 evidence exists; revocation/disconnect frees resources; foreign-ID actions cannot affect another user's runners or data                                                                                     | Security and reliability            |
+| TD-5 / P1     | Reproducible schema generation and complete document validation in CI                  | Pinned generation leaves no tracked diff; every shipped document including inline logout is validated; an intentionally breaking schema fixture fails the compatibility check                                           | Tests/reproducibility               |
+| TD-6 / P2     | Operation diagnostics and benchmark fixtures                                           | Bounded-label timing/error/call-count metrics exist; secrets are redacted; fixed fixtures record p50/p95, memory and downstream calls against an agreed budget                                                          | Diagnostics and performance         |
+| TD-7 / P2     | Extract cohesive resolver services from schema.resolvers.go                            | Move inventory, authorization, operation orchestration and error mapping into focused helpers/services as those areas change; generation preserves handwritten logic and existing behavior tests pass                   | Maintainability; supports TD-1/TD-3 |
+| TD-8 / P2     | Scalar boundary tests in graph/model                                                   | BigInt rejects fractional/out-of-range numeric inputs; its wire format preserves values beyond JavaScript's safe integer range with client compatibility tests; JSON's documented accepted shape matches implementation | Contract hardening                  |
+| TD-9 / P2     | Event-loss recovery contract in events and client subscription hooks                   | Force hub buffer overflow and reconnect; client reconciles terminal state by query; dropped-event telemetry is usable and a lost event cannot leave the UI indefinitely running                                         | Reliability                         |
 
 **Additional source observations:** `backend/graph/model/scalars.go` currently casts float64 to BigInt without integral/range validation and serializes BigInt as a JSON number, which can lose precision in JavaScript. JSON accepts objects despite its broader schema description. `backend/internal/events/hub.go` intentionally drops events when consumer buffers fill and already counts/logs drops; the remaining obligation is to verify client recovery. These are contract/reliability debt, not demonstrated security exploits.
 
