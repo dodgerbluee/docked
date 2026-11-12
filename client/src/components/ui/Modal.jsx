@@ -19,6 +19,8 @@ const Modal = React.memo(function Modal({
   size = "md",
   showCloseButton = true,
   className = "",
+  contentClassName = "",
+  overlayClassName = "",
   nonBlocking = false,
   fullScreenMobile = false,
   zIndex,
@@ -113,6 +115,7 @@ const Modal = React.memo(function Modal({
 
   const overlayClass = [
     styles.overlay,
+    overlayClassName,
     nonBlocking && styles.nonBlocking,
     fullScreenMobile && styles.fullScreenMobile,
   ]
@@ -177,7 +180,7 @@ const Modal = React.memo(function Modal({
             )}
           </div>
         )}
-        <div className={styles.content}>{children}</div>
+        <div className={`${styles.content} ${contentClassName}`}>{children}</div>
       </div>
     </div>
   );
@@ -194,6 +197,8 @@ Modal.propTypes = {
   size: PropTypes.oneOf(["sm", "md", "lg", "xl"]),
   showCloseButton: PropTypes.bool,
   className: PropTypes.string,
+  contentClassName: PropTypes.string,
+  overlayClassName: PropTypes.string,
   nonBlocking: PropTypes.bool,
   fullScreenMobile: PropTypes.bool,
   zIndex: PropTypes.number,
