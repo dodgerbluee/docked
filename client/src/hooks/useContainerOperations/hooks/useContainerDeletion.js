@@ -131,7 +131,9 @@ export const useContainerDeletion = ({
           const deleted = imagesToDelete.filter((img) => !isFailure(img));
           const deletedKeys = new Set(deleted.map((img) => deleteKey(img.id, img.runnerId)));
 
-          setUnusedImages((prev) => prev.filter((img) => !deletedKeys.has(deleteKey(img.id, img.runnerId))));
+          setUnusedImages((prev) =>
+            prev.filter((img) => !deletedKeys.has(deleteKey(img.id, img.runnerId)))
+          );
           setUnusedImagesCount((prev) => Math.max(0, prev - deletedKeys.size));
           setSelectedImages((prev) => {
             const next = new Set(prev);

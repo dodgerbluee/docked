@@ -776,7 +776,8 @@ export default function AppsPage({
         </Alert>
       );
     // True when there is no successful read left to speak for an empty list.
-    const everyReadFailed = failedRunners.length > 0 && failedRunners.length === enabledRunners.length;
+    const everyReadFailed =
+      failedRunners.length > 0 && failedRunners.length === enabledRunners.length;
 
     if (enabledRunners.length === 0) {
       // The banner above already explains this case: an empty list that came

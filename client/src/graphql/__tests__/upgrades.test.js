@@ -106,9 +106,7 @@ describe("upgradeRunnerContainer", () => {
       opResult({
         data: {
           upgradeHistory: {
-            items: [
-              { dockerContainerId: source.id, status: "SUCCESS", source: { id: "16" } },
-            ],
+            items: [{ dockerContainerId: source.id, status: "SUCCESS", source: { id: "16" } }],
           },
         },
       });
@@ -127,9 +125,7 @@ describe("upgradeRunnerContainer", () => {
       return opResult({
         data: {
           upgradeHistory: {
-            items: [
-              { dockerContainerId: source.id, status: "SUCCESS", source: { id: "17" } },
-            ],
+            items: [{ dockerContainerId: source.id, status: "SUCCESS", source: { id: "17" } }],
           },
         },
       });

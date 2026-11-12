@@ -133,7 +133,7 @@ jobs:
         run: |
           npm ci
           cd client && npm ci
-          cd backend && go mod download
+          cd ../backend && go mod download
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master

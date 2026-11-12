@@ -223,7 +223,9 @@ func TestIsIntentDue(t *testing.T) {
 	// Old last evaluation: due. The trigger point is the LAST cron point at or
 	// before now, not the first one after the last evaluation: missed points
 	// are coalesced rather than replayed.
-	last := "2026-10-21T11:58:00.000Z"
+	// Keep several missed points in every server timezone. A fixed UTC last
+	// value paired with a local-time now left only one point on UTC runners.
+	last := now.Add(-22 * time.Minute).UTC().Format(isoMillis)
 	r = IsIntentDue(mk("scheduled", "*/5 * * * *", last), now)
 	if !r.IsDue {
 		t.Fatalf("expected due, got %+v", r)

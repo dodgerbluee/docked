@@ -643,12 +643,14 @@ const IntentForm = React.memo(function IntentForm({
     const excludeSwitched = formData.excludeType !== detectExcludeType(initialData);
     if (!matchSwitched) {
       for (const [type, field] of Object.entries(MATCH_DIMENSION_FIELDS)) {
-        if (type !== formData.matchType && initialData[field]?.length) carried[field] = initialData[field];
+        if (type !== formData.matchType && initialData[field]?.length)
+          carried[field] = initialData[field];
       }
     }
     if (!excludeSwitched) {
       for (const [type, field] of Object.entries(EXCLUDE_DIMENSION_FIELDS)) {
-        if (type !== formData.excludeType && initialData[field]?.length) carried[field] = initialData[field];
+        if (type !== formData.excludeType && initialData[field]?.length)
+          carried[field] = initialData[field];
       }
     }
     return carried;
@@ -681,9 +683,7 @@ const IntentForm = React.memo(function IntentForm({
           return { ...prev, excludeValues: merged };
         });
       })
-      .catch((err) =>
-        setBlocklistError(err?.message || "Could not load the upgrade blocklist")
-      );
+      .catch((err) => setBlocklistError(err?.message || "Could not load the upgrade blocklist"));
   }, []);
 
   useEffect(() => {
@@ -843,10 +843,9 @@ const IntentForm = React.memo(function IntentForm({
       {formError && <div className={styles.formError}>{formError}</div>}
       {droppedDimensions.length > 0 && (
         <div className={styles.formWarning} role="alert">
-          Switching the criterion will remove {droppedDimensions.join(
-            ", "
-          )} from this intent. Those dimensions cannot be edited here, so saving now drops them and
-          widens what the policy applies to.
+          Switching the criterion will remove {droppedDimensions.join(", ")} from this intent. Those
+          dimensions cannot be edited here, so saving now drops them and widens what the policy
+          applies to.
         </div>
       )}
       {blocklistError && (
